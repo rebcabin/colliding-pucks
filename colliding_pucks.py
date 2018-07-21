@@ -232,6 +232,8 @@ def demo_cage_time_warp(dt=1):
             vt: VirtualTime, state: State, msgs: List[EventMessage]):
         pass
 
+    clear_screen()
+
     wall_lps = [WallLP(Wall(SCREEN_TL, SCREEN_BL), "left wall",
                        default_event_main, default_query_main),
                 WallLP(Wall(SCREEN_BL, SCREEN_BR), "bottom wall",
@@ -519,14 +521,14 @@ def demo_classic(steps=500):
 def main():
     globals.init_globals()
     set_up_screen()
+    demo_classic(steps=1000)
+    demo_hull(0.75)
     demo_cage_time_warp(dt=0.001)
     time.sleep(0.75)
     clear_screen()
     for _ in range(3):
         demo_cage(pause=0.75, dt=0.001)
         clear_screen()
-    demo_hull(0.75)
-    # demo_classic(steps=3000)
     # input('Press [Enter] to end the program.')
 
 
