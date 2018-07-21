@@ -289,6 +289,39 @@ def demo_cage_time_warp(dt=1):
 
 
 def demo_cage(pause=0.75, dt=1):
+    def step_and_draw_both(dt, me, tau, them):
+        me.step_many(int(tau), dt)
+        them.step_many(int(tau), dt)
+        me.draw()
+        them.draw()
+
+    def wall_prediction(puck, walls, dt):
+        predictions = \
+            [puck.predict_a_wall_collision(wall, dt) for wall in walls]
+        prediction = min(
+            predictions,
+            key=lambda p: p['tau'] if p['tau'] >= 0 else np.inf)
+        return prediction
+
+    def mk_us():
+        me = Puck(center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+                  velocity=random_velocity(),
+                  mass=100,
+                  radius=42,
+                  color=THECOLORS['red'])
+        them = Puck(center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
+                    velocity=random_velocity(),
+                    mass=100,
+                    radius=79,
+                    color=THECOLORS['green'])
+        return me, them
+
+    def draw_us_with_arrows(me, them):
+        me.draw()
+        draw_centered_arrow(loc=me.center, vel=me.velocity)
+        them.draw()
+        draw_centered_arrow(loc=them.center, vel=them.velocity)
+
     me, them = mk_us()
     clear_screen()
     draw_us_with_arrows(me, them)
@@ -355,55 +388,6 @@ def demo_cage(pause=0.75, dt=1):
     pygame.display.flip()
 
     time.sleep(pause)
-
-
-def step_and_draw_both(dt, me, tau, them):
-    me.step_many(int(tau), dt)
-    them.step_many(int(tau), dt)
-    me.draw()
-    them.draw()
-
-
-def wall_prediction(puck, walls, dt):
-    predictions = \
-        [puck.predict_a_wall_collision(wall, dt) for wall in walls]
-    prediction = min(
-        predictions,
-        key = lambda p: p['tau'] if p['tau'] >= 0 else np.inf)
-    return prediction
-
-
-def draw_us_with_arrows(me, them):
-    me.draw()
-    draw_centered_arrow(loc=me.center, vel=me.velocity)
-    them.draw()
-    draw_centered_arrow(loc=them.center, vel=them.velocity)
-
-
-def mk_us():
-    me = Puck(center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
-              velocity=random_velocity(),
-              mass=100,
-              radius=42,
-              color=THECOLORS['red'])
-    them = Puck(center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
-                velocity=random_velocity(),
-                mass=100,
-                radius=79,
-                color=THECOLORS['green'])
-    return me, them
-
-
-def draw_perps_to_cage(puck: Puck):
-    top_left = Vec2d(TOP_LEFT)
-    bottom_left = Vec2d(BOTTOM_LEFT)
-    bottom_right = Vec2d(BOTTOM_RIGHT)
-    top_right = Vec2d(TOP_RIGHT)
-    p = puck.center
-    draw_collinear_point_and_param(bottom_left, bottom_right, p)
-    draw_collinear_point_and_param(top_left, top_right, p)
-    draw_collinear_point_and_param(top_left, bottom_left, p)
-    draw_collinear_point_and_param(top_right, bottom_right, p)
 
 
 def random_velocity():
