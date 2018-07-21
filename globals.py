@@ -1,4 +1,4 @@
-from base_tw_types import *
+from tw_types import *
 
 
 def init_globals():

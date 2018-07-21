@@ -7,7 +7,7 @@ import pprint
 pp = pprint.PrettyPrinter(indent=2)
 
 import globals
-from base_tw_types import *
+from tw_types import *
 from rendering import *
 from funcyard import *
 
@@ -62,19 +62,6 @@ class PuckLP(LogicalProcess):
     def __init__(self, puck, me: ProcessID, query_main):
         super().__init__(me, self.event_main, query_main)
         self.puck = puck
-
-
-#  ___ _           _         _   ___
-# | _ \ |_ _  _ __(_)__ __ _| | | _ \_ _ ___  __ ___ ______ ___ _ _
-# |  _/ ' \ || (_-< / _/ _` | | |  _/ '_/ _ \/ _/ -_|_-<_-</ _ \ '_|
-# |_| |_||_\_, /__/_\__\__,_|_| |_| |_| \___/\__\___/__/__/\___/_|
-#          |__/
-
-
-#  ___                                   ___
-# | _ \_ _ ___  __ ___ ______ ___ _ _   / _ \ _  _ ___ _  _ ___
-# |  _/ '_/ _ \/ _/ -_|_-<_-</ _ \ '_| | (_) | || / -_) || / -_)
-# |_| |_| \___/\__\___/__/__/\___/_|    \__\_\\_,_\___|\_,_\___|
 
 
 #  _____     _    _       ___          _
@@ -220,7 +207,7 @@ class Puck(object):
 # |___/\___|_|_|_\___/__/
 
 
-def demo_cage_time_warp(dt=1):
+def demo_cage_time_warp(pause=0.75, dt=1):
     """"""
     def default_event_main(
             vt: VirtualTime, state: State, msgs: List[EventMessage]):
@@ -286,6 +273,7 @@ def demo_cage_time_warp(dt=1):
         force_send_time=EARLIEST_VT)
 
     pygame.display.flip()
+    time.sleep(pause)
 
 
 def demo_cage(pause=0.75, dt=1):
@@ -504,11 +492,10 @@ def main():
     globals.init_globals()
     set_up_screen()
     demo_classic(steps=1000)
-    demo_hull(0.75)
-    demo_cage_time_warp(dt=0.001)
-    time.sleep(0.75)
+    demo_hull(pause=0.75)
     for _ in range(3):
         demo_cage(pause=0.75, dt=0.001)
+    demo_cage_time_warp(pause=0.75, dt=0.001)
 
 
 if __name__ == "__main__":
