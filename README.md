@@ -1,2 +1,2 @@
 # colliding-pucks
-resurrecting time-warp and the colliding pucks benchmark
+Resurrecting the Time Warp Operating System and its Colliding Pucks benchmark.
