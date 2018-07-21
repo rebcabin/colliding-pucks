@@ -1,0 +1,6 @@
+
+Puck2Therm.c: prdefs.h Puck.h Accumulator.h ThermData.h
+PuckIO.c: Puck.h
+Accumulator.c: Puck.h Accumulator.h
+ThermData.c: Accumulator.h ThermData.h
+ThermDataIO.c: ThermData.h
