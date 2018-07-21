@@ -506,12 +506,12 @@ def main():
     globals.init_globals()
     set_up_screen()
 
-    # demo_classic(steps=1000)
-    # demo_hull(pause=0.75)
-    # for _ in range(3):
-    #     demo_cage(pause=0.75, dt=0.001)
+    demo_classic(steps=1000)
+    demo_hull(pause=0.75)
+    for _ in range(3):
+        demo_cage(pause=0.75, dt=0.001)
 
-    demo_cage_time_warp(pause=0.75, dt=0.001)
+    # demo_cage_time_warp(pause=0.75, dt=0.001)
 
 
 if __name__ == "__main__":
