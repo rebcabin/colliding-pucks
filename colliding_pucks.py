@@ -9,13 +9,10 @@ import time
 import numpy as np
 import numpy.random as rndm
 
-import sortedcontainers
-
 import pprint
 pp = pprint.PrettyPrinter(indent=2)
 
 import globals
-from constants import *
 from base_tw_types import *
 
 # TODO: IDs might be best as uuids.
@@ -143,7 +140,7 @@ class Puck(object):
         self.center += dt * self.velocity
 
     def draw(self):
-        pygame.draw.circle(g_screen,
+        pygame.draw.circle(globals.screen,
                            self.COLOR,
                            self.center.int_tuple,
                            self.RADIUS,
@@ -349,7 +346,7 @@ def pairwise_toroidal(ls, fn):
 
 def draw_int_tuples(int_tuples: List[Tuple[int, int]],
                     color=THECOLORS['yellow']):
-    pygame.draw.polygon(g_screen, color, int_tuples, 1)
+    pygame.draw.polygon(globals.screen, color, int_tuples, 1)
 
 
 def draw_collinear_point_and_param(
@@ -361,19 +358,19 @@ def draw_collinear_point_and_param(
         line_color=THECOLORS['cyan']):
     dont_fill_bit = 0
     q, t = collinear_point_and_parameter(u, v, p)
-    pygame.draw.circle(g_screen, point_color, p.int_tuple, SPOT_RADIUS,
+    pygame.draw.circle(globals.screen, point_color, p.int_tuple, SPOT_RADIUS,
                        dont_fill_bit)
     # pygame.draw.line(screen, point_color, q.int_tuple, q.int_tuple)
-    pygame.draw.line(g_screen, line_color, p.int_tuple, q.int_tuple)
+    pygame.draw.line(globals.screen, line_color, p.int_tuple, q.int_tuple)
 
 
 def draw_vector(p0: Vec2d, p1: Vec2d, color):
-    pygame.draw.line(g_screen, color, p0.int_tuple, p1.int_tuple)
-    pygame.draw.circle(g_screen, color, p1.int_tuple, SPOT_RADIUS, 0)
+    pygame.draw.line(globals.screen, color, p0.int_tuple, p1.int_tuple)
+    pygame.draw.circle(globals.screen, color, p1.int_tuple, SPOT_RADIUS, 0)
 
 
 def draw_centered_arrow(loc, vel):
-    arrow_surface = g_screen.copy()
+    arrow_surface = globals.screen.copy()
     arrow_surface.set_alpha(175)
 
     arrow_pts = (
@@ -405,7 +402,7 @@ def draw_centered_arrow(loc, vel):
         0)
 
     # ns = pygame.transform.rotate(arrow_surface, -angle)
-    g_screen.blit(
+    globals.screen.blit(
         source=arrow_surface,
         dest=((0, 0)))  # ((loc - Vec2d(0, 150)).int_tuple))
 
@@ -419,7 +416,7 @@ def draw_cage():
 
 
 def clear_screen(color=THECOLORS['black']):
-    g_screen.fill(color)
+    globals.screen.fill(color)
 
 
 #  ___
@@ -613,11 +610,10 @@ def draw_perps_to_cage(puck: Puck):
 
 
 def set_up_screen(pause=0.75):
-    global g_screen
     pygame.init()
-    g_screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    globals.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     # clock = pygame.time.Clock()
-    g_screen.set_alpha(None)
+    globals.screen.set_alpha(None)
     time.sleep(pause)
 
 
@@ -709,8 +705,8 @@ class GameState(object):
 
     def frame_step(self):
         # TODO: no easy way to reset the angle marker after a collision.
-        g_screen.fill(THECOLORS["black"])
-        draw(g_screen, self.space)
+        globals.screen.fill(THECOLORS["black"])
+        draw(globals.screen, self.space)
         self.space.step(1. / 10)
         pygame.display.flip()
 
@@ -729,7 +725,6 @@ def demo_classic(steps=500):
 
 def main():
     globals.init_globals()
-    global g_screen
     set_up_screen()
     demo_cage_time_warp(dt=0.001)
     time.sleep(0.75)
