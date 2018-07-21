@@ -341,13 +341,17 @@ class ScheduleQueue(TWQueue):
 
         # Local Virtual Time is called 'lvt' in most time-warp papers. This
         # should not be a mysterious or confusing acronym.
-        earliest_item = self.elements.peekitem(0)
-        lp = earliest_item[1]
-        lvt = earliest_item[0]
+        while True:
+            lvt, lps = earliest_item = self.elements.peekitem(0)
 
-        input_bundle = lp.iq[lvt]  # Let iq throw if no input messages!
-        state = lp.sq.get(lvt, {})
-        state_prime = lp.event_main(lvt, state, input_bundle)
+            # just run the first lp in the list returned by peekitem:
+            input_bundle = lps[0].iq.elements[lvt]  # Let iq throw if no input
+            # messages!
+            levt = lps[0].sq.latest_earlier_time(lvt)
+            states = lps[0].sq.elements.get(levt, {})
+            assert len(states) == 1
+            state = states[0]
+            state_prime = lps[0].event_main(lvt, state, input_bundle)
 
         pass
 

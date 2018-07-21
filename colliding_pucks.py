@@ -71,6 +71,10 @@ class PuckLP(LogicalProcess):
 #                                |___/
 
 
+class TableRegion(LogicalProcess):
+    """TODO"""
+
+
 # __      __    _ _
 # \ \    / /_ _| | |
 #  \ \/\/ / _` | | |
@@ -230,16 +234,24 @@ def demo_cage_time_warp(pause=0.75, dt=1):
 
     [w.wall.draw() for w in wall_lps]
 
+    small_puck_center = Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
     small_puck_velocity = Vec2d(2.3, -1.7)
+    initial_small_puck_state = State(
+        sender=ProcessID('small puck'),
+        send_time=EARLIEST_VT,
+        body=Body({'center': small_puck_center,
+                   'velocity': small_puck_velocity,
+                   'walls': wall_lps}))
     small_puck_lp = PuckLP(
         puck=Puck(
-            center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+            center=small_puck_center,
             velocity=small_puck_velocity,
             mass=100,
             radius=42,
             color=THECOLORS['red']),
         me=ProcessID("small puck"),
         query_main=default_query_main)
+    small_puck_lp.sq.insert(initial_small_puck_state)
     small_puck_lp.puck.draw()
     draw_centered_arrow(small_puck_lp.puck.center,
                         small_puck_lp.puck.velocity)
@@ -271,6 +283,8 @@ def demo_cage_time_warp(pause=0.75, dt=1):
             'dt': dt
         }),
         force_send_time=EARLIEST_VT)
+
+    globals.sched_q.run()
 
     pygame.display.flip()
     time.sleep(pause)
@@ -491,10 +505,12 @@ def demo_classic(steps=500):
 def main():
     globals.init_globals()
     set_up_screen()
-    demo_classic(steps=1000)
-    demo_hull(pause=0.75)
-    for _ in range(3):
-        demo_cage(pause=0.75, dt=0.001)
+
+    # demo_classic(steps=1000)
+    # demo_hull(pause=0.75)
+    # for _ in range(3):
+    #     demo_cage(pause=0.75, dt=0.001)
+
     demo_cage_time_warp(pause=0.75, dt=0.001)
 
 
