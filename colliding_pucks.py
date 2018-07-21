@@ -406,14 +406,6 @@ def draw_perps_to_cage(puck: Puck):
     draw_collinear_point_and_param(top_right, bottom_right, p)
 
 
-def set_up_screen(pause=0.75):
-    pygame.init()
-    globals.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    # clock = pygame.time.Clock()
-    globals.screen.set_alpha(None)
-    time.sleep(pause)
-
-
 def random_velocity():
     # speed = np.random.randint(1, 5)
     speed = 1 + 4 * np.random.rand()

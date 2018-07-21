@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 import pygame
 from pygame.color import THECOLORS
@@ -12,6 +13,14 @@ from geometry import *
 # |   / -_) ' \/ _` / -_) '_| | ' \/ _` |
 # |_|_\___|_||_\__,_\___|_| |_|_||_\__, |
 #                                  |___/
+
+
+def set_up_screen(pause=0.75):
+    pygame.init()
+    globals.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    # clock = pygame.time.Clock()
+    globals.screen.set_alpha(None)
+    time.sleep(pause)
 
 
 def draw_int_tuples(int_tuples: List[Tuple[int, int]],
