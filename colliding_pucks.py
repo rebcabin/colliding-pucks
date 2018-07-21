@@ -15,62 +15,6 @@ from funcyard import *
 # TODO: Message equality can be optimized.
 
 
-class WallLP(LogicalProcess):
-
-    def __init__(self, wall, me: ProcessID, event_main, query_main):
-        super().__init__(me, event_main, query_main)
-        self.wall = wall
-
-    def draw(self):
-        self.wall.draw()
-
-
-class PuckLP(LogicalProcess):
-
-    def event_main(self, vt: VirtualTime, state: State,
-                   msgs: List[EventMessage]):
-        self.vt = vt
-        self.puck.center = state.body['center']
-        self.puck.velocity = state.body['velocity']
-        # In general, the puck may move to table sectors with
-        # different walls, so the list of walls must be in the
-        # tw-state. Likewise, some collision schemes may vary
-        # dt, so we have it in the state.
-        wall_lps = state.body['walls']
-        dt = state.body['dt']
-        for msg in msgs:
-            if msg.body['action'] == 'move':
-                pred = wall_prediction(
-                    self.puck, [wlp.wall for wlp in wall_lps], dt)
-                state_prime = \
-                    self.new_state(
-                        Body({
-                            'center': self.puck.center \
-                                      + pred['tau'] * dt * self.puck.velocity,
-                            # elastic, frictionless collision
-                            'velocity': \
-                                + pred['v_t'] * pred['t'] \
-                                - pred['v_n'] * pred['n'],
-                            'walls': wall_lps,
-                            'dt': dt
-                        }))
-                self.send(other=self.me,
-                          receive_time=self.now + pred['tau'],
-                          body=Body({'action': 'move'}))
-                return state_prime
-            else:
-                raise ValueError(f'unknown message body '
-                                 f'{pp.pformat(msg)} '
-                                 f'for puck {pp.pformat(self.puck)}')
-
-    def __init__(self, puck, me: ProcessID, query_main):
-        super().__init__(me, self.event_main, query_main)
-        self.puck = puck
-
-    def draw(self):
-        self.puck.draw()
-
-
 #  _____     _    _       ___          _
 # |_   _|_ _| |__| |___  | _ \___ __ _(_)___ _ _
 #   | |/ _` | '_ \ / -_) |   / -_) _` | / _ \ ' \
@@ -100,6 +44,16 @@ class Wall(object):
 
     def draw(self):
         draw_int_tuples([self.left, self.right], self.color)
+
+
+class WallLP(LogicalProcess):
+
+    def __init__(self, wall, me: ProcessID, event_main, query_main):
+        super().__init__(me, event_main, query_main)
+        self.wall = wall
+
+    def draw(self):
+        self.wall.draw()
 
 
 #  ___         _
@@ -212,6 +166,52 @@ class Puck(object):
                 'gonna_hit': gonna_hit}
 
 
+class PuckLP(LogicalProcess):
+
+    def event_main(self, vt: VirtualTime, state: State,
+                   msgs: List[EventMessage]):
+        self.vt = vt
+        self.puck.center = state.body['center']
+        self.puck.velocity = state.body['velocity']
+        # In general, the puck may move to table sectors with
+        # different walls, so the list of walls must be in the
+        # tw-state. Likewise, some collision schemes may vary
+        # dt, so we have it in the state.
+        wall_lps = state.body['walls']
+        dt = state.body['dt']
+        for msg in msgs:
+            if msg.body['action'] == 'move':
+                pred = wall_prediction(
+                    self.puck, [wlp.wall for wlp in wall_lps], dt)
+                state_prime = \
+                    self.new_state(
+                        Body({
+                            'center': self.puck.center \
+                                      + pred['tau'] * dt * self.puck.velocity,
+                            # elastic, frictionless collision
+                            'velocity': \
+                                + pred['v_t'] * pred['t'] \
+                                - pred['v_n'] * pred['n'],
+                            'walls': wall_lps,
+                            'dt': dt
+                        }))
+                self.send(other=self.me,
+                          receive_time=self.now + pred['tau'],
+                          body=Body({'action': 'move'}))
+                return state_prime
+            else:
+                raise ValueError(f'unknown message body '
+                                 f'{pp.pformat(msg)} '
+                                 f'for puck {pp.pformat(self.puck)}')
+
+    def __init__(self, puck, me: ProcessID, query_main):
+        super().__init__(me, self.event_main, query_main)
+        self.puck = puck
+
+    def draw(self):
+        self.puck.draw()
+
+
 #  ___
 # |   \ ___ _ __  ___ ___
 # | |) / -_) '  \/ _ (_-<
@@ -229,11 +229,12 @@ def demo_cage_time_warp(pause=0.75, dt=1):
         pass
 
     clear_screen()
-    # TODO: Drawing should happen as side effect of first event message
+    # TODO: Drawing should happen as side effect of first event messages
+
     wall_lps = mk_walls(default_event_main, default_query_main)
     [w.draw() for w in wall_lps]
 
-    small_puck_lp = mk_small_puck(default_query_main, dt, wall_lps)
+    small_puck_lp = mk_small_puck(default_query_main, wall_lps, dt)
     small_puck_lp.puck.draw()
     small_puck_lp.draw()
     draw_centered_arrow(small_puck_lp.puck.center,
@@ -275,7 +276,7 @@ def mk_walls(default_event_main, default_query_main):
     return wall_lps
 
 
-def mk_small_puck(default_query_main, dt, wall_lps):
+def mk_small_puck(default_query_main, wall_lps, dt):
     small_puck_center = Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
     small_puck_velocity = Vec2d(2.3, -1.7)
     initial_small_puck_state = State(

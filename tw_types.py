@@ -342,16 +342,22 @@ class ScheduleQueue(TWQueue):
         # Local Virtual Time is called 'lvt' in most time-warp papers. This
         # should not be a mysterious or confusing acronym.
         while True:
-            lvt, lps = earliest_item = self.elements.peekitem(0)
-
+            lvt, lps = self.elements.popitem(0)
             # just run the first lp in the list returned by peekitem:
-            input_bundle = lps[0].iq.elements[lvt]  # Let iq throw if no input
-            # messages!
-            levt = lps[0].sq.latest_earlier_time(lvt)
-            states = lps[0].sq.elements.get(levt, {})
+            lp = lps[0]
+            # put the others back in the sched queue
+            self.insert_bundle(lps[1:])
+            # Let iq throw if no input messages!
+            input_bundle = lp.iq.elements[lvt]
+            le_vt = lp.sq.latest_earlier_time(lvt)
+            states = lp.sq.elements.get(le_vt, {})
             assert len(states) == 1
             state = states[0]
-            state_prime = lps[0].event_main(lvt, state, input_bundle)
+            lp.now = le_vt
+            state_prime = lp.event_main(lvt, state, input_bundle)
+            lp.sq.insert(state_prime)
+            lp.vt = lp.iq.earliest_later_time()
+            self.insert(lp)
 
         pass
 
@@ -407,6 +413,7 @@ class LogicalProcess(Timestamped):
             new_lp_vt = other_lp.iq.vt
             lp_bundle = globals.sched_q.elements.pop(self.now)
             # find self in the bundle
+            # TODO: abstract the following operation into the queues
             for i in range(len(lp_bundle)):
                 if self is lp_bundle[i]:
                     pre = lp_bundle[:i]
