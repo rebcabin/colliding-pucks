@@ -379,6 +379,9 @@ class LogicalProcess(Timestamped):
         self.event = event_main
         self.query = query_main
 
+    def draw(self):
+        raise NotImplementedError
+
     def new_state(self, body: Body):
         return State(sender=self.me,
                      send_time=self.now,
