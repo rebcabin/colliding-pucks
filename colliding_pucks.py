@@ -3,8 +3,6 @@ from pygame.color import THECOLORS
 import pymunk
 from pymunk.pygame_util import draw
 
-import time
-
 import pprint
 pp = pprint.PrettyPrinter(indent=2)
 
@@ -292,8 +290,8 @@ def demo_cage_time_warp(dt=1):
 
 def demo_cage(pause=0.75, dt=1):
     me, them = mk_us()
+    clear_screen()
     draw_us_with_arrows(me, them)
-
     draw_cage()
 
     # draw_perps_to_cage(me)
@@ -525,11 +523,8 @@ def main():
     demo_hull(0.75)
     demo_cage_time_warp(dt=0.001)
     time.sleep(0.75)
-    clear_screen()
     for _ in range(3):
         demo_cage(pause=0.75, dt=0.001)
-        clear_screen()
-    # input('Press [Enter] to end the program.')
 
 
 if __name__ == "__main__":
