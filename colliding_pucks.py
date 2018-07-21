@@ -11,6 +11,7 @@ pp = pprint.PrettyPrinter(indent=2)
 import globals
 from base_tw_types import *
 from rendering import *
+from funcyard import *
 
 # TODO: IDs might be best as uuids.
 # TODO: Message equality can be optimized.
@@ -213,24 +214,6 @@ class Puck(object):
         return {'tau': tau_impact_steps,
                 'puck_victim': them,
                 'gonna_hit': gonna_hit}
-
-
-#  ___             _   _               _   ___     _       _ _   _
-# | __|  _ _ _  __| |_(_)___ _ _  __ _| | | _ \_ _(_)_ __ (_) |_(_)_ _____ ___
-# | _| || | ' \/ _|  _| / _ \ ' \/ _` | | |  _/ '_| | '  \| |  _| \ V / -_|_-<
-# |_| \_,_|_||_\__|\__|_\___/_||_\__,_|_| |_| |_| |_|_|_|_|_|\__|_|\_/\___/__/
-
-
-def pairwise(ls, fn):
-    result = []
-    for i in range(len(ls) - 1):
-        temp = fn(ls[i], ls[i + 1])
-        result.append(temp)
-    return result
-
-
-def pairwise_toroidal(ls, fn):
-    return pairwise(ls + [ls[0]], fn)
 
 
 #  ___
@@ -445,13 +428,17 @@ def demo_hull(pause=7.0):
     puck = Puck(
         center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
         velocity=Vec2d(1, 1 / 2),
-        mass=100)
+        mass=100,
+        radius=42,
+        color=THECOLORS['red'])
     puck.step_many(DEMO_STEPS, DEMO_DT)
+    puck.draw()
     hull = convex_hull(random_points(15))
     draw_int_tuples(hull)
     pairwise_toroidal(hull,
                       lambda p0, p1: draw_collinear_point_and_param(
                           Vec2d(p0), Vec2d(p1), line_color=THECOLORS['purple']))
+    pygame.display.flip()
     time.sleep(pause)
 
 
@@ -546,7 +533,7 @@ def main():
     for _ in range(3):
         demo_cage(pause=0.75, dt=0.001)
         clear_screen()
-    # demo_hull(0.75)
+    demo_hull(0.75)
     # demo_classic(steps=3000)
     # input('Press [Enter] to end the program.')
 
