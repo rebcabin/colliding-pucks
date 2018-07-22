@@ -181,24 +181,36 @@ class PuckLP(LogicalProcess):
         dt = state.body['dt']
         for msg in msgs:
             if msg.body['action'] == 'move':
-                pred = wall_prediction(self.puck, walls, dt)
+                wall_pred = wall_prediction(self.puck, walls, dt)
                 state_prime = \
                     self.new_state(
                         Body({
                             'center': self.puck.center \
-                                      + pred['tau'] * dt * self.puck.velocity,
+                                      + wall_pred['tau'] * dt * self.puck.velocity,
                             # elastic, frictionless collision
                             'velocity': \
-                                + pred['v_t'] * pred['t'] \
-                                - pred['v_n'] * pred['n'],
+                                + wall_pred['v_t'] * wall_pred['t'] \
+                                - wall_pred['v_n'] * wall_pred['n'],
                             'walls': walls,
                             'dt': dt
                         }))
                 if self.me == 'small puck':
-                    its_state = self.query('big puck', Body({}))
-                    pass
+                    it, its_state = self.query('big puck', Body({}))
+                    # TODO: is it a hack to use the puck rather than its
+                    # TODO: tw state?
+                    puck_pred = self.puck.predict_a_puck_collision(it, dt)
+                    if puck_pred['tau'] < np.inf:
+                        then = int(puck_pred['tau'])
+                    else:
+                        then = sys.maxsize
+                    me = self.puck
+                    if then < wall_pred['tau']:
+                        my_center_then = me.center + then * dt * me.velocity
+                        its_center_then = it.center + it.velocity * then * dt
+                        n = (its_center_then - my_center_then).normalized()
+                        t = Vec2d(n[1], -n[0])
                 self.send(other_pid=self.me,
-                          receive_time=self.now + int(pred['tau']),
+                          receive_time=self.now + int(wall_pred['tau']),
                           body=Body({'action': 'move'}))
                 return state_prime
             else:
@@ -210,7 +222,7 @@ class PuckLP(LogicalProcess):
                    msgs: List[EventMessage]):
         """Someone is asking for my latest earlier known state."""
         # TODO: Return a query-response message.
-        return state
+        return self.puck, state
 
     def __init__(self, puck, me: ProcessID):
         super().__init__(me)
@@ -545,10 +557,11 @@ def main():
     set_up_screen()
 
     # demo_classic(steps=3000)
-    # demo_hull(pause=2.75)
-    # for _ in range(3):
+    # input()
+    # # demo_hull(pause=2.75)
+    # for _ in range(15):
     #     demo_cage(pause=2.75, dt=0.001)
-
+    # input()
     demo_cage_time_warp(pause=2.75, dt=0.001)
 
 
