@@ -110,6 +110,7 @@ class EventMessage(Timestamped):
                  sign: bool,
                  body: Body):
         if receive_time <= send_time:
+            t0 = 42 + 79  # set debugger breakpoint here
             raise ValueError(f"receive time {receive_time} must be strictly "
                              f"greater than send time {send_time}")
         super().__init__(vt=receive_time if sign else send_time)

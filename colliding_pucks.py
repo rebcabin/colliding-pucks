@@ -180,7 +180,15 @@ class PuckLP(LogicalProcess):
         walls = state.body['walls']
         dt = state.body['dt']
         for msg in msgs:
-            if msg.body['action'] == 'move':
+            if msg.body['action'] == 'suffer':
+                assert self.me == 'big puck'
+                state_prime = self.new_state(Body({
+                    'center': msg.body['center'],
+                    'velocity': msg.body['velocity'],
+                    'walls': walls,
+                    'dt':dt}))
+                return state_prime
+            elif msg.body['action'] == 'move':
                 # TODO: have prediction functions cast tau to int.
                 wall_pred = wall_prediction(self.puck, walls, dt)
                 if self.me == 'small puck':
@@ -193,13 +201,13 @@ class PuckLP(LogicalProcess):
                     else:
                         then = sys.maxsize
                     me = self.puck
-                    if then < wall_pred['tau']:
+                    if then > 0 and then < wall_pred['tau']:
                         # TODO: move all this calculation into puck pred.
                         v1 = me.velocity
                         v2 = it.velocity
-                        mct = me.center + then * dt * v1
-                        ict = it.center + then * dt * v2
-                        n = (ict - mct).normalized()
+                        c1p = me.center + then * dt * v1
+                        c2p = it.center + then * dt * v2
+                        n = (c2p - c1p).normalized()
                         t = Vec2d(n[1], -n[0])
                         v1n = v1.dot(n)
                         v2n = v2.dot(n)
@@ -214,24 +222,50 @@ class PuckLP(LogicalProcess):
                         v1p = v1np * n + v1t * t
                         v2p = v2np * n + v2t * t
                         state_prime = self.new_state(Body({
-                            'center': mct,
-                            'velociy': v1p,
+                            'center': c1p,
+                            'velocity': v1p,
                             'walls': walls,
                             'dt': dt}))
-                state_prime = self.new_state(Body({
-                    'center': self.puck.center \
-                              + wall_pred['tau'] * dt * self.puck.velocity,
-                    # elastic, frictionless collision
-                    'velocity': \
-                        + wall_pred['v_t'] * wall_pred['t'] \
-                        - wall_pred['v_n'] * wall_pred['n'],
-                    'walls': walls,
-                    'dt': dt}))
+                        self.send(other_pid=self.me,
+                                  receive_time=self.now + then,
+                                  body=Body({'action': 'move'}))
+                        self.send(other_pid='big puck',
+                                  receive_time=self.now + then,
+                                  body=Body({'action': 'suffer',
+                                             'center': c2p,
+                                             'velocity': v2p}))
+                        return state_prime
+                    else:
+                        state_prime = self.new_state(Body({
+                            'center': self.puck.center \
+                                      + wall_pred['tau'] * dt * self.puck.velocity,
+                            # elastic, frictionless collision
+                            'velocity': \
+                                + wall_pred['v_t'] * wall_pred['t'] \
+                                - wall_pred['v_n'] * wall_pred['n'],
+                            'walls': walls,
+                            'dt': dt}))
 
-                self.send(other_pid=self.me,
-                          receive_time=self.now + int(wall_pred['tau']),
-                          body=Body({'action': 'move'}))
-                return state_prime
+                        self.send(other_pid=self.me,
+                                  receive_time=self.now + int(wall_pred['tau']),
+                                  body=Body({'action': 'move'}))
+                        return state_prime
+                else:
+                    assert self.me == 'big puck'
+                    state_prime = self.new_state(Body({
+                        'center': self.puck.center \
+                                  + wall_pred['tau'] * dt * self.puck.velocity,
+                        # elastic, frictionless collision
+                        'velocity': \
+                            + wall_pred['v_t'] * wall_pred['t'] \
+                            - wall_pred['v_n'] * wall_pred['n'],
+                        'walls': walls,
+                        'dt': dt}))
+
+                    self.send(other_pid=self.me,
+                              receive_time=self.now + int(wall_pred['tau']),
+                              body=Body({'action': 'move'}))
+                    return state_prime
             else:
                 raise ValueError(f'unknown message body '
                                  f'{pp.pformat(msg)} '
