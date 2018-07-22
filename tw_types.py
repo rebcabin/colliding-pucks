@@ -2,6 +2,7 @@ from typing import List, Tuple, Callable, Dict, Any
 
 import sortedcontainers
 import pygame  # TODO: move rendering out of here
+import time
 from constants import *
 import globals
 
@@ -359,6 +360,7 @@ class ScheduleQueue(TWQueue):
             # TODO: move the drawing!
             lp.draw()
             pygame.display.flip()
+            time.sleep(0.05)
 
             lp.sq.insert(state_prime)
             lp.vt = lp.iq.earliest_later_time(lp.now)

@@ -168,21 +168,21 @@ class Puck(object):
 
 class PuckLP(LogicalProcess):
 
-    def event_main(self, vt: VirtualTime, state: State,
+    def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
-        self.vt = vt  # TODO: confusion about vt and now
+        self.vt = lvt  # TODO: confusion about vt and now
         self.puck.center = state.body['center']
         self.puck.velocity = state.body['velocity']
         # In general, the puck may move to table sectors with
         # different walls, so the list of walls must be in the
         # tw-state. Likewise, some collision schemes may vary
         # dt, so we have it in the state.
-        wall_lps = state.body['walls']
+        # TODO: it's not legit to have LPs in the state.
+        walls = state.body['walls']
         dt = state.body['dt']
         for msg in msgs:
             if msg.body['action'] == 'move':
-                pred = wall_prediction(
-                    self.puck, [wlp.wall for wlp in wall_lps], dt)
+                pred = wall_prediction(self.puck, walls, dt)
                 state_prime = \
                     self.new_state(
                         Body({
@@ -192,7 +192,7 @@ class PuckLP(LogicalProcess):
                             'velocity': \
                                 + pred['v_t'] * pred['t'] \
                                 - pred['v_n'] * pred['n'],
-                            'walls': wall_lps,
+                            'walls': walls,
                             'dt': dt
                         }))
                 self.send(other=self.me,
@@ -203,6 +203,11 @@ class PuckLP(LogicalProcess):
                 raise ValueError(f'unknown message body '
                                  f'{pp.pformat(msg)} '
                                  f'for puck {pp.pformat(self.puck)}')
+
+    def query_main(self, vt: VirtualTime, state: State,
+                   msgs: List[EventMessage]):
+        """Someone is asking me where I will be at time vt"""
+        pass
 
     def __init__(self, puck, me: ProcessID, query_main):
         super().__init__(me, self.event_main, query_main)
@@ -233,15 +238,17 @@ def demo_cage_time_warp(pause=0.75, dt=1):
 
     wall_lps = mk_walls(default_event_main, default_query_main)
     [w.draw() for w in wall_lps]
+    walls = [w.wall for w in wall_lps]
 
-    small_puck_lp = mk_small_puck(default_query_main, wall_lps, dt)
-    small_puck_lp.puck.draw()
+    small_puck_lp = mk_small_puck(default_query_main, walls, dt)
     small_puck_lp.draw()
     draw_centered_arrow(small_puck_lp.puck.center,
                         small_puck_lp.puck.velocity)
 
-    big_puck_lp = mk_big_puck(default_query_main)
+    big_puck_lp = mk_big_puck(default_query_main, walls, dt)
     big_puck_lp.draw()
+    draw_centered_arrow(big_puck_lp.puck.center,
+                        big_puck_lp.puck.velocity)
 
     # boot the OS
     for wall in wall_lps:
@@ -252,6 +259,14 @@ def demo_cage_time_warp(pause=0.75, dt=1):
     # boot the simulation:
     small_puck_lp.send(
         other=ProcessID('small puck'),
+        receive_time=VirtualTime(0),
+        body=Body({
+            'action': 'move'
+        }),
+        force_send_time=EARLIEST_VT)
+
+    big_puck_lp.send(
+        other=ProcessID('big puck'),
         receive_time=VirtualTime(0),
         body=Body({
             'action': 'move'
@@ -276,15 +291,16 @@ def mk_walls(default_event_main, default_query_main):
     return wall_lps
 
 
-def mk_small_puck(default_query_main, wall_lps, dt):
+def mk_small_puck(default_query_main, walls, dt):
     small_puck_center = Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
     small_puck_velocity = Vec2d(2.3, -1.7)
+    process_id = ProcessID('small puck')
     initial_small_puck_state = State(
-        sender=ProcessID('small puck'),
+        sender=process_id,
         send_time=EARLIEST_VT,
         body=Body({'center': small_puck_center,
                    'velocity': small_puck_velocity,
-                   'walls': wall_lps,
+                   'walls': walls,
                    'dt': dt}))
     small_puck_lp = PuckLP(
         puck=Puck(
@@ -293,23 +309,35 @@ def mk_small_puck(default_query_main, wall_lps, dt):
             mass=100,
             radius=42,
             color=THECOLORS['red']),
-        me=ProcessID("small puck"),
+        me=process_id,
         query_main=default_query_main)
     # TODO: initial state should be in this constructor
     small_puck_lp.sq.insert(initial_small_puck_state)
     return small_puck_lp
 
 
-def mk_big_puck(default_query_main):
+def mk_big_puck(default_query_main, walls, dt):
+    center = Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5)
+    velocity = Vec2d(-1.95, -0.20)
+    process_id = ProcessID('big puck')
+    state = State(
+        sender=process_id,
+        send_time=EARLIEST_VT,
+        body=Body({'center': center,
+                   'velocity': velocity,
+                   'walls': walls,
+                   'dt': dt}))
     big_puck_lp = PuckLP(
         puck=Puck(
-            center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
-            velocity=Vec2d(-1.95, -0.20),
-            mass=100,
+            center=center,
+            velocity=velocity,
+            mass=100 * 79 * 79 / 42 / 42,
             radius=79,
             color=THECOLORS['green']),
-        me=ProcessID("big puck"),
+        me=process_id,
         query_main=default_query_main)
+    # TODO: initial state should be in this constructor
+    big_puck_lp.sq.insert(state)
     return big_puck_lp
 
 
@@ -530,12 +558,12 @@ def main():
     globals.init_globals()
     set_up_screen()
 
-    # demo_classic(steps=1000)
-    # demo_hull(pause=0.75)
+    # demo_classic(steps=3000)
+    # demo_hull(pause=2.75)
     # for _ in range(3):
-    #     demo_cage(pause=0.75, dt=0.001)
+    #     demo_cage(pause=2.75, dt=0.001)
 
-    demo_cage_time_warp(pause=0.75, dt=0.001)
+    demo_cage_time_warp(pause=2.75, dt=0.001)
 
 
 if __name__ == "__main__":
