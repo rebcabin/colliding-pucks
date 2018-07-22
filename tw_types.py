@@ -353,6 +353,7 @@ class ScheduleQueue(TWQueue):
             states = lp.sq.elements.get(le_vt, {})
             assert len(states) == 1
             state = states[0]
+            lp.now = lvt
             state_prime = lp.event_main(lvt, state, input_bundle)
 
             # TODO: move the drawing!

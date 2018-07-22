@@ -318,7 +318,7 @@ def wall_prediction(puck, walls, dt):
         [puck.predict_a_wall_collision(wall, dt) for wall in walls]
     prediction = min(
         predictions,
-        key=lambda p: p['tau'] if p['tau'] >= 0 else np.inf)
+        key=lambda p: p['tau'] if p['tau'] > 0 else np.inf)
     return prediction
 
 
