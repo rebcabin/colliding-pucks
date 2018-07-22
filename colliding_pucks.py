@@ -181,19 +181,8 @@ class PuckLP(LogicalProcess):
         dt = state.body['dt']
         for msg in msgs:
             if msg.body['action'] == 'move':
+                # TODO: have prediction functions cast tau to int.
                 wall_pred = wall_prediction(self.puck, walls, dt)
-                state_prime = \
-                    self.new_state(
-                        Body({
-                            'center': self.puck.center \
-                                      + wall_pred['tau'] * dt * self.puck.velocity,
-                            # elastic, frictionless collision
-                            'velocity': \
-                                + wall_pred['v_t'] * wall_pred['t'] \
-                                - wall_pred['v_n'] * wall_pred['n'],
-                            'walls': walls,
-                            'dt': dt
-                        }))
                 if self.me == 'small puck':
                     it, its_state = self.query('big puck', Body({}))
                     # TODO: is it a hack to use the puck rather than its
@@ -206,17 +195,38 @@ class PuckLP(LogicalProcess):
                     me = self.puck
                     if then < wall_pred['tau']:
                         # TODO: move all this calculation into puck pred.
-                        mct = me.center + then * dt * me.velocity
-                        ict = it.center + it.velocity * then * dt
+                        v1 = me.velocity
+                        v2 = it.velocity
+                        mct = me.center + then * dt * v1
+                        ict = it.center + then * dt * v2
                         n = (ict - mct).normalized()
                         t = Vec2d(n[1], -n[0])
-                        mvnn = me.velocity.dot(n)
-                        ivnn = it.velocity.dot(n)
+                        v1n = v1.dot(n)
+                        v2n = v2.dot(n)
+                        v1t = v1.dot(t)
+                        v2t = v2.dot(t)
                         m1 = me.MASS
                         m2 = it.MASS
                         M = m1 + m2
-                        mvtn = -mvnn * m2 / M
-                        ivtn = -ivnn * m1 / M
+                        # See Mathematica notebook in docs folder
+                        v1np = ((m1 - m2) * v1n + 2 * m2 * v2n) / M
+                        v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
+                        v1p = v1np * n + v1t * t
+                        v2p = v2np * n + v2t * t
+                        state_prime = self.new_state(Body({
+                            'center': mct,
+                            'velociy': v1p,
+                            'walls': walls,
+                            'dt': dt}))
+                state_prime = self.new_state(Body({
+                    'center': self.puck.center \
+                              + wall_pred['tau'] * dt * self.puck.velocity,
+                    # elastic, frictionless collision
+                    'velocity': \
+                        + wall_pred['v_t'] * wall_pred['t'] \
+                        - wall_pred['v_n'] * wall_pred['n'],
+                    'walls': walls,
+                    'dt': dt}))
 
                 self.send(other_pid=self.me,
                           receive_time=self.now + int(wall_pred['tau']),
