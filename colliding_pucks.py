@@ -205,10 +205,19 @@ class PuckLP(LogicalProcess):
                         then = sys.maxsize
                     me = self.puck
                     if then < wall_pred['tau']:
-                        my_center_then = me.center + then * dt * me.velocity
-                        its_center_then = it.center + it.velocity * then * dt
-                        n = (its_center_then - my_center_then).normalized()
+                        # TODO: move all this calculation into puck pred.
+                        mct = me.center + then * dt * me.velocity
+                        ict = it.center + it.velocity * then * dt
+                        n = (ict - mct).normalized()
                         t = Vec2d(n[1], -n[0])
+                        mvnn = me.velocity.dot(n)
+                        ivnn = it.velocity.dot(n)
+                        m1 = me.MASS
+                        m2 = it.MASS
+                        M = m1 + m2
+                        mvtn = -mvnn * m2 / M
+                        ivtn = -ivnn * m1 / M
+
                 self.send(other_pid=self.me,
                           receive_time=self.now + int(wall_pred['tau']),
                           body=Body({'action': 'move'}))
