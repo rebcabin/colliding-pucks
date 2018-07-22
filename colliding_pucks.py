@@ -206,12 +206,12 @@ class PuckLP(LogicalProcess):
 
     def query_main(self, vt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
-        """Someone is asking for my state at time vt, which might be in my
-        future."""
-        pass
+        """Someone is asking for my latest earlier known state."""
+        # TODO: Return a query-response message.
+        return state
 
-    def __init__(self, puck, me: ProcessID, query_main):
-        super().__init__(me, self.event_main, query_main)
+    def __init__(self, puck, me: ProcessID):
+        super().__init__(me, self.event_main, self.query_main)
         self.puck = puck
 
     def draw(self):
@@ -241,12 +241,12 @@ def demo_cage_time_warp(pause=0.75, dt=1):
     [w.draw() for w in wall_lps]
     walls = [w.wall for w in wall_lps]
 
-    small_puck_lp = mk_small_puck(default_query_main, walls, dt)
+    small_puck_lp = mk_small_puck(walls, dt)
     small_puck_lp.draw()
     draw_centered_arrow(small_puck_lp.puck.center,
                         small_puck_lp.puck.velocity)
 
-    big_puck_lp = mk_big_puck(default_query_main, walls, dt)
+    big_puck_lp = mk_big_puck(walls, dt)
     big_puck_lp.draw()
     draw_centered_arrow(big_puck_lp.puck.center,
                         big_puck_lp.puck.velocity)
@@ -292,8 +292,7 @@ def mk_walls(default_event_main, default_query_main):
     return wall_lps
 
 
-def mk_puck(center, velocity, mass, radius, color_str, pid, walls,
-            default_query_main, dt):
+def mk_puck(center, velocity, mass, radius, color_str, pid, walls, dt):
     state = State(
         sender=pid,
         send_time=EARLIEST_VT,
@@ -308,14 +307,13 @@ def mk_puck(center, velocity, mass, radius, color_str, pid, walls,
             mass=mass,
             radius=radius,
             color=THECOLORS[color_str]),
-        me=pid,
-        query_main=default_query_main)
+        me=pid)
     # TODO: initial state should be in this constructor
     lp.sq.insert(state)
     return lp
 
 
-def mk_small_puck(default_query_main, walls, dt):
+def mk_small_puck(walls, dt):
     return mk_puck(
         center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
         velocity=Vec2d(2.3, -1.7),
@@ -324,11 +322,10 @@ def mk_small_puck(default_query_main, walls, dt):
         color_str='red',
         pid=ProcessID('small puck'),
         walls=walls,
-        default_query_main = default_query_main,
         dt = dt)
 
 
-def mk_big_puck(default_query_main, walls, dt):
+def mk_big_puck(walls, dt):
     return mk_puck(
         center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
         velocity=Vec2d(-1.95, -0.20),
@@ -337,7 +334,6 @@ def mk_big_puck(default_query_main, walls, dt):
         color_str = 'green',
         pid=ProcessID('big puck'),
         walls=walls,
-        default_query_main=default_query_main,
         dt=dt)
 
 

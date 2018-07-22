@@ -164,7 +164,7 @@ class State(EventMessage):
 #                     |__/                         |___/
 
 
-class QueryMessage:
+class QueryMessage(EventMessage):
     """TODO"""
 
 
@@ -345,7 +345,7 @@ class ScheduleQueue(TWQueue):
 
         # Local Virtual Time is called 'lvt' in most time-warp papers. This
         # should not be a mysterious or confusing acronym.
-        while True:
+        while True:  # TODO: finite number of steps
             lvt, lps = self.elements.popitem(0)
             # just run the first lp in the list returned by peekitem:
             lp = lps[0]
@@ -360,7 +360,7 @@ class ScheduleQueue(TWQueue):
             lp.now = lvt
             state_prime = lp.event_main(lvt, state, input_bundle)
 
-            # TODO: move the drawing!
+            # TODO: move the drawing out of here!
             lp.draw()
             pygame.display.flip()
             time.sleep(0.05)
@@ -457,4 +457,11 @@ class LogicalProcess(Timestamped):
         return message, antimessage
 
     def query(self, other: ProcessID, body: Body):
-        pass
+        other_lp = globals.sched_q.world_map[other]
+        other_le_vt = other_lp.sq.latest_earlier_time(self.now)
+        other_states = other_lp.sq.elements[other_le_vt]
+        assert len(other_states) == 1
+        return other_lp.query_main(
+            self.now,
+            other_states[0],
+            [])
