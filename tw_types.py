@@ -232,7 +232,6 @@ class TWQueue(object):
             # Even if there is eventual annihilation, we need to roll
             # back to this time or earlier:
             # TODO: Cancellation is not yet implemented.
-            # TODO: Do eager cancellation right here.
             # TODO: Do lazy cancellation at the end of each event.
             self.vt = m.vt
         if m.vt in self.elements:
@@ -382,18 +381,21 @@ class ScheduleQueue(TWQueue):
 class LogicalProcess(Timestamped):
     def __init__(self,
                  me: ProcessID,
-                 event_main: Callable[[VirtualTime, State, List[EventMessage]],
-                                      State],
-                 query_main: Callable[[VirtualTime, State, List[QueryMessage]],
-                                      State] = None):
+                 ):
         self.now = LATEST_VT
         super().__init__(self.now)
         self.iq = InputQueue()
         self.oq = OutputQueue()
         self.sq = StateQueue()
         self.me = me
-        self.event = event_main
-        self.query = query_main
+
+    def event_main(self, lvt: VirtualTime, state: State,
+                   msgs: List[EventMessage]):
+        raise NotImplementedError
+
+    def query_main(self, vt: VirtualTime, state: State,
+                   msgs: List[EventMessage]):
+        raise NotImplementedError
 
     def draw(self):
         raise NotImplementedError
@@ -403,38 +405,55 @@ class LogicalProcess(Timestamped):
                      send_time=self.now,
                      body=body)
 
+    def query(self,
+              other_pid: ProcessID,
+              body: Body):
+        pass
+
     def send(self,
-             other: ProcessID,
+             other_pid: ProcessID,
              receive_time: VirtualTime,
              body: Body,
-             force_send_time = None):  # for boot only
+             force_send_time=None):  # for boot only
         # TODO: Does the rest of this stuff belongs in the Schedule Queue?
-        other_lp = globals.sched_q.world_map[other]
+        other_lp = globals.sched_q.world_map[other_pid]
         msg, antimsg = self._message_pair(
-            other, force_send_time, receive_time, body)
+            other_pid, force_send_time, receive_time, body)
         self.oq.insert(antimsg)
         if self.oq.annihilation:
             raise ValueError(
                 f'unexpected annihilation from antimessage '
                 f'{pp.pformat(antimsg)} at process '
                 f'{pp.pformat(self)}')
+        # TODO: When distributed, the other machine will do the following:
         other_lp.iq.insert(msg)
         if other_lp.iq.rollback:
-            new_lp_vt = other_lp.iq.vt
-            lp_bundle = globals.sched_q.elements.pop(self.now)
-            # find self in the bundle
-            # TODO: abstract the following operation into the queues
-            for i in range(len(lp_bundle)):
-                if self is lp_bundle[i]:
-                    pre = lp_bundle[:i]
-                    post = lp_bundle[i + 1:]
-                    me = lp_bundle[i]
-                    residual = pre + post
-                    globals.sched_q.insert_bundle(residual)
-                    me.now = me.vt = new_lp_vt
-                    globals.sched_q.insert(me)
-                    break
+            self.reschedule(other_lp)
+            # TODO: Eager cancellation:
+            # for am_bundle_keys in other_lp.oq.elements:
+            #     for ams in other_lp.oq.elements[am_bundle_keys]:
+            #         receiver_pid = ams.receiver
+            #         receiver_lp = globals.sched_q.world_map[receiver_pid]
+            #         receiver_lp.iq.insert(ams)
+            # # blow away its output queue
+            # other_lp.oq = OutputQueue()
             other_lp.iq.rollback = False
+
+    def reschedule(self, other_lp):
+        new_lp_vt = other_lp.iq.vt
+        lp_bundle = globals.sched_q.elements.pop(self.now)
+        # find self in the bundle
+        # TODO: abstract the following operation into the queues
+        for i in range(len(lp_bundle)):
+            if self is lp_bundle[i]:
+                pre = lp_bundle[:i]
+                post = lp_bundle[i + 1:]
+                me = lp_bundle[i]
+                residual = pre + post
+                globals.sched_q.insert_bundle(residual)
+                me.now = me.vt = new_lp_vt
+                globals.sched_q.insert(me)
+                break
 
     def _message_pair(self, other, force_send_time, receive_time, body):
         send_time = force_send_time or self.now
@@ -461,7 +480,8 @@ class LogicalProcess(Timestamped):
         other_le_vt = other_lp.sq.latest_earlier_time(self.now)
         other_states = other_lp.sq.elements[other_le_vt]
         assert len(other_states) == 1
-        return other_lp.query_main(
+        result = other_lp.query_main(
             self.now,
             other_states[0],
             [])
+        return result

@@ -48,8 +48,8 @@ class Wall(object):
 
 class WallLP(LogicalProcess):
 
-    def __init__(self, wall, me: ProcessID, event_main, query_main):
-        super().__init__(me, event_main, query_main)
+    def __init__(self, wall, me: ProcessID):
+        super().__init__(me)
         self.wall = wall
 
     def draw(self):
@@ -170,14 +170,13 @@ class PuckLP(LogicalProcess):
 
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
-        self.vt = lvt  # TODO: confusion about vt and now
+        self.vt = lvt
         self.puck.center = state.body['center']
         self.puck.velocity = state.body['velocity']
         # In general, the puck may move to table sectors with
         # different walls, so the list of walls must be in the
         # tw-state. Likewise, some collision schemes may vary
         # dt, so we have it in the state.
-        # TODO: it's not legit to have LPs in the state.
         walls = state.body['walls']
         dt = state.body['dt']
         for msg in msgs:
@@ -195,7 +194,10 @@ class PuckLP(LogicalProcess):
                             'walls': walls,
                             'dt': dt
                         }))
-                self.send(other=self.me,
+                if self.me == 'small puck':
+                    # its_state = self.query('big puck', Body({}))
+                    pass
+                self.send(other_pid=self.me,
                           receive_time=self.now + int(pred['tau']),
                           body=Body({'action': 'move'}))
                 return state_prime
@@ -211,7 +213,7 @@ class PuckLP(LogicalProcess):
         return state
 
     def __init__(self, puck, me: ProcessID):
-        super().__init__(me, self.event_main, self.query_main)
+        super().__init__(me)
         self.puck = puck
 
     def draw(self):
@@ -226,18 +228,10 @@ class PuckLP(LogicalProcess):
 
 def demo_cage_time_warp(pause=0.75, dt=1):
     """"""
-    def default_event_main(
-            vt: VirtualTime, state: State, msgs: List[EventMessage]):
-        pass
-
-    def default_query_main(
-            vt: VirtualTime, state: State, msgs: List[EventMessage]):
-        pass
-
     clear_screen()
     # TODO: Drawing should happen as side effect of first event messages
 
-    wall_lps = mk_walls(default_event_main, default_query_main)
+    wall_lps = mk_walls()
     [w.draw() for w in wall_lps]
     walls = [w.wall for w in wall_lps]
 
@@ -259,7 +253,7 @@ def demo_cage_time_warp(pause=0.75, dt=1):
 
     # boot the simulation:
     small_puck_lp.send(
-        other=ProcessID('small puck'),
+        other_pid=ProcessID('small puck'),
         receive_time=VirtualTime(0),
         body=Body({
             'action': 'move'
@@ -267,7 +261,7 @@ def demo_cage_time_warp(pause=0.75, dt=1):
         force_send_time=EARLIEST_VT)
 
     big_puck_lp.send(
-        other=ProcessID('big puck'),
+        other_pid=ProcessID('big puck'),
         receive_time=VirtualTime(0),
         body=Body({
             'action': 'move'
@@ -280,15 +274,11 @@ def demo_cage_time_warp(pause=0.75, dt=1):
     time.sleep(pause)
 
 
-def mk_walls(default_event_main, default_query_main):
-    wall_lps = [WallLP(Wall(SCREEN_TL, SCREEN_BL), "left wall",
-                       default_event_main, default_query_main),
-                WallLP(Wall(SCREEN_BL, SCREEN_BR), "bottom wall",
-                       default_event_main, default_query_main),
-                WallLP(Wall(SCREEN_BR, SCREEN_TR), "right wall",
-                       default_event_main, default_query_main),
-                WallLP(Wall(SCREEN_TR, SCREEN_TL), "top wall",
-                       default_event_main, default_query_main)]
+def mk_walls():
+    wall_lps = [WallLP(Wall(SCREEN_TL, SCREEN_BL), "left wall"),
+                WallLP(Wall(SCREEN_BL, SCREEN_BR), "bottom wall"),
+                WallLP(Wall(SCREEN_BR, SCREEN_TR), "right wall"),
+                WallLP(Wall(SCREEN_TR, SCREEN_TL), "top wall")]
     return wall_lps
 
 
