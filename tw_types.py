@@ -405,11 +405,6 @@ class LogicalProcess(Timestamped):
                      send_time=self.now,
                      body=body)
 
-    def query(self,
-              other_pid: ProcessID,
-              body: Body):
-        pass
-
     def send(self,
              other_pid: ProcessID,
              receive_time: VirtualTime,
@@ -475,8 +470,8 @@ class LogicalProcess(Timestamped):
         )
         return message, antimessage
 
-    def query(self, other: ProcessID, body: Body):
-        other_lp = globals.sched_q.world_map[other]
+    def query(self, other_pid: ProcessID, body: Body):
+        other_lp = globals.sched_q.world_map[other_pid]
         other_le_vt = other_lp.sq.latest_earlier_time(self.now)
         other_states = other_lp.sq.elements[other_le_vt]
         assert len(other_states) == 1

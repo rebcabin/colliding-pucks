@@ -195,7 +195,7 @@ class PuckLP(LogicalProcess):
                             'dt': dt
                         }))
                 if self.me == 'small puck':
-                    # its_state = self.query('big puck', Body({}))
+                    its_state = self.query('big puck', Body({}))
                     pass
                 self.send(other_pid=self.me,
                           receive_time=self.now + int(pred['tau']),
