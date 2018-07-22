@@ -170,7 +170,7 @@ class PuckLP(LogicalProcess):
 
     def event_main(self, vt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
-        self.vt = vt
+        self.vt = vt  # TODO: confusion about vt and now
         self.puck.center = state.body['center']
         self.puck.velocity = state.body['velocity']
         # In general, the puck may move to table sectors with
@@ -196,7 +196,7 @@ class PuckLP(LogicalProcess):
                             'dt': dt
                         }))
                 self.send(other=self.me,
-                          receive_time=self.now + pred['tau'],
+                          receive_time=self.now + int(pred['tau']),
                           body=Body({'action': 'move'}))
                 return state_prime
             else:

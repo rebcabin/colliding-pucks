@@ -1,7 +1,7 @@
 from typing import List, Tuple, Callable, Dict, Any
 
 import sortedcontainers
-
+import pygame  # TODO: move rendering out of here
 from constants import *
 import globals
 
@@ -353,10 +353,14 @@ class ScheduleQueue(TWQueue):
             states = lp.sq.elements.get(le_vt, {})
             assert len(states) == 1
             state = states[0]
-            lp.now = le_vt
             state_prime = lp.event_main(lvt, state, input_bundle)
+
+            # TODO: move the drawing!
+            lp.draw()
+            pygame.display.flip()
+
             lp.sq.insert(state_prime)
-            lp.vt = lp.iq.earliest_later_time()
+            lp.vt = lp.iq.earliest_later_time(lp.now)
             self.insert(lp)
 
         pass
@@ -398,7 +402,7 @@ class LogicalProcess(Timestamped):
              receive_time: VirtualTime,
              body: Body,
              force_send_time = None):  # for boot only
-        # TODO: The rest of this stuff belongs in the Schedule Queue.
+        # TODO: Does the rest of this stuff belongs in the Schedule Queue?
         other_lp = globals.sched_q.world_map[other]
         msg, antimsg = self._message_pair(
             other, force_send_time, receive_time, body)
@@ -424,6 +428,7 @@ class LogicalProcess(Timestamped):
                     me.now = me.vt = new_lp_vt
                     globals.sched_q.insert(me)
                     break
+            other_lp.iq.rollback = False
 
     def _message_pair(self, other, force_send_time, receive_time, body):
         send_time = force_send_time or self.now
