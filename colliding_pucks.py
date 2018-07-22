@@ -206,7 +206,8 @@ class PuckLP(LogicalProcess):
 
     def query_main(self, vt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
-        """Someone is asking me where I will be at time vt"""
+        """Someone is asking for my state at time vt, which might be in my
+        future."""
         pass
 
     def __init__(self, puck, me: ProcessID, query_main):
@@ -291,54 +292,53 @@ def mk_walls(default_event_main, default_query_main):
     return wall_lps
 
 
-def mk_small_puck(default_query_main, walls, dt):
-    small_puck_center = Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
-    small_puck_velocity = Vec2d(2.3, -1.7)
-    process_id = ProcessID('small puck')
-    initial_small_puck_state = State(
-        sender=process_id,
-        send_time=EARLIEST_VT,
-        body=Body({'center': small_puck_center,
-                   'velocity': small_puck_velocity,
-                   'walls': walls,
-                   'dt': dt}))
-    small_puck_lp = PuckLP(
-        puck=Puck(
-            center=small_puck_center,
-            velocity=small_puck_velocity,
-            mass=100,
-            radius=42,
-            color=THECOLORS['red']),
-        me=process_id,
-        query_main=default_query_main)
-    # TODO: initial state should be in this constructor
-    small_puck_lp.sq.insert(initial_small_puck_state)
-    return small_puck_lp
-
-
-def mk_big_puck(default_query_main, walls, dt):
-    center = Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5)
-    velocity = Vec2d(-1.95, -0.20)
-    process_id = ProcessID('big puck')
+def mk_puck(center, velocity, mass, radius, color_str, pid, walls,
+            default_query_main, dt):
     state = State(
-        sender=process_id,
+        sender=pid,
         send_time=EARLIEST_VT,
         body=Body({'center': center,
                    'velocity': velocity,
                    'walls': walls,
                    'dt': dt}))
-    big_puck_lp = PuckLP(
+    lp = PuckLP(
         puck=Puck(
             center=center,
             velocity=velocity,
-            mass=100 * 79 * 79 / 42 / 42,
-            radius=79,
-            color=THECOLORS['green']),
-        me=process_id,
+            mass=mass,
+            radius=radius,
+            color=THECOLORS[color_str]),
+        me=pid,
         query_main=default_query_main)
     # TODO: initial state should be in this constructor
-    big_puck_lp.sq.insert(state)
-    return big_puck_lp
+    lp.sq.insert(state)
+    return lp
+
+
+def mk_small_puck(default_query_main, walls, dt):
+    return mk_puck(
+        center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+        velocity=Vec2d(2.3, -1.7),
+        mass=100,
+        radius=42,
+        color_str='red',
+        pid=ProcessID('small puck'),
+        walls=walls,
+        default_query_main = default_query_main,
+        dt = dt)
+
+
+def mk_big_puck(default_query_main, walls, dt):
+    return mk_puck(
+        center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
+        velocity=Vec2d(-1.95, -0.20),
+        mass = 100 * 79 * 79 / 42 / 42,
+        radius = 79,
+        color_str = 'green',
+        pid=ProcessID('big puck'),
+        walls=walls,
+        default_query_main=default_query_main,
+        dt=dt)
 
 
 def wall_prediction(puck, walls, dt):

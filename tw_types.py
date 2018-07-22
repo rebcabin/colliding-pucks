@@ -231,6 +231,9 @@ class TWQueue(object):
             self.rollback = True
             # Even if there is eventual annihilation, we need to roll
             # back to this time or earlier:
+            # TODO: Cancellation is not yet implemented.
+            # TODO: Do eager cancellation right here.
+            # TODO: Do lazy cancellation at the end of each event.
             self.vt = m.vt
         if m.vt in self.elements:
             for e in self.elements[m.vt]:
