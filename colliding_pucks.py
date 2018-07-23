@@ -158,12 +158,42 @@ class Puck(object):
             else:
                 tau_impact_steps = max(tau1, tau2) / dt
                 gonna_hit = tau1 >= 0 or tau2 >= 0
-            # TODO: what does it mean if they're both negative? Is that even
-            # possible?
+            # TODO: what if they're both negative? Is that possible?
+
+        c1_prime = None
+        c2_prime = None
+        v1_prime = None
+        v2_prime = None
+        if gonna_hit:
+            assert tau_impact_steps != np.inf
+            assert tau_impact_steps > 0
+            then = int(tau_impact_steps)
+            v1 = self.velocity
+            v2 = them.velocity
+            c1_prime = self.center + then * dt * v1
+            c2_prime = them.center + then * dt * v2
+            normal = (c2_prime - c1_prime).normalized()
+            tangential = Vec2d(normal[1], -normal[0])
+            v1n = v1.dot(normal)
+            v2n = v2.dot(normal)
+            v1t = v1.dot(tangential)
+            v2t = v2.dot(tangential)
+            m1 = self.MASS
+            m2 = them.MASS
+            M = m1 + m2
+            # See Mathematica notebook in docs folder
+            v1np = ((m1 - m2) * v1n + 2 * m2 * v2n) / M
+            v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
+            v1_prime = v1np * normal + v1t * tangential
+            v2_prime = v2np * normal + v2t * tangential
 
         return {'tau': tau_impact_steps,
                 'puck_victim': them,
-                'gonna_hit': gonna_hit}
+                'gonna_hit': gonna_hit,
+                'c1_prime': c1_prime,
+                'v1_prime': v1_prime,
+                'c2_prime': c2_prime,
+                'v2_prime': v2_prime}
 
 
 class PuckLP(LogicalProcess):
@@ -201,29 +231,10 @@ class PuckLP(LogicalProcess):
                     else:
                         then = sys.maxsize
                     me = self.puck
-                    if then > 0 and then < wall_pred['tau']:
-                        # TODO: move all this calculation into puck pred.
-                        v1 = me.velocity
-                        v2 = it.velocity
-                        c1p = me.center + then * dt * v1
-                        c2p = it.center + then * dt * v2
-                        n = (c2p - c1p).normalized()
-                        t = Vec2d(n[1], -n[0])
-                        v1n = v1.dot(n)
-                        v2n = v2.dot(n)
-                        v1t = v1.dot(t)
-                        v2t = v2.dot(t)
-                        m1 = me.MASS
-                        m2 = it.MASS
-                        M = m1 + m2
-                        # See Mathematica notebook in docs folder
-                        v1np = ((m1 - m2) * v1n + 2 * m2 * v2n) / M
-                        v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
-                        v1p = v1np * n + v1t * t
-                        v2p = v2np * n + v2t * t
+                    if puck_pred['gonna_hit'] and then < wall_pred['tau']:
                         state_prime = self.new_state(Body({
-                            'center': c1p,
-                            'velocity': v1p,
+                            'center': puck_pred['c1_prime'],
+                            'velocity': puck_pred['v1_prime'],
                             'walls': walls,
                             'dt': dt}))
                         self.send(other_pid=self.me,
@@ -231,45 +242,35 @@ class PuckLP(LogicalProcess):
                                   body=Body({'action': 'move'}))
                         self.send(other_pid='big puck',
                                   receive_time=self.now + then,
-                                  body=Body({'action': 'suffer',
-                                             'center': c2p,
-                                             'velocity': v2p}))
+                                  body=Body({
+                                      'action': 'suffer',
+                                      'center': puck_pred['c2_prime'],
+                                      'velocity': puck_pred['v2_prime']}))
                         return state_prime
                     else:
-                        state_prime = self.new_state(Body({
-                            'center': self.puck.center \
-                                      + wall_pred['tau'] * dt * self.puck.velocity,
-                            # elastic, frictionless collision
-                            'velocity': \
-                                + wall_pred['v_t'] * wall_pred['t'] \
-                                - wall_pred['v_n'] * wall_pred['n'],
-                            'walls': walls,
-                            'dt': dt}))
-
-                        self.send(other_pid=self.me,
-                                  receive_time=self.now + int(wall_pred['tau']),
-                                  body=Body({'action': 'move'}))
-                        return state_prime
+                        return self._bounce_off_wall(wall_pred, walls, dt)
                 else:
                     assert self.me == 'big puck'
-                    state_prime = self.new_state(Body({
-                        'center': self.puck.center \
-                                  + wall_pred['tau'] * dt * self.puck.velocity,
-                        # elastic, frictionless collision
-                        'velocity': \
-                            + wall_pred['v_t'] * wall_pred['t'] \
-                            - wall_pred['v_n'] * wall_pred['n'],
-                        'walls': walls,
-                        'dt': dt}))
-
-                    self.send(other_pid=self.me,
-                              receive_time=self.now + int(wall_pred['tau']),
-                              body=Body({'action': 'move'}))
-                    return state_prime
+                    return self._bounce_off_wall(wall_pred, walls, dt)
             else:
                 raise ValueError(f'unknown message body '
                                  f'{pp.pformat(msg)} '
                                  f'for puck {pp.pformat(self.puck)}')
+
+    def _bounce_off_wall(self, wall_pred, walls, dt):
+        state_prime = self.new_state(Body({
+            'center': self.puck.center \
+                      + wall_pred['tau'] * dt * self.puck.velocity,
+            # elastic, frictionless collision
+            'velocity': \
+                + wall_pred['v_t'] * wall_pred['t'] \
+                - wall_pred['v_n'] * wall_pred['n'],
+            'walls': walls,
+            'dt': dt}))
+        self.send(other_pid=self.me,
+                  receive_time=self.now + int(wall_pred['tau']),
+                  body=Body({'action': 'move'}))
+        return state_prime
 
     def query_main(self, vt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
@@ -609,13 +610,18 @@ def main():
     globals.init_globals()
     set_up_screen()
 
-    # demo_classic(steps=3000)
+    PAUSE = 0.75
+    STEPS = 3000
+    CAGES = 5
+    DT = 0.001
+
+    demo_classic(steps=STEPS)
     # input()
-    # # demo_hull(pause=2.75)
-    # for _ in range(15):
-    #     demo_cage(pause=2.75, dt=0.001)
+    # demo_hull(pause=PAUSE)
+    for _ in range(CAGES):
+        demo_cage(pause=PAUSE, dt=DT)
     # input()
-    demo_cage_time_warp(pause=2.75, dt=0.001)
+    demo_cage_time_warp(pause=PAUSE, dt=DT)
 
 
 if __name__ == "__main__":
