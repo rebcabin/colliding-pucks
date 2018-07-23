@@ -116,6 +116,7 @@ class Puck(object):
         # predicted step time can be negative! it is permitted!
         predicted_step_time = distance_to_wall / projected_speed / dt \
             if projected_speed != 0 else np.inf
+        # TODO: do reflection calculation in here, as with puck_collision
         return {'tau': predicted_step_time,
                 'puck_strike_point': point_on_circle,
                 'wall_strike_point': q_prime,
@@ -167,7 +168,7 @@ class Puck(object):
         if gonna_hit:
             assert tau_impact_steps != np.inf
             assert tau_impact_steps > 0
-            then = int(tau_impact_steps)
+            then = float(tau_impact_steps)  # sometimes it's a float64
             v1 = self.velocity
             v2 = them.velocity
             c1_prime = self.center + then * dt * v1
@@ -187,7 +188,8 @@ class Puck(object):
             v1_prime = v1np * normal + v1t * tangential
             v2_prime = v2np * normal + v2t * tangential
 
-        return {'tau': tau_impact_steps,
+        return {'tau': int(tau_impact_steps) \
+            if tau_impact_steps < np.inf else sys.maxsize,
                 'puck_victim': them,
                 'gonna_hit': gonna_hit,
                 'c1_prime': c1_prime,
@@ -219,34 +221,15 @@ class PuckLP(LogicalProcess):
                     'dt':dt}))
                 return state_prime
             elif msg.body['action'] == 'move':
-                # TODO: have prediction functions cast tau to int.
                 wall_pred = wall_prediction(self.puck, walls, dt)
                 if self.me == 'small puck':
                     it, its_state = self.query('big puck', Body({}))
                     # TODO: is it a hack to use the puck rather than its
                     # TODO: tw state?
                     puck_pred = self.puck.predict_a_puck_collision(it, dt)
-                    if puck_pred['tau'] < np.inf:
-                        then = int(puck_pred['tau'])
-                    else:
-                        then = sys.maxsize
-                    me = self.puck
+                    then = puck_pred['tau']
                     if puck_pred['gonna_hit'] and then < wall_pred['tau']:
-                        state_prime = self.new_state(Body({
-                            'center': puck_pred['c1_prime'],
-                            'velocity': puck_pred['v1_prime'],
-                            'walls': walls,
-                            'dt': dt}))
-                        self.send(other_pid=self.me,
-                                  receive_time=self.now + then,
-                                  body=Body({'action': 'move'}))
-                        self.send(other_pid='big puck',
-                                  receive_time=self.now + then,
-                                  body=Body({
-                                      'action': 'suffer',
-                                      'center': puck_pred['c2_prime'],
-                                      'velocity': puck_pred['v2_prime']}))
-                        return state_prime
+                        return self.bounce_pucks(puck_pred, then, walls, dt)
                     else:
                         return self._bounce_off_wall(wall_pred, walls, dt)
                 else:
@@ -256,6 +239,23 @@ class PuckLP(LogicalProcess):
                 raise ValueError(f'unknown message body '
                                  f'{pp.pformat(msg)} '
                                  f'for puck {pp.pformat(self.puck)}')
+
+    def bounce_pucks(self, puck_pred, then, walls, dt):
+        state_prime = self.new_state(Body({
+            'center': puck_pred['c1_prime'],
+            'velocity': puck_pred['v1_prime'],
+            'walls': walls,
+            'dt': dt}))
+        self.send(other_pid=self.me,
+                  receive_time=self.now + then,
+                  body=Body({'action': 'move'}))
+        self.send(other_pid='big puck',
+                  receive_time=self.now + then,
+                  body=Body({
+                      'action': 'suffer',
+                      'center': puck_pred['c2_prime'],
+                      'velocity': puck_pred['v2_prime']}))
+        return state_prime
 
     def _bounce_off_wall(self, wall_pred, walls, dt):
         state_prime = self.new_state(Body({
