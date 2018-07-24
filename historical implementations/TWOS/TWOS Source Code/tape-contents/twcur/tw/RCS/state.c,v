@@ -1,0 +1,3133 @@
+head     1.15;
+branch   ;
+access   ;
+symbols  TW2_7:1.15 TW2_6:1.13 TW2_5_1:1.11 TW2_5:1.9 TW2_4_2:1.3 TW2_4_1:1.3 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.15
+date     91.12.27.09.57.34;  author reiher;  state Rel;
+branches ;
+next     1.14;
+
+1.14
+date     91.12.27.09.15.54;  author pls;  state Dev;
+branches ;
+next     1.13;
+
+1.13
+date     91.11.01.13.47.14;  author reiher;  state Rel;
+branches ;
+next     1.12;
+
+1.12
+date     91.11.01.12.50.39;  author pls;  state Dev;
+branches ;
+next     1.11;
+
+1.11
+date     91.07.17.15.12.38;  author judy;  state Rel;
+branches ;
+next     1.10;
+
+1.10
+date     91.07.09.14.43.48;  author steve;  state Dev;
+branches ;
+next     1.9;
+
+1.9
+date     91.06.03.12.26.47;  author configtw;  state Rel;
+branches ;
+next     1.8;
+
+1.8
+date     91.06.03.09.50.12;  author pls;  state Dev;
+branches ;
+next     1.7;
+
+1.7
+date     91.05.31.15.30.51;  author pls;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.04.01.15.46.44;  author reiher;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     91.03.26.09.47.23;  author pls;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.03.25.16.39.36;  author csupport;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     90.08.27.10.44.53;  author configtw;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.09.16.17.09;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.41.05;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@state handling code
+@
+
+
+1.15
+log
+@Added code to support event count throttling
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	state.c,v $
+ * Revision 1.14  91/12/27  09:15:54  pls
+ * 1.  Fix up TIMING code.
+ * 2.  Combine newBlockWithPtrs_b and newBlockPtr_b.
+ * 3.  Add support for variable length address table (SCR 214).
+ * 
+ * Revision 1.13  91/11/01  13:47:14  reiher
+ * Added timing code and critical path code (PLR)
+ * 
+ * Revision 1.12  91/11/01  12:50:39  pls
+ * 1.  Change ifdef's and version id.
+ * 2.  Make sflag a bit flag.
+ * 3.  Put in changes for signal support (SCR 164).
+ * 4.  loadstatebuffer() uses new parm for bug 15.
+ * 
+ * Revision 1.11  91/07/17  15:12:38  judy
+ * New copyright notice.
+ * 
+ * Revision 1.10  91/07/09  14:43:48  steve
+ * Added support for MicroTime and object_timing_mode
+ * 
+ * Revision 1.9  91/06/03  12:26:47  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.8  91/06/03  09:50:12  pls
+ * Use message buffer pool for state error message space.
+ * 
+ * Revision 1.7  91/05/31  15:30:51  pls
+ * 1.  Copy state error messages into TW space.
+ * 2.  Check for bad block size request.
+ * 3.  Add code to handle state copying for object migration.
+ * 
+ * Revision 1.6  91/04/01  15:46:44  reiher
+ * Code to support Tapas Som's work, and a routine for state comparison to
+ * be used with the limited jump forward optimization.
+ * 
+ * Revision 1.5  91/03/26  09:47:23  pls
+ * 1.  Add Steve's RBC code.
+ * 2.  Modify hoglog code to refer to hlog.
+ * 
+ * Revision 1.4  91/03/25  16:39:36  csupport
+ * Implement hoglog.
+ *
+ * Revision 1.3  90/08/27  10:44:53  configtw
+ * Split cycle time from committed time.
+ * 
+ * Revision 1.2  90/08/09  16:17:09  steve
+ * set o->sb->ocb field twice
+ * 
+ * Revision 1.1  90/08/07  15:41:05  configtw
+ * Initial revision
+ * 
+*/
+char state_id [] = "@@(#)state.c $Revision: 1.14 $\t$Date: 91/12/27 09:15:54 $\tTIMEWARP";
+
+
+/*
+		Functions:
+
+		loadstatebuffer(o) - set up an active state for the object to run in
+				Parameters - Ocb *o
+				Return - SUCCESS or FAILURE
+
+		loadstatebuffer() checks to see if the object's state buffer is
+		already loaded, returning success if it is.  Otherwise, the
+		routine looks into the cs pointer to find a state.  If there
+		is no state there either, an error has occurred.  If a state
+		is found, m_create() is used to allocate space for the temporary
+		state buffer, and for the associated stack.  If space is unavailable,
+		then any work done in this routine is undone, and FAILURE is 
+		returned.  If the m_create()s succeed, the current state is copied
+		into the temporary state with entcpy(), and the stack is initialized.
+		SUCCESS is returned.
+*/
+
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+
+extern Byte * object_context;
+extern int prop_delay;
+
+extern int      hlog;
+extern VTime    hlogVTime;
+extern int      maxSlice;
+extern Ocb*     maxSliceObj;
+extern VTime    maxSliceTime;
+extern int      sliceTime;
+#ifdef STATETIME
+long statestart, statend;
+long statetime = 0;
+long statecount = 0;
+#endif STATETIME
+
+FUNCTION int loadstatebuffer (o,tempType)
+
+	register Ocb *o;
+	Typtbl		*tempType;	/* -1 if same type on DYNCRMSG */
+{
+	register State * old_state, * new_state;
+	register Byte * old_addr, * new_addr;
+	register int i, size;
+#if RBC
+	int rv;
+#endif
+
+  Debug
+
+#ifdef STATETIME
+	statestart = clock();
+#endif STATETIME
+
+	if (o->sb != NULL)
+	{
+		twerror ( "loadstatebuffer F o->sb %x for %s\n", o->sb, o->name );
+		tester ();
+	}
+
+	if (o->cs == NULL)
+	{
+		twerror ("loadstatebuffer F object %s cs == NULL", o->name);
+		tester ();
+	}
+
+	o->sb = (State *) m_create ( sizeof(State) + o->pvz_len + 12, o->svt,
+				NONCRITICAL );
+
+	if ( o->sb == NULL )
+		return FAILURE;
+
+	o->sb->ocb = o;
+
+	o->stk = m_create ( objstksize, o->svt, NONCRITICAL );
+
+	if ( o->sb == NULL )
+	{
+		_pprintf ( "loadstatebuffer: o->sb == NULL after create stk\n" );
+		tester ();
+	}
+
+	if ( o->stk == NULL )
+	{
+		l_destroy ( o->sb );
+		o->sb = NULL;
+		return FAILURE;
+	}
+
+	strcpy ( ((Byte *)(o->sb+1)) + o->pvz_len, "state limit" );
+
+	strcpy ( o->stk, "stack limit" );
+
+	if (o->centry == CMSG ||
+		(o->centry == DYNCRMSG && tempType != (Typtbl *)-1))
+	{
+#if RBC
+		if ( o->uses_rbc )
+		{
+			int size_in_bytes = o->typepointer->statesize;
+
+			if ( rv = mark_op ( o, 1, o->svt ) )
+			{
+				_pprintf ( "mark overflow on new object in loadstatebuff\n" );
+				tester();
+			}
+			clear ( o->footer, size_in_bytes );
+		}
+#endif
+		clear ( o->sb, sizeof(State) + o->pvz_len);
+		o->sb->ocb = o;
+#ifdef STATETIME
+		statend = clock();
+		statetime += statend - statestart;
+		statecount++;
+#endif STATETIME
+
+	/* Set the resulting event field to 1, to account for the next event
+		to occur in this phase. */
+
+		o->sb->resultingEvents = 1;
+
+		return SUCCESS;
+	}
+
+    if ( BITTST ( o->cs->sflag, STATERR ) )
+		{       /* no code is here to handle error msg copying */
+		_pprintf("loadstatebuffer: error in state %x\n",o->cs);
+		tester();
+		}
+
+	entcpy ( o->sb, o->cs, sizeof(State) + o->pvz_len );
+
+	o->sb->effectWork = 0;
+
+	old_state = o->cs;
+	new_state = o->sb;
+
+#if SOM
+
+	/*  The previous ept is stored here so that, on rollback, the load
+		management code can easily determine what the maximum non-rolled
+		back ept should be changed to.  It should always be the ept of the
+		previous event.  previousEpt is never adjusted during an event,
+		while Ept has the amount of work added to it done in each segment
+		of the event.  Ept is used to put timestamps on messages going out. */
+
+	o->sb->previousEpt = o->sb->Ept;
+
+	/* Set the resulting event field to 1, to account for the next event
+		to occur in this phase. */
+
+	o->sb->resultingEvents = 1;
+
+#endif SOM
+
+#if RBC
+	if ( o->uses_rbc && (rv = mark_op ( o, 1, o->svt ) ) )
+	{
+		_pprintf ( "rbc is limiting memory\n" );
+
+		l_destroy ( o->sb );
+		o->sb = NULL;
+		l_destroy ( o->stk );
+		o->stk = NULL;
+		return FAILURE;
+	}
+	else
+		return SUCCESS;
+#endif
+
+	if ( old_state->address_table == NULL )
+	{
+#ifdef STATETIME
+		statend = clock();
+		statetime += statend - statestart;
+		statecount++;
+#endif STATETIME
+		return SUCCESS;
+	}
+
+	new_addr = m_create ( l_size(old_state->address_table),
+		o->svt, NONCRITICAL );
+
+	if ( o->sb == NULL )
+	{
+		_pprintf ( "loadstatebuffer: o->sb == NULL after create addr\n" );
+		tester ();
+	}
+
+	new_state->address_table = (Address *) new_addr;
+
+	if ( new_addr == NULL )
+	{
+		destroy_state ( o->sb ); /* RBC can't get here */
+		o->eventsPermitted++;
+		o->sb = NULL;
+		l_destroy ( o->stk );
+		o->stk = NULL;
+		return FAILURE;
+	}
+
+	clear ( new_addr, l_size(new_addr) );
+
+	for ( i = 0; i < l_size(new_addr) / sizeof(Address); i++ )
+	{
+		if ( old_state->address_table[i] != NULL )
+		{
+			new_state->address_table[i] = DEFERRED;
+		}
+	}
+#ifdef STATETIME
+	statend = clock();
+	statetime += statend - statestart;
+	statecount++;
+#endif STATETIME
+
+
+	return SUCCESS;
+}
+
+FUNCTION destroy_state ( state )
+
+	register State * state;
+{
+	register Byte * addr;
+	register int i;
+
+  Debug
+
+	/* this function and the rollback chip don't mix! */
+	/* RBC code doesn't call this function */
+
+	if ( state->address_table != NULL )
+	{
+		for ( i = 0; i < l_size(state->address_table) / sizeof(Address); i++ )
+		{
+			addr = state->address_table[i];
+
+			if ( addr != NULL && addr != DEFERRED )
+			{   /* release all memory in the address table */
+				l_destroy ( addr );
+			}
+		}
+
+		/* release the address table */
+		l_destroy ( state->address_table );
+	}
+
+    if ( BITTST ( state->sflag, STATERR ) )
+		l_destroy(state->serror);       /* release error message */
+
+		/* release the state space */
+	l_destroy ( state );
+}	/* destroy_state */
+
+FUNCTION newBlockPtr_b ( size )
+
+	Uint size;
+{
+	register Ocb * ocb = xqting_ocb;
+	register State * state = ocb->sb;
+	register Byte * addr;
+	register int i;
+	int			j;
+
+  Debug
+
+	if ((size > 100000) || (size == 0))
+		{
+		object_error ( NEWBLKSZ );
+		}
+	else if (state->segCount == Max_Addresses)
+		{
+		object_error ( ADDROFLOW );
+		}
+	else
+		{
+		if (( state->address_table == NULL ) || 
+			(l_size(state->address_table) == state->segCount * sizeof(Address)))
+			{  /* need to add to segment table size */
+			j = (state->segCount + SEG_TABLE_INCREMENT) * sizeof ( Address );
+
+#if RBC
+			if ( ocb->uses_rbc )
+				addr = rbc_malloc ( ocb, j );
+			else
+#endif
+				addr = m_create ( j, ocb->svt, NONCRITICAL );
+
+			if ( ocb->sb == NULL )
+				{
+				_pprintf ( "newBlock: o->sb == NULL after create addr\n" );
+				tester ();
+				}
+
+			if ( addr == NULL )
+				{
+				rollback ( ocb, ocb->svt );
+				dispatch ();
+				return;
+				}
+
+			clear ( addr, j );	/* clear out the new table area */
+
+			if (state->address_table != NULL)
+				{	/* we're enlarging the size, so copy old stuff */
+				entcpy(addr,state->address_table,l_size(state->address_table));
+				l_destroy (state->address_table);	/* dump old one */
+				}
+
+			state->address_table = (Address *) addr;
+			}  /* if ( state->address_table == NULL ) */
+
+		j = l_size(state->address_table) / sizeof(Address);
+		for ( i = 0; i < j; i++ )
+			{
+			if ( state->address_table[i] == NULL )
+				break;
+			}
+#if RBC
+		if ( ocb->uses_rbc )
+			addr = rbc_malloc ( ocb, size );
+		else
+#endif
+			addr = m_create ( size, ocb->svt, NONCRITICAL );
+
+		if ( ocb->sb == NULL )
+			{
+			_pprintf ( "newBlock: o->sb == NULL after create size\n" );
+			tester ();
+			}
+
+		if ( addr == NULL )
+			{
+			rollback ( ocb, ocb->svt );
+			}
+		else
+			{
+			state->address_table[i] = addr;
+			if (++state->segCount > ocb->stats.segMax)
+				ocb->stats.segMax = state->segCount;
+			ocb->argblock.address_table_offset = i + 1;
+			clear ( addr, size );
+			}
+		}  /* if no NEWBLKSZ or ADDROFLOW error */
+	dispatch ();
+}	/* newBlockPtr_b */
+
+FUNCTION Pointer newBlockPtr ( size )
+
+	Uint size;
+{
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( prop_delay )
+		delay_object ();
+
+#if TIMING
+        stop_timing();
+#endif
+
+#if MICROTIME
+	switch ( object_timing_mode )
+	{
+	case WALLOBJTIME:
+		MicroTime ();
+		object_end_time = node_cputime;
+		break;
+	case USEROBJTIME:
+		object_end_time = UserDeltaTime(); /* end clock */
+		/* object_start_time is still zero */
+		break;
+	case NOOBJTIME:
+	default:
+		/* no measure */
+		break;
+	}
+#else
+#if MARK3
+	mark3time ();
+#endif
+#if BBN
+	butterflytime ();
+#endif
+	object_end_time = node_cputime;
+#endif
+
+	if (hlog)
+		{
+		sliceTime = object_end_time - object_start_time;
+		if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+			{ /* this slice was bigger than max so far */
+			maxSlice = sliceTime;
+			maxSliceObj = xqting_ocb;
+		   maxSliceTime = xqting_ocb->svt;
+			}
+		}  /* if hlog */
+
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+	xqting_ocb->cycletime += object_end_time - object_start_time;
+	xqting_ocb->stats.comtime += object_end_time - object_start_time;
+	xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+	switch_back ( newBlockPtr_b, object_context, size );
+
+	return ( xqting_ocb->argblock.address_table_offset );
+}	/* newBlockPtr */
+
+
+
+/* This function returns a Pointer value for the pointer to */
+/* the top of the State. Since it is not really an          */
+/* entity, it does not need to be stored in the address     */
+/* table. We just pass back Max_Addresses +1                */
+
+FUNCTION Pointer statePtr ( )
+
+{
+	return ( (Pointer) (Max_Addresses +1) );
+}
+
+#if 0
+
+FUNCTION newBlockWithPtrs_b ( size )
+
+	Uint size;
+{
+	register Ocb * ocb = xqting_ocb;
+	register State * state = ocb->sb;
+	register Byte * addr;
+	register int i;
+
+  Debug
+
+
+	if ( state->address_table == NULL )
+	{
+		i = Max_Addresses * sizeof ( Address );
+
+#if RBC
+		if ( ocb->uses_rbc )
+			addr = rbc_malloc ( ocb, i );
+		else
+#endif
+		addr = m_create ( i, ocb->svt, NONCRITICAL );
+
+		if ( ocb->sb == NULL )
+		 {
+		   _pprintf ( "newBlockWithPtrs: o->sb == NULL after create addr\n" );
+		   tester ();
+		 }
+
+		if ( addr == NULL )
+		{
+			rollback ( ocb, ocb->svt );
+			dispatch ();
+			return;
+		}
+
+		state->address_table = (Address *) addr;
+		clear ( addr, i );
+	}
+
+	for ( i = 0; i < Max_Addresses; i++ )
+	{
+		if ( state->address_table[i] == NULL )
+			break;
+	}
+
+	if ( i == Max_Addresses )
+	{
+		object_error ( ADDROFLOW );
+	}
+	else
+	{
+#if RBC
+		if ( ocb->uses_rbc )
+			addr = rbc_malloc ( ocb, size );
+		else
+#endif
+		addr = m_create ( size, ocb->svt, NONCRITICAL );
+
+		if ( ocb->sb == NULL )
+		{
+			_pprintf (
+				 "newBlockWithPtrs: o->sb == NULL after create size\n" );
+			tester ();
+		}
+
+		if ( addr == NULL )
+		{
+			rollback ( ocb, ocb->svt );
+		}
+		else
+		{
+			state->address_table[i] = addr;
+			if (++state->segCount > ocb->stats.segMax)
+				ocb->stats.segMax = state->segCount;
+			ocb->argblock.address_table_offset = i + 1;
+			clear ( addr, size );
+		}
+	}
+
+	dispatch ();
+}	/* newBlockWithPtrs_b */
+#endif
+
+FUNCTION void * newBlockWithPtrs ( size, Ptr )
+
+	Uint size;
+	Pointer * Ptr;
+
+{
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( prop_delay )
+		delay_object ();
+
+#if TIMING
+        stop_timing();
+#endif
+
+#if MICROTIME
+	switch ( object_timing_mode )
+	{
+	case WALLOBJTIME:
+		MicroTime ();
+		object_end_time = node_cputime;
+		break;
+	case USEROBJTIME:
+		object_end_time = UserDeltaTime(); /* end clock */
+		/* object_start_time is still zero */
+		break;
+	case NOOBJTIME:
+	default:
+		/* no measure */
+		break;
+	}
+#else
+#if MARK3
+	mark3time ();
+#endif
+#if BBN
+	butterflytime ();
+#endif
+	object_end_time = node_cputime;
+#endif
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}  /* if hlog */
+
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+	xqting_ocb->cycletime += object_end_time - object_start_time;
+	xqting_ocb->stats.comtime += object_end_time - object_start_time;
+	xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+	switch_back ( newBlockPtr_b, object_context, size );
+
+	*Ptr =  xqting_ocb->argblock.address_table_offset ;
+	return ( xqting_ocb->sb->address_table[(*Ptr)-1] );
+
+}	/* newBlockWithPtrs */
+
+FUNCTION disposeBlockPtr_b ( offset )
+
+	int offset;
+{
+	register Ocb * ocb = xqting_ocb;
+	register State * state = ocb->sb;
+	register Byte * addr;
+
+  Debug
+
+	offset--;
+
+	if ( offset < 0 ||
+		state->address_table == NULL ||
+		offset >= l_size(state->address_table) / sizeof(Address) ||
+		state->address_table[offset] == NULL )
+	{
+		object_error ( STATE_DISPOSAL );
+	}
+	else
+	{
+		addr = state->address_table[offset];
+
+#if RBC
+		if ( ocb->uses_rbc )
+			rbc_free ( ocb, addr );
+		else
+#endif
+		if ( addr != DEFERRED )
+			l_destroy ( addr );
+
+		state->address_table[offset] = NULL;
+		state->segCount--;
+	}
+
+	dispatch ();
+}	/* disposeBlockPtr_b */
+
+FUNCTION disposeBlockPtr ( offset )
+
+	int offset;
+{
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( prop_delay )
+		delay_object ();
+
+#if TIMING
+        stop_timing();
+#endif
+
+#if MICROTIME
+	switch ( object_timing_mode )
+	{
+	case WALLOBJTIME:
+		MicroTime ();
+		object_end_time = node_cputime;
+		break;
+	case USEROBJTIME:
+		object_end_time = UserDeltaTime(); /* end clock */
+		/* object_start_time is still zero */
+		break;
+	case NOOBJTIME:
+	default:
+		/* no measure */
+		break;
+	}
+#else
+#if MARK3
+	mark3time ();
+#endif
+#if BBN
+	butterflytime ();
+#endif
+	object_end_time = node_cputime;
+#endif
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}  /* if hlog */
+
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+	xqting_ocb->cycletime += object_end_time - object_start_time;
+	xqting_ocb->stats.comtime += object_end_time - object_start_time;
+	xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+	switch_back ( disposeBlockPtr_b, object_context, offset );
+}       /* disposeBlockPtr */
+
+FUNCTION pointerPtr_b ( offset )
+
+	register int offset;
+{
+	register Ocb * ocb = xqting_ocb;
+	register State * state = ocb->sb;
+	register State * old_state = ocb->cs;
+	register Byte * old_addr, * new_addr;
+	register int size;
+
+  Debug
+
+	offset--;
+
+	while ( old_state->address_table[offset] == DEFERRED )
+		old_state = (State *) l_prev_macro ( old_state );
+
+	old_addr = old_state->address_table[offset];
+
+	size = l_size(old_addr);
+
+	new_addr = m_create ( size, ocb->svt, NONCRITICAL );
+
+	if ( new_addr == NULL )
+	{
+		rollback ( ocb, ocb->svt );
+	}
+	else
+	{
+		state->address_table[offset] = new_addr;
+		entcpy ( new_addr, old_addr, size );
+	}
+
+	dispatch ();
+}
+
+FUNCTION void * pointerPtr ( offset )
+
+	int offset;
+{
+	void * addr;
+
+/* The offset value of Max_Addresses +1  is reserved    */
+/* for the pointer to the top of State.                 */
+
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( offset == (Max_Addresses +1) )
+	{
+#if RBC
+		if ( xqting_ocb->uses_rbc )
+			{
+			objectCode = TRUE;
+			return ( (void *) (xqting_ocb->footer) );
+			}
+		else
+#endif
+			{
+			objectCode = TRUE;
+			return ( (void *) (xqting_ocb->sb +1) );
+			}
+	}
+
+	if ( offset <= 0 ||
+		xqting_ocb->sb->address_table == NULL ||
+		offset > l_size(xqting_ocb->sb->address_table) / sizeof(Address) ||
+		xqting_ocb->sb->address_table[offset-1] == NULL )
+	{
+#if PARANOID
+		_pprintf("Bad TW pointer: %d for %s\n",offset,xqting_ocb->name);
+		tester();
+#endif
+		addr = NULL;
+	}
+	else
+	{
+		addr = (void *) (xqting_ocb->sb->address_table[offset-1]);
+
+		if ( addr == DEFERRED )
+		{
+#if RBC
+			if ( xqting_ocb->uses_rbc )
+			{
+				_pprintf ( "rbc using object with deferred offset\n" );
+				tester();
+			}
+#endif
+
+#if TIMING
+        	stop_timing();
+#endif
+
+#if MICROTIME
+			switch ( object_timing_mode )
+			{
+			case WALLOBJTIME:
+				MicroTime ();
+				object_end_time = node_cputime;
+				break;
+			case USEROBJTIME:
+				object_end_time = UserDeltaTime(); /* end clock */
+				/* object_start_time is still zero */
+				break;
+			case NOOBJTIME:
+			default:
+				/* no measure */
+				break;
+			}
+#else
+#if MARK3
+			mark3time ();
+#endif
+#if BBN
+			butterflytime ();
+#endif
+			object_end_time = node_cputime;
+#endif
+
+			if (hlog)
+				{
+				sliceTime = object_end_time - object_start_time;
+				if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+					{ /* this slice was bigger than max so far */
+					maxSlice = sliceTime;
+					maxSliceObj = xqting_ocb;
+					maxSliceTime = xqting_ocb->svt;
+					}
+				}  /* if hlog */
+
+			xqting_ocb->stats.cputime += object_end_time - object_start_time;
+			xqting_ocb->cycletime += object_end_time - object_start_time;
+			xqting_ocb->stats.comtime += object_end_time - object_start_time;
+			xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+			switch_back ( pointerPtr_b, object_context, offset );
+
+			addr = (void *) (xqting_ocb->sb->address_table[offset-1]);
+		}
+	}
+
+	objectCode = TRUE;
+	return ( addr );
+}       /* pointerPtr */
+
+#if PARANOID
+#define OK FALSE
+#define NG TRUE
+
+FUNCTION int objectAddressError ( addr, size )
+
+	Byte * addr;
+	int size;
+{
+	Ocb * o = xqting_ocb;
+	int i;
+
+	if ( addr >= o->stk+12 && addr+size <= o->stk+objstksize )
+		return OK;
+
+	if ( addr >= (Byte *)(o->sb+1) && addr+size <= (Byte *)(o->sb+1)+o->pvz_len)
+		return OK;
+
+	if ( o->sb->address_table == NULL )
+		return NG;
+
+	for ( i = 0; i < l_size(o->sb->address_table) / sizeof(Address); i++ )
+	{
+		Byte * saddr = (Byte *) o->sb->address_table[i];
+
+		if ( saddr != NULL && saddr != DEFERRED )
+		{
+			int ssize = l_size(saddr);
+
+			if ( addr >= saddr && addr+size <= saddr+ssize )
+				return OK;
+		}
+	}
+
+	return ( NG );
+}
+#endif
+
+FUNCTION userError_b ( error )
+
+	char * error;
+{
+	char * cerror;
+	int         errLength;
+
+	errLength = strlen(error)+1;
+	if (errLength > msgdefsize)
+		errLength = msgdefsize;
+	cerror = (char *)m_create(msgdefsize,xqting_ocb->svt,NONCRITICAL);
+	if (cerror == NULL)
+		object_error ( error ); /* not enough room--use original */
+	else
+		{
+        BITSET ( xqting_ocb->sb->sflag , STATERR );
+		entcpy(cerror,error,errLength); /* copy original */
+		object_error(cerror);
+		}
+
+	dispatch ();
+}
+
+FUNCTION userError ( error )
+
+	char * error;
+{
+	objectCode = FALSE;		/* not executing object code now */
+
+#if TIMING
+    stop_timing();
+#endif
+
+#if MICROTIME
+	switch ( object_timing_mode )
+	{
+	case WALLOBJTIME:
+		MicroTime ();
+		object_end_time = node_cputime;
+		break;
+	case USEROBJTIME:
+		object_end_time = UserDeltaTime(); /* end clock */
+		/* object_start_time is still zero */
+		break;
+	case NOOBJTIME:
+	default:
+		/* no measure */
+		break;
+	}
+#else
+#if MARK3
+	mark3time ();
+#endif
+#if BBN
+	butterflytime ();
+#endif
+	object_end_time = node_cputime;
+#endif
+
+	if (hlog)
+		{
+		sliceTime = object_end_time - object_start_time;
+		if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+			{ /* this slice was bigger than max so far */
+			maxSlice = sliceTime;
+			maxSliceObj = xqting_ocb;
+		   maxSliceTime = xqting_ocb->svt;
+			}
+		}  /* if hlog */
+
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+
+	switch_back ( userError_b, object_context, error );
+}       /* userError */
+
+FUNCTION State * copystate ( old_state )
+
+	register State * old_state;
+{
+	char        *cerror;
+	int         errLength;
+	register State * new_state;
+	register Byte * old_addr, * new_addr;
+	register int i, size;
+	int checkOk;
+
+  Debug
+
+	size = l_size(old_state);
+
+	new_state = (State *) m_create ( size, old_state->sndtim, NONCRITICAL );
+
+	if ( new_state == NULL )
+	{
+		checkOk = check_old_state ( old_state );
+
+		if ( checkOk )
+			return ( NULL );
+		else
+		{
+
+#if 0
+			_pprintf("copystate: can't get state to send (1)\n");
+#endif
+
+			return ( (State *) -1 );
+		}
+	}
+
+	entcpy ( new_state, old_state, size );
+
+	if ( old_state->address_table == NULL )
+		return ( new_state );
+
+	size = l_size(old_state->address_table);
+
+	new_addr = m_create ( size, old_state->sndtim, NONCRITICAL );
+
+	new_state->address_table = (Address *) new_addr;
+
+	if ( new_addr == NULL )
+	{
+		l_destroy ( new_state );
+
+		checkOk = check_old_state ( old_state );
+
+		if ( checkOk )
+			return ( NULL );
+		else
+		{
+
+#if 0
+			_pprintf("copystate: can't get state to send (2)\n");
+#endif
+			return ( ( State * ) -1 );
+		}
+	}
+
+	clear ( new_addr, size );
+
+	for ( i = 0; i < l_size(old_state->address_table) / sizeof(Address); i++ )
+	{
+		if ( old_state->address_table[i] != NULL )
+		{
+			State * back_state = old_state;
+
+			while (  ! ( l_ishead_macro ( back_state ) ) &&
+						back_state->address_table[i] == DEFERRED )
+				back_state = (State *) l_prev_macro ( back_state );
+
+			if ( l_ishead_macro ( back_state ) )
+			{
+				twerror ( "copystate F No non-deferred copy of segment %d of state %x\n", i,old_state );
+				tester();
+			}
+
+			old_addr = back_state->address_table[i];
+
+			size = l_size(old_addr);
+
+			new_addr = m_create ( size, old_state->sndtim, NONCRITICAL );
+
+			if ( new_addr == NULL )
+			{
+				destroy_state ( new_state );
+
+				checkOk = check_old_state ( old_state );
+
+				if ( checkOk )
+					return ( NULL );
+				else
+				{
+
+#if 0
+					_pprintf("copystate: can't get state to send (3)\n");
+#endif
+
+					return ( ( State * ) -1 );
+				}
+			}
+
+			entcpy ( new_addr, old_addr, size );
+
+			new_state->address_table[i] = new_addr;
+		}
+	}
+
+	if (old_state->serror)
+		{       /* copy error message */
+		errLength = strlen(old_state->serror) + 1;
+		if (errLength > msgdefsize)
+			errLength = msgdefsize;
+		cerror = (char *)m_create(msgdefsize,
+			old_state->sndtim,NONCRITICAL);
+		if (cerror == NULL)
+			/* not enough room--use original */
+            BITCLR ( new_state->sflag , STATERR );
+		else
+			{
+			new_state->serror = cerror;         /* save pointer */
+			entcpy(cerror,old_state->serror,errLength); /* copy original */
+			}
+		}
+	return ( new_state );
+}
+
+/*  Try to convert the existing old state into a state that can be stolen
+		out of the state queue and shipped to the next phase.  If it has
+		an address table, check all entries to make sure none are deferred.
+		Deferred entries must be replaced with actual copies of the memory
+		segments from the last state that accessed them.  If an attempt to
+		make a copy of a deferred segment fails due to lack of memory, our
+		best efforts have failed and we'll give up.  This function returns
+		a 1 if the old state can be shipped off, and a zero if it cannot.  */
+
+FUNCTION check_old_state ( old_state )
+
+	State * old_state;
+{
+	int i, size;
+
+#if 1
+	return(NULL);
+#else
+
+	if ( old_state == NULL )
+	 {
+	   twerror ("check_old_state F passed a NULL State Pointer" );
+	   tester ();
+	   return ( NULL );
+	 }
+
+	if ( old_state->address_table != NULL )
+	 {
+
+		for ( i = 0; i < l_size(old_state->address_table) / sizeof(Address);i++)
+		{
+		  if ( old_state->address_table[i] == DEFERRED )
+		  {
+			State * back_state = l_prev_macro ( old_state );
+			Byte * old_addr, * new_addr;
+
+			/*  Look for an actual copy of this memory segment in earlier
+				states.  Then grab memory and copy it. */
+
+			while (  ! ( l_ishead_macro ( back_state )) &&
+						back_state->address_table[i] == DEFERRED ) 
+				back_state = (State *) l_prev_macro ( back_state );
+
+			if ( l_ishead_macro ( back_state ) )
+			{
+				twerror ( "check_old_state F No non-deferred copy of segment %d of state %x\n", i,old_state );
+				tester();
+			}
+
+			old_addr = back_state->address_table[i];
+
+			size = l_size(old_addr);
+
+			new_addr = m_create ( size, old_state->sndtim, NONCRITICAL );
+
+			if ( new_addr == NULL )
+			{
+				_pprintf("check_old_state: can't find memory to copy deferred segment\n");
+				return ( NULL );
+			}
+
+			entcpy ( new_addr, old_addr, size );
+
+			old_state->address_table[i] = new_addr;
+		   }
+		}
+	 }
+
+	return ( 1 );
+#endif
+}
+
+/* This function compares two states to determine if the jump forward
+	optimization can be applied.  At the moment, only the actual body of
+	the state is compared - no dynamically allocated segments are compared.
+	If either state has dynamically allocated segments, the states are
+	judged to be different.  In fact, if either state has an address table
+	to hold dynamic memory pointers, the states are judged to be different.
+	A future version of this function will also compare dynamic memory
+	segments. */
+
+FUNCTION state_compare ( old, new, length )
+	State * old;
+	State * new;
+	int length;
+{
+	int compare;
+
+	if (old->address_table != NULL || new->address_table != NULL )
+	{  
+	  /* Here's where the code to compare dynamic memory segments should
+			  go.  When written, this whole code segment should probably
+			  be relocated below the basic text comparison.*/
+	  return ( -1 );
+	}  
+
+	compare = bytcmp ( (Byte *) ( old + 1 ), (Byte *) ( new + 1 ), length );
+
+	return ( compare );
+}
+
+@
+
+
+1.14
+log
+@1.  Fix up TIMING code.
+2.  Combine newBlockWithPtrs_b and newBlockPtr_b.
+3.  Add support for variable length address table (SCR 214).
+@
+text
+@d7 5
+d59 1
+a59 1
+char state_id [] = "@@(#)state.c $Revision: 1.13 $\t$Date: 91/11/01 13:47:14 $\tTIMEWARP";
+d260 1
+@
+
+
+1.13
+log
+@Added timing code and critical path code (PLR)
+@
+text
+@d7 3
+d54 1
+a54 1
+char state_id [] = "@@(#)state.c $Revision: 1.12 $\t$Date: 91/11/01 12:50:39 $\tTIMEWARP";
+d241 2
+a242 1
+	new_addr = m_create ( Max_Addresses*sizeof(Address), o->svt, NONCRITICAL );
+d261 1
+a261 1
+	clear ( new_addr, Max_Addresses * sizeof ( Address ) );
+d263 1
+a263 1
+	for ( i = 0; i < Max_Addresses; i++ )
+d294 1
+a294 1
+		for ( i = 0; i < Max_Addresses; i++ )
+d313 1
+a313 1
+}
+d323 1
+d331 4
+d337 4
+a340 3
+		if ( state->address_table == NULL )
+			{
+			i = Max_Addresses * sizeof ( Address );
+d344 1
+a344 1
+				addr = rbc_malloc ( ocb, i );
+d347 1
+a347 1
+				addr = m_create ( i, ocb->svt, NONCRITICAL );
+d351 1
+a351 1
+				_pprintf ( "newBlockPtr: o->sb == NULL after create addr\n" );
+d362 8
+a370 1
+			clear ( addr, i );
+d373 2
+a374 1
+		for ( i = 0; i < Max_Addresses; i++ )
+d379 6
+d386 1
+a386 1
+		if ( i == Max_Addresses )
+d388 2
+a389 1
+			object_error ( ADDROFLOW );
+d391 5
+d398 7
+a404 25
+#if RBC
+			if ( ocb->uses_rbc )
+				addr = rbc_malloc ( ocb, size );
+			else
+#endif
+				addr = m_create ( size, ocb->svt, NONCRITICAL );
+
+			if ( ocb->sb == NULL )
+				{
+				_pprintf ( "newBlockPtr: o->sb == NULL after create size\n" );
+				tester ();
+				}
+
+			if ( addr == NULL )
+				{
+				rollback ( ocb, ocb->svt );
+				}
+			else
+				{
+				state->address_table[i] = addr;
+				ocb->argblock.address_table_offset = i + 1;
+				clear ( addr, size );
+				}
+			}  /* if no ADDROFLOW error */
+		}  /* if no NEWBLKSZ error */
+d406 1
+a406 1
+}
+d417 4
+d473 1
+a473 1
+}
+d488 1
+a489 1
+
+d563 2
+d571 2
+a572 1
+}
+d585 4
+d638 1
+a638 1
+	switch_back ( newBlockWithPtrs_b, object_context, size );
+d643 1
+a643 1
+}
+d657 4
+a660 2
+	if ( offset < 0 || offset >= Max_Addresses
+	||   state->address_table[offset] == NULL )
+d677 1
+d681 1
+a681 1
+}
+d692 4
+d767 1
+a767 1
+	size = (((List_hdr *)old_addr)-1)->size;
+d805 4
+a808 3
+		{
+		objectCode = TRUE;
+		return ( (void *) (xqting_ocb->sb +1) );
+d810 2
+a811 2
+	}
+	if ( offset <= 0 || offset > Max_Addresses ||
+d813 1
+d836 4
+d920 1
+a920 1
+	for ( i = 0; i < Max_Addresses; i++ )
+d926 1
+a926 1
+			int ssize = (((List_hdr *)saddr)-1)->size;
+d965 5
+d1025 1
+a1025 1
+	size = (((List_hdr *)old_state)-1)->size;
+d1051 1
+a1051 1
+	size = Max_Addresses * sizeof ( Address );
+d1077 1
+a1077 1
+	for ( i = 0; i < Max_Addresses; i++ )
+d1095 1
+a1095 1
+			size = (((List_hdr *)old_addr)-1)->size;
+d1172 1
+a1172 1
+		for ( i = 0; i < Max_Addresses; i++ )
+d1194 1
+a1194 1
+			size = (((List_hdr *)old_addr)-1)->size;
+@
+
+
+1.12
+log
+@1.  Change ifdef's and version id.
+2.  Make sflag a bit flag.
+3.  Put in changes for signal support (SCR 164).
+4.  loadstatebuffer() uses new parm for bug 15.
+@
+text
+@d7 6
+d51 1
+a51 1
+char state_id [] = "@@(#)state.c $Revision$\t$Date$\tTIMEWARP";
+d87 5
+d107 4
+d168 11
+d205 6
+d229 6
+d236 1
+d266 6
+@
+
+
+1.11
+log
+@New copyright notice.
+@
+text
+@d7 3
+d45 1
+a45 1
+char state_id [] = "@@(#)state.c 1.37\t10/2/89\t16:16:15\tTIMEWARP";
+d82 1
+a82 1
+FUNCTION int loadstatebuffer (o)
+d85 1
+d90 1
+a90 1
+#ifdef RBC
+d135 2
+a136 1
+	if (o->centry == CMSG || o->centry == DYNCRMSG)
+d138 1
+a138 1
+#ifdef RBC
+d156 1
+a156 1
+	if (o->cs->sflag)
+d169 1
+a169 1
+#ifdef SOM
+d181 1
+a181 1
+#ifdef RBC
+d259 1
+a259 1
+	if (state->sflag)
+d287 1
+a287 1
+#ifdef RBC
+d323 1
+a323 1
+#ifdef RBC
+d355 2
+d360 1
+a360 1
+#ifdef MICROTIME
+d377 1
+a377 1
+#ifdef MARK3
+d380 1
+a380 1
+#ifdef BBN
+d402 1
+a402 1
+#ifdef SOM
+d445 1
+a445 1
+#ifdef RBC
+d481 1
+a481 1
+#ifdef RBC
+d516 2
+d521 1
+a521 1
+#ifdef MICROTIME
+d538 1
+a538 1
+#ifdef MARK3
+d541 1
+a541 1
+#ifdef BBN
+d563 1
+a563 1
+#ifdef SOM
+d598 1
+a598 1
+#ifdef RBC
+d616 2
+d621 1
+a621 1
+#ifdef MICROTIME
+d638 1
+a638 1
+#ifdef MARK3
+d641 1
+a641 1
+#ifdef BBN
+d663 1
+a663 1
+#ifdef SOM
+d718 2
+d722 1
+a722 1
+#ifdef RBC
+d724 2
+d727 1
+d730 2
+d734 4
+a737 2
+	if ( offset <= 0 || offset > Max_Addresses
+	||   xqting_ocb->sb->address_table[offset-1] == NULL )
+d739 4
+d751 1
+a751 1
+#ifdef RBC
+d759 1
+a759 1
+#ifdef MICROTIME
+d776 1
+a776 1
+#ifdef MARK3
+d779 1
+a779 1
+#ifdef BBN
+d801 1
+a801 1
+#ifdef SOM
+d814 1
+d818 1
+d854 1
+d871 1
+a871 1
+		xqting_ocb->sb->sflag = TRUE;
+d883 2
+a884 1
+#ifdef MICROTIME
+d901 1
+a901 1
+#ifdef MARK3
+d904 1
+a904 1
+#ifdef BBN
+d1046 2
+a1047 1
+			new_state->sflag = FALSE;   /* not enough room--use original */
+d1085 1
+a1085 1
+		
+@
+
+
+1.10
+log
+@Added support for MicroTime and object_timing_mode
+@
+text
+@d1 4
+d7 3
+a43 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.9
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        state.c,v $
+d63 1
+d349 17
+d373 1
+d508 17
+d532 1
+d606 17
+d630 1
+d731 17
+d755 1
+d852 17
+d876 1
+@
+
+
+1.8
+log
+@Use message buffer pool for state error message space.
+@
+text
+@d2 4
+a5 1
+ * $Log:	state.c,v $
+d32 1
+a32 1
+char state_id [] = "@@(#)state.c	1.37\t10/2/89\t16:16:15\tTIMEWARP";
+d34 3
+a36 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d39 1
+a39 1
+	Functions:
+d41 3
+a43 3
+	loadstatebuffer(o) - set up an active state for the object to run in
+		Parameters - Ocb *o
+		Return - SUCCESS or FAILURE
+d45 10
+a54 10
+	loadstatebuffer() checks to see if the object's state buffer is
+	already loaded, returning success if it is.  Otherwise, the
+	routine looks into the cs pointer to find a state.  If there
+	is no state there either, an error has occurred.  If a state
+	is found, m_create() is used to allocate space for the temporary
+	state buffer, and for the associated stack.  If space is unavailable,
+	then any work done in this routine is undone, and FAILURE is 
+	returned.  If the m_create()s succeed, the current state is copied
+	into the temporary state with entcpy(), and the stack is initialized.
+	SUCCESS is returned.
+d64 6
+a69 6
+extern int	hlog;
+extern VTime	hlogVTime;
+extern int	maxSlice;
+extern Ocb*	maxSliceObj;
+extern VTime	maxSliceTime;
+extern int	sliceTime;
+d73 1
+a73 1
+    register Ocb *o;
+d75 3
+a77 3
+    register State * old_state, * new_state;
+    register Byte * old_addr, * new_addr;
+    register int i, size;
+d79 1
+a79 1
+    int rv;
+d84 5
+a88 5
+    if (o->sb != NULL)
+    {
+	twerror ( "loadstatebuffer F o->sb %x for %s\n", o->sb, o->name );
+	tester ();
+    }
+d90 5
+a94 5
+    if (o->cs == NULL)
+    {
+	twerror ("loadstatebuffer F object %s cs == NULL", o->name);
+	tester ();
+    }
+d96 2
+a97 2
+    o->sb = (State *) m_create ( sizeof(State) + o->pvz_len + 12, o->svt,
+		NONCRITICAL );
+d99 2
+a100 2
+    if ( o->sb == NULL )
+	return FAILURE;
+d102 1
+a102 1
+    o->sb->ocb = o;
+d104 1
+a104 1
+    o->stk = m_create ( objstksize, o->svt, NONCRITICAL );
+d106 5
+a110 5
+    if ( o->sb == NULL )
+    {
+	_pprintf ( "loadstatebuffer: o->sb == NULL after create stk\n" );
+	tester ();
+    }
+d112 6
+a117 6
+    if ( o->stk == NULL )
+    {
+	l_destroy ( o->sb );
+	o->sb = NULL;
+	return FAILURE;
+    }
+d119 1
+a119 1
+    strcpy ( ((Byte *)(o->sb+1)) + o->pvz_len, "state limit" );
+d121 1
+a121 1
+    strcpy ( o->stk, "stack limit" );
+d123 2
+a124 2
+    if (o->centry == CMSG || o->centry == DYNCRMSG)
+    {
+d126 3
+a128 3
+	if ( o->uses_rbc )
+	{
+	    int size_in_bytes = o->typepointer->statesize;
+d130 7
+a136 7
+	    if ( rv = mark_op ( o, 1, o->svt ) )
+	    {
+		_pprintf ( "mark overflow on new object in loadstatebuff\n" );
+		tester();
+	    }
+	    clear ( o->footer, size_in_bytes );
+	}
+d138 3
+a140 9
+	clear ( o->sb, sizeof(State) + o->pvz_len);
+	o->sb->ocb = o;
+	return SUCCESS;
+    }
+
+    if (o->cs->sflag)
+	{	/* no code is here to handle error msg copying */
+	_pprintf("loadstatebuffer: error in state %x\n",o->cs);
+	tester();
+d143 5
+a147 1
+    entcpy ( o->sb, o->cs, sizeof(State) + o->pvz_len );
+d149 1
+a149 1
+    o->sb->effectWork = 0;
+d151 1
+a151 2
+    old_state = o->cs;
+    new_state = o->sb;
+d153 3
+d158 6
+a163 6
+    /*  The previous ept is stored here so that, on rollback, the load
+	management code can easily determine what the maximum non-rolled
+	back ept should be changed to.  It should always be the ept of the
+	previous event.  previousEpt is never adjusted during an event,
+	while Ept has the amount of work added to it done in each segment
+	of the event.  Ept is used to put timestamps on messages going out. */
+d165 1
+a165 1
+    o->sb->previousEpt = o->sb->Ept;
+d169 3
+a171 3
+    if ( o->uses_rbc && (rv = mark_op ( o, 1, o->svt ) ) )
+    {
+	_pprintf ( "rbc is limiting memory\n" );
+d173 8
+a180 8
+	l_destroy ( o->sb );
+	o->sb = NULL;
+	l_destroy ( o->stk );
+	o->stk = NULL;
+	return FAILURE;
+    }
+    else
+	return SUCCESS;
+d183 2
+a184 2
+    if ( old_state->address_table == NULL )
+	return SUCCESS;
+d186 1
+a186 1
+    new_addr = m_create ( Max_Addresses*sizeof(Address), o->svt, NONCRITICAL );
+d188 5
+a192 5
+    if ( o->sb == NULL )
+    {
+	_pprintf ( "loadstatebuffer: o->sb == NULL after create addr\n" );
+	tester ();
+    }
+d194 1
+a194 1
+    new_state->address_table = (Address *) new_addr;
+d196 8
+a203 8
+    if ( new_addr == NULL )
+    {
+	destroy_state ( o->sb ); /* RBC can't get here */
+	o->sb = NULL;
+	l_destroy ( o->stk );
+	o->stk = NULL;
+	return FAILURE;
+    }
+d205 1
+a205 1
+    clear ( new_addr, Max_Addresses * sizeof ( Address ) );
+d207 1
+a207 3
+    for ( i = 0; i < Max_Addresses; i++ )
+    {
+	if ( old_state->address_table[i] != NULL )
+d209 4
+a212 1
+	    new_state->address_table[i] = DEFERRED;
+a213 1
+    }
+d215 1
+a215 1
+    return SUCCESS;
+d220 1
+a220 1
+    register State * state;
+d222 2
+a223 2
+    register Byte * addr;
+    register int i;
+d227 2
+a228 2
+    /* this function and the rollback chip don't mix! */
+    /* RBC code doesn't call this function */
+d230 1
+a230 3
+    if ( state->address_table != NULL )
+    {
+	for ( i = 0; i < Max_Addresses; i++ )
+d232 3
+a234 1
+	    addr = state->address_table[i];
+d236 8
+a243 4
+	    if ( addr != NULL && addr != DEFERRED )
+	    {	/* release all memory in the address table */
+		l_destroy ( addr );
+	    }
+d246 2
+a247 3
+	/* release the address table */
+	l_destroy ( state->address_table );
+    }
+d249 2
+a250 5
+    if (state->sflag)
+	l_destroy(state->serror);	/* release error message */
+
+	/* release the state space */
+    l_destroy ( state );
+d255 1
+a255 1
+    Uint size;
+d257 4
+a260 4
+    register Ocb * ocb = xqting_ocb;
+    register State * state = ocb->sb;
+    register Byte * addr;
+    register int i;
+d264 9
+a272 9
+    if ((size > 100000) || (size == 0))
+	{
+	object_error ( NEWBLKSZ );
+	}
+    else
+	{
+    	if ( state->address_table == NULL )
+    	    {
+	    i = Max_Addresses * sizeof ( Address );
+d275 3
+a277 3
+	    if ( ocb->uses_rbc )
+	    	addr = rbc_malloc ( ocb, i );
+	    else
+d279 1
+a279 1
+	    	addr = m_create ( i, ocb->svt, NONCRITICAL );
+d281 5
+a285 5
+    	    if ( ocb->sb == NULL )
+    	    	{
+	    	_pprintf ( "newBlockPtr: o->sb == NULL after create addr\n" );
+	    	tester ();
+    	    	}
+d287 6
+a292 6
+	    if ( addr == NULL )
+		{
+	    	rollback ( ocb, ocb->svt );
+	    	dispatch ();
+	    	return;
+		}
+d294 3
+a296 3
+	    state->address_table = (Address *) addr;
+	    clear ( addr, i );
+    	    }  /* if ( state->address_table == NULL ) */
+d298 5
+a302 5
+    	for ( i = 0; i < Max_Addresses; i++ )
+    	    {
+	    if ( state->address_table[i] == NULL )
+	    	break;
+    	    }
+d304 6
+a309 6
+    	if ( i == Max_Addresses )
+    	    {
+	    object_error ( ADDROFLOW );
+    	    }
+    	else
+    	    {
+d311 3
+a313 3
+	    if ( ocb->uses_rbc )
+	    	addr = rbc_malloc ( ocb, size );
+	    else
+d315 1
+a315 1
+		addr = m_create ( size, ocb->svt, NONCRITICAL );
+d317 5
+a321 5
+    	    if ( ocb->sb == NULL )
+    	    	{
+	    	_pprintf ( "newBlockPtr: o->sb == NULL after create size\n" );
+	    	tester ();
+    	    	}
+d323 13
+a335 13
+	    if ( addr == NULL )
+		{
+	    	rollback ( ocb, ocb->svt );
+		}
+	    else
+		{
+	    	state->address_table[i] = addr;
+	    	ocb->argblock.address_table_offset = i + 1;
+	    	clear ( addr, size );
+		}
+    	    }  /* if no ADDROFLOW error */
+	}  /* if no NEWBLKSZ error */
+    dispatch ();
+d340 1
+a340 1
+    Uint size;
+d342 2
+a343 2
+    if ( prop_delay )
+	delay_object ();
+d346 1
+a346 1
+    mark3time ();
+d349 1
+a349 1
+    butterflytime ();
+d351 1
+a351 1
+    object_end_time = node_cputime;
+d353 10
+a362 10
+    if (hlog)
+	{
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	   maxSliceTime = xqting_ocb->svt;
+	    }
+	}  /* if hlog */
+d364 4
+a367 4
+    xqting_ocb->stats.cputime += object_end_time - object_start_time;
+    xqting_ocb->cycletime += object_end_time - object_start_time;
+    xqting_ocb->stats.comtime += object_end_time - object_start_time;
+    xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d370 1
+a370 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d372 2
+a373 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d376 1
+a376 1
+    switch_back ( newBlockPtr_b, object_context, size );
+d378 1
+a378 1
+    return ( xqting_ocb->argblock.address_table_offset );
+d384 3
+a386 3
+/* the top of the State. Since it is not really an 	    */
+/* entity, it does not need to be stored in the address	    */
+/* table. We just pass back Max_Addresses +1		    */
+d391 1
+a391 1
+    return ( (Pointer) (Max_Addresses +1) );
+d398 1
+a398 1
+    Uint size;
+d400 4
+a403 4
+    register Ocb * ocb = xqting_ocb;
+    register State * state = ocb->sb;
+    register Byte * addr;
+    register int i;
+d408 3
+a410 3
+    if ( state->address_table == NULL )
+    {
+	i = Max_Addresses * sizeof ( Address );
+d413 3
+a415 3
+	if ( ocb->uses_rbc )
+	    addr = rbc_malloc ( ocb, i );
+	else
+d417 1
+a417 1
+	addr = m_create ( i, ocb->svt, NONCRITICAL );
+d419 5
+a423 5
+        if ( ocb->sb == NULL )
+         {
+	   _pprintf ( "newBlockWithPtrs: o->sb == NULL after create addr\n" );
+	   tester ();
+         }
+d425 12
+a436 1
+	if ( addr == NULL )
+d438 2
+a439 3
+	    rollback ( ocb, ocb->svt );
+	    dispatch ();
+	    return;
+d442 6
+a447 16
+	state->address_table = (Address *) addr;
+	clear ( addr, i );
+    }
+
+    for ( i = 0; i < Max_Addresses; i++ )
+    {
+	if ( state->address_table[i] == NULL )
+	    break;
+    }
+
+    if ( i == Max_Addresses )
+    {
+	object_error ( ADDROFLOW );
+    }
+    else
+    {
+d449 3
+a451 3
+	if ( ocb->uses_rbc )
+	    addr = rbc_malloc ( ocb, size );
+	else
+d453 1
+a453 1
+	addr = m_create ( size, ocb->svt, NONCRITICAL );
+d455 6
+a460 6
+        if ( ocb->sb == NULL )
+        {
+	    _pprintf (
+		 "newBlockWithPtrs: o->sb == NULL after create size\n" );
+	    tester ();
+        }
+d462 10
+a471 3
+	if ( addr == NULL )
+	{
+	    rollback ( ocb, ocb->svt );
+a472 7
+	else
+	{
+	    state->address_table[i] = addr;
+	    ocb->argblock.address_table_offset = i + 1;
+	    clear ( addr, size );
+	}
+    }
+d474 1
+a474 1
+    dispatch ();
+d479 2
+a480 2
+    Uint size;
+    Pointer * Ptr;
+d483 2
+a484 2
+    if ( prop_delay )
+	delay_object ();
+d487 1
+a487 1
+    mark3time ();
+d490 1
+a490 1
+    butterflytime ();
+d492 1
+a492 1
+    object_end_time = node_cputime;
+d494 10
+a503 10
+	if (hlog)
+	    {
+	    sliceTime = object_end_time - object_start_time;
+	    if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	{ /* this slice was bigger than max so far */
+	    	maxSlice = sliceTime;
+	    	maxSliceObj = xqting_ocb;
+	   	maxSliceTime = xqting_ocb->svt;
+	    	}
+	    }  /* if hlog */
+d505 4
+a508 4
+    xqting_ocb->stats.cputime += object_end_time - object_start_time;
+    xqting_ocb->cycletime += object_end_time - object_start_time;
+    xqting_ocb->stats.comtime += object_end_time - object_start_time;
+    xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d511 1
+a511 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d513 2
+a514 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d517 1
+a517 1
+    switch_back ( newBlockWithPtrs_b, object_context, size );
+d519 2
+a520 2
+    *Ptr =  xqting_ocb->argblock.address_table_offset ;
+    return ( xqting_ocb->sb->address_table[(*Ptr)-1] );
+d526 1
+a526 1
+    int offset;
+d528 3
+a530 3
+    register Ocb * ocb = xqting_ocb;
+    register State * state = ocb->sb;
+    register Byte * addr;
+d534 1
+a534 1
+    offset--;
+d536 8
+a543 8
+    if ( offset < 0 || offset >= Max_Addresses
+    ||   state->address_table[offset] == NULL )
+    {
+	object_error ( STATE_DISPOSAL );
+    }
+    else
+    {
+	addr = state->address_table[offset];
+d546 3
+a548 3
+	if ( ocb->uses_rbc )
+	    rbc_free ( ocb, addr );
+	else
+d550 2
+a551 2
+	if ( addr != DEFERRED )
+	    l_destroy ( addr );
+d553 2
+a554 2
+	state->address_table[offset] = NULL;
+    }
+d556 1
+a556 1
+    dispatch ();
+d561 1
+a561 1
+    int offset;
+d563 2
+a564 2
+    if ( prop_delay )
+	delay_object ();
+d567 1
+a567 1
+    mark3time ();
+d570 1
+a570 1
+    butterflytime ();
+d572 1
+a572 1
+    object_end_time = node_cputime;
+d574 10
+a583 10
+	if (hlog)
+	    {
+	    sliceTime = object_end_time - object_start_time;
+	    if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	{ /* this slice was bigger than max so far */
+	    	maxSlice = sliceTime;
+	    	maxSliceObj = xqting_ocb;
+	   	maxSliceTime = xqting_ocb->svt;
+	    	}
+	    }  /* if hlog */
+d585 4
+a588 4
+    xqting_ocb->stats.cputime += object_end_time - object_start_time;
+    xqting_ocb->cycletime += object_end_time - object_start_time;
+    xqting_ocb->stats.comtime += object_end_time - object_start_time;
+    xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d591 1
+a591 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d593 2
+a594 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d597 2
+a598 2
+    switch_back ( disposeBlockPtr_b, object_context, offset );
+}	/* disposeBlockPtr */
+d602 1
+a602 1
+    register int offset;
+d604 5
+a608 5
+    register Ocb * ocb = xqting_ocb;
+    register State * state = ocb->sb;
+    register State * old_state = ocb->cs;
+    register Byte * old_addr, * new_addr;
+    register int size;
+d612 1
+a612 1
+    offset--;
+d614 2
+a615 2
+    while ( old_state->address_table[offset] == DEFERRED )
+	old_state = (State *) l_prev_macro ( old_state );
+d617 1
+a617 1
+    old_addr = old_state->address_table[offset];
+d619 1
+a619 1
+    size = (((List_hdr *)old_addr)-1)->size;
+d621 1
+a621 1
+    new_addr = m_create ( size, ocb->svt, NONCRITICAL );
+d623 9
+a631 9
+    if ( new_addr == NULL )
+    {
+	rollback ( ocb, ocb->svt );
+    }
+    else
+    {
+	state->address_table[offset] = new_addr;
+	entcpy ( new_addr, old_addr, size );
+    }
+d633 1
+a633 1
+    dispatch ();
+d638 1
+a638 1
+    int offset;
+d640 1
+a640 1
+    void * addr;
+d642 2
+a643 2
+/* The offset value of Max_Addresses +1  is reserved 	*/
+/* for the pointer to the top of State.			*/
+d645 2
+a646 2
+    if ( offset == (Max_Addresses +1) )
+    {
+d648 11
+a658 2
+	if ( xqting_ocb->uses_rbc )
+	    return ( (void *) (xqting_ocb->footer) );
+d660 2
+a661 11
+#endif
+	return ( (void *) (xqting_ocb->sb +1) );
+    }
+    if ( offset <= 0 || offset > Max_Addresses
+    ||   xqting_ocb->sb->address_table[offset-1] == NULL )
+    {
+	addr = NULL;
+    }
+    else
+    {
+	addr = (void *) (xqting_ocb->sb->address_table[offset-1]);
+d663 2
+a664 2
+	if ( addr == DEFERRED )
+	{
+d666 5
+a670 5
+	    if ( xqting_ocb->uses_rbc )
+	    {
+		_pprintf ( "rbc using object with deferred offset\n" );
+		tester();
+	    }
+d674 1
+a674 1
+	    mark3time ();
+d677 1
+a677 1
+	    butterflytime ();
+d679 1
+a679 1
+	    object_end_time = node_cputime;
+d681 10
+a690 10
+	    if (hlog)
+	    	{
+	    	sliceTime = object_end_time - object_start_time;
+	    	if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	    { /* this slice was bigger than max so far */
+	    	    maxSlice = sliceTime;
+	     	    maxSliceObj = xqting_ocb;
+	   	    maxSliceTime = xqting_ocb->svt;
+	    	    }
+	    	}  /* if hlog */
+d692 4
+a695 4
+	    xqting_ocb->stats.cputime += object_end_time - object_start_time;
+	    xqting_ocb->cycletime += object_end_time - object_start_time;
+	    xqting_ocb->stats.comtime += object_end_time - object_start_time;
+	    xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d698 1
+a698 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d700 2
+a701 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d704 1
+a704 1
+	    switch_back ( pointerPtr_b, object_context, offset );
+d706 2
+a707 1
+	    addr = (void *) (xqting_ocb->sb->address_table[offset-1]);
+a708 1
+    }
+d710 2
+a711 2
+    return ( addr );
+}	/* pointerPtr */
+d718 2
+a719 2
+    Byte * addr;
+    int size;
+d721 2
+a722 2
+    Ocb * o = xqting_ocb;
+    int i;
+d724 2
+a725 2
+    if ( addr >= o->stk+12 && addr+size <= o->stk+objstksize )
+	return OK;
+d727 2
+a728 2
+    if ( addr >= (Byte *)(o->sb+1) && addr+size <= (Byte *)(o->sb+1)+o->pvz_len)
+	return OK;
+d730 2
+a731 2
+    if ( o->sb->address_table == NULL )
+	return NG;
+d733 1
+a733 5
+    for ( i = 0; i < Max_Addresses; i++ )
+    {
+	Byte * saddr = (Byte *) o->sb->address_table[i];
+
+	if ( saddr != NULL && saddr != DEFERRED )
+d735 1
+a735 1
+	    int ssize = (((List_hdr *)saddr)-1)->size;
+d737 7
+a743 2
+	    if ( addr >= saddr && addr+size <= saddr+ssize )
+		return OK;
+a744 1
+    }
+d746 1
+a746 1
+    return ( NG );
+d751 1
+a751 1
+    char * error;
+d753 2
+a754 2
+    char * cerror;
+    int         errLength;
+d756 12
+a767 12
+    errLength = strlen(error)+1;
+    if (errLength > msgdefsize)
+        errLength = msgdefsize;
+    cerror = (char *)m_create(msgdefsize,xqting_ocb->svt,NONCRITICAL);
+    if (cerror == NULL)
+    	object_error ( error );	/* not enough room--use original */
+    else
+	{
+	xqting_ocb->sb->sflag = TRUE;
+	entcpy(cerror,error,errLength);	/* copy original */
+	object_error(cerror);
+	}
+d769 1
+a769 1
+    dispatch ();
+d774 1
+a774 1
+    char * error;
+d777 1
+a777 1
+    mark3time ();
+d780 1
+a780 1
+    butterflytime ();
+d782 1
+a782 1
+    object_end_time = node_cputime;
+d784 10
+a793 10
+    if (hlog)
+	{
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	   maxSliceTime = xqting_ocb->svt;
+	    }
+	}  /* if hlog */
+d795 1
+a795 1
+    xqting_ocb->stats.cputime += object_end_time - object_start_time;
+d797 2
+a798 2
+    switch_back ( userError_b, object_context, error );
+}	/* userError */
+d802 1
+a802 1
+    register State * old_state;
+d804 6
+a809 6
+    char 	*cerror;
+    int		errLength;
+    register State * new_state;
+    register Byte * old_addr, * new_addr;
+    register int i, size;
+    int checkOk;
+d813 1
+a813 1
+    size = (((List_hdr *)old_state)-1)->size;
+d815 1
+a815 1
+    new_state = (State *) m_create ( size, old_state->sndtim, NONCRITICAL );
+d817 1
+a817 7
+    if ( new_state == NULL )
+    {
+	checkOk = check_old_state ( old_state );
+
+	if ( checkOk )
+	    return ( NULL );
+	else
+d819 1
+d821 5
+d827 1
+a827 1
+	    _pprintf("copystate: can't get state to send (1)\n");
+d830 2
+a831 1
+	    return ( (State *) -1 );
+a832 1
+    }
+d834 1
+a834 1
+    entcpy ( new_state, old_state, size );
+d836 2
+a837 2
+    if ( old_state->address_table == NULL )
+	return ( new_state );
+d839 1
+a839 1
+    size = Max_Addresses * sizeof ( Address );
+d841 1
+a841 1
+    new_addr = m_create ( size, old_state->sndtim, NONCRITICAL );
+d843 1
+a843 1
+    new_state->address_table = (Address *) new_addr;
+d845 3
+a847 3
+    if ( new_addr == NULL )
+    {
+	l_destroy ( new_state );
+d849 1
+a849 1
+	checkOk = check_old_state ( old_state );
+d851 4
+a854 4
+	if ( checkOk )
+	    return ( NULL );
+	else
+	{
+d857 1
+a857 1
+	    _pprintf("copystate: can't get state to send (2)\n");
+d859 2
+a860 1
+	    return ( ( State * ) -1 );
+a861 1
+    }
+d863 1
+a863 1
+    clear ( new_addr, size );
+d865 1
+a865 3
+    for ( i = 0; i < Max_Addresses; i++ )
+    {
+	if ( old_state->address_table[i] != NULL )
+d867 3
+a869 1
+	    State * back_state = old_state;
+d871 3
+a873 3
+	    while (  ! ( l_ishead_macro ( back_state ) ) &&
+			back_state->address_table[i] == DEFERRED )
+		back_state = (State *) l_prev_macro ( back_state );
+d875 5
+a879 5
+	    if ( l_ishead_macro ( back_state ) )
+	    {
+		twerror ( "copystate F No non-deferred copy of segment %d of state %x\n", i,old_state );
+		tester();
+	    }
+d881 1
+a881 1
+	    old_addr = back_state->address_table[i];
+d883 1
+a883 1
+	    size = (((List_hdr *)old_addr)-1)->size;
+d885 1
+a885 1
+	    new_addr = m_create ( size, old_state->sndtim, NONCRITICAL );
+d887 3
+a889 3
+	    if ( new_addr == NULL )
+	    {
+		destroy_state ( new_state );
+d891 1
+a891 1
+		checkOk = check_old_state ( old_state );
+d893 4
+a896 4
+		if ( checkOk )
+		    return ( NULL );
+		else
+		{
+d899 1
+a899 1
+		    _pprintf("copystate: can't get state to send (3)\n");
+d902 3
+a904 3
+		    return ( ( State * ) -1 );
+		}
+	    }
+d906 1
+a906 1
+	    entcpy ( new_addr, old_addr, size );
+d908 2
+a909 1
+	    new_state->address_table[i] = new_addr;
+a910 1
+    }
+d912 16
+a927 16
+    if (old_state->serror)
+	{	/* copy error message */
+	errLength = strlen(old_state->serror) + 1;
+        if (errLength > msgdefsize)
+            errLength = msgdefsize;
+    	cerror = (char *)m_create(msgdefsize,
+	    old_state->sndtim,NONCRITICAL);
+    	if (cerror == NULL)
+    	    new_state->sflag = FALSE;	/* not enough room--use original */
+    	else
+	    {
+	    new_state->serror = cerror;		/* save pointer */
+	    entcpy(cerror,old_state->serror,errLength);	/* copy original */
+	    }
+	}
+    return ( new_state );
+d931 7
+a937 7
+	out of the state queue and shipped to the next phase.  If it has
+	an address table, check all entries to make sure none are deferred.
+	Deferred entries must be replaced with actual copies of the memory
+	segments from the last state that accessed them.  If an attempt to
+	make a copy of a deferred segment fails due to lack of memory, our
+	best efforts have failed and we'll give up.  This function returns
+	a 1 if the old state can be shipped off, and a zero if it cannot.  */
+d941 1
+a941 1
+    State * old_state;
+d943 1
+a943 1
+    int i, size;
+d946 1
+a946 1
+    return(NULL);
+d949 6
+a954 6
+    if ( old_state == NULL )
+     {
+       twerror ("check_old_state F passed a NULL State Pointer" );
+       tester ();
+       return ( NULL );
+     }
+d956 9
+a964 9
+    if ( old_state->address_table != NULL )
+     {
+	
+    	for ( i = 0; i < Max_Addresses; i++ )
+    	{
+	  if ( old_state->address_table[i] == DEFERRED )
+	  {
+	    State * back_state = l_prev_macro ( old_state );
+    	    Byte * old_addr, * new_addr;
+d966 2
+a967 2
+	    /*  Look for an actual copy of this memory segment in earlier
+		states.  Then grab memory and copy it. */
+d969 3
+a971 3
+	    while (  ! ( l_ishead_macro ( back_state )) &&
+			back_state->address_table[i] == DEFERRED ) 
+		back_state = (State *) l_prev_macro ( back_state );
+d973 5
+a977 5
+	    if ( l_ishead_macro ( back_state ) )
+	    {
+		twerror ( "check_old_state F No non-deferred copy of segment %d of state %x\n", i,old_state );
+		tester();
+	    }
+d979 1
+a979 1
+	    old_addr = back_state->address_table[i];
+d981 1
+a981 1
+	    size = (((List_hdr *)old_addr)-1)->size;
+d983 1
+a983 1
+	    new_addr = m_create ( size, old_state->sndtim, NONCRITICAL );
+d985 5
+a989 5
+	    if ( new_addr == NULL )
+	    {
+		_pprintf("check_old_state: can't find memory to copy deferred segment\n");
+		return ( NULL );
+	    }
+d991 1
+a991 1
+	    entcpy ( new_addr, old_addr, size );
+d993 4
+a996 4
+	    old_state->address_table[i] = new_addr;
+	   }
+	}
+     }
+d998 1
+a998 1
+    return ( 1 );
+d1003 7
+a1009 7
+    optimization can be applied.  At the moment, only the actual body of
+    the state is compared - no dynamically allocated segments are compared.
+    If either state has dynamically allocated segments, the states are
+    judged to be different.  In fact, if either state has an address table
+    to hold dynamic memory pointers, the states are judged to be different.
+    A future version of this function will also compare dynamic memory
+    segments. */
+d1012 3
+a1014 3
+    State * old;
+    State * new;
+    int length;
+d1016 1
+a1016 1
+    int compare;
+d1018 7
+a1024 7
+    if (old->address_table != NULL || new->address_table != NULL )
+    {  
+      /* Here's where the code to compare dynamic memory segments should
+              go.  When written, this whole code segment should probably
+              be relocated below the basic text comparison.*/
+      return ( -1 );
+    }  
+d1026 1
+a1026 1
+    compare = bytcmp ( (Byte *) ( old + 1 ), (Byte *) ( new + 1 ), length );
+d1028 1
+a1028 1
+    return ( compare );
+@
+
+
+1.7
+log
+@1.  Copy state error messages into TW space.
+2.  Check for bad block size request.
+3.  Add code to handle state copying for object migration.
+@
+text
+@d3 5
+d751 1
+d753 4
+a756 1
+    cerror = (char *)m_create(strlen(error)+1,xqting_ocb->svt,NONCRITICAL);
+d762 1
+a762 1
+	entcpy(cerror,error,strlen(error)+1);	/* copy original */
+d912 3
+a914 1
+    	cerror = (char *)m_create(errLength,
+@
+
+
+1.6
+log
+@Code to support Tapas Som's work, and a routine for state comparison to
+be used with the limited jump forward optimization.
+@
+text
+@d3 4
+d30 19
+d135 6
+d238 3
+d256 9
+a264 3
+    if ( state->address_table == NULL )
+    {
+	i = Max_Addresses * sizeof ( Address );
+d267 3
+a269 3
+	if ( ocb->uses_rbc )
+	    addr = rbc_malloc ( ocb, i );
+	else
+d271 1
+a271 1
+	addr = m_create ( i, ocb->svt, NONCRITICAL );
+d273 5
+a277 5
+    if ( ocb->sb == NULL )
+    {
+	_pprintf ( "newBlockPtr: o->sb == NULL after create addr\n" );
+	tester ();
+    }
+d279 6
+a284 6
+	if ( addr == NULL )
+	{
+	    rollback ( ocb, ocb->svt );
+	    dispatch ();
+	    return;
+	}
+d286 3
+a288 3
+	state->address_table = (Address *) addr;
+	clear ( addr, i );
+    }
+d290 5
+a294 5
+    for ( i = 0; i < Max_Addresses; i++ )
+    {
+	if ( state->address_table[i] == NULL )
+	    break;
+    }
+d296 6
+a301 6
+    if ( i == Max_Addresses )
+    {
+	object_error ( ADDROFLOW );
+    }
+    else
+    {
+d303 3
+a305 3
+	if ( ocb->uses_rbc )
+	    addr = rbc_malloc ( ocb, size );
+	else
+d307 1
+a307 1
+	addr = m_create ( size, ocb->svt, NONCRITICAL );
+d309 5
+a313 5
+    if ( ocb->sb == NULL )
+    {
+	_pprintf ( "newBlockPtr: o->sb == NULL after create size\n" );
+	tester ();
+    }
+d315 12
+a326 12
+	if ( addr == NULL )
+	{
+	    rollback ( ocb, ocb->svt );
+	}
+	else
+	{
+	    state->address_table[i] = addr;
+	    ocb->argblock.address_table_offset = i + 1;
+	    clear ( addr, size );
+	}
+    }
+
+d745 1
+a745 1
+    object_error ( error );
+d747 10
+d792 2
+d797 1
+d807 13
+a819 2
+	check_old_state ( old_state );
+	return ( NULL );
+d836 13
+a848 2
+	check_old_state ( old_state );
+	return ( NULL );
+d859 2
+a860 1
+	    while ( back_state->address_table[i] == DEFERRED )
+d863 6
+d878 14
+a891 2
+		check_old_state ( old_state );
+		return ( NULL );
+d900 13
+d916 8
+a923 1
+check_old_state ( old_state )
+d925 2
+d929 1
+a929 1
+    int i;
+d931 3
+d937 1
+a937 1
+       twerror ("copystate F passed a NULL State Pointer" );
+d939 1
+a939 1
+       return;
+d941 1
+d944 1
+d949 32
+a980 4
+	    twerror ( "copystate F old state has deferred dynamic memory" );
+	    tester ();
+	    break;
+	  }
+d983 3
+@
+
+
+1.5
+log
+@1.  Add Steve's RBC code.
+2.  Modify hoglog code to refer to hlog.
+@
+text
+@d3 4
+d119 12
+d323 7
+d464 7
+d544 7
+d651 7
+d837 30
+@
+
+
+1.4
+log
+@Implement hoglog.
+@
+text
+@d3 3
+d29 2
+a30 1
+#if HOGLOG
+a34 1
+#endif
+d43 3
+d90 13
+d115 15
+d145 1
+a145 1
+	destroy_state ( o->sb );
+d174 3
+d212 5
+d248 5
+d291 2
+a292 1
+#if HOGLOG
+d294 1
+a294 1
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+d298 1
+a298 1
+	    maxSliceTime = xqting_ocb->svt;
+d300 1
+a300 1
+#endif
+d343 5
+d379 5
+d425 10
+a434 9
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+	    }
+#endif
+d469 5
+d498 10
+a507 9
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+	    }
+#endif
+d564 5
+d582 8
+d598 10
+a607 9
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+	    }
+#endif
+d680 2
+a681 1
+#if HOGLOG
+d683 1
+a683 1
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+d687 1
+a687 1
+	    maxSliceTime = xqting_ocb->svt;
+d689 1
+a689 1
+#endif
+@
+
+
+1.3
+log
+@Split cycle time from committed time.
+@
+text
+@d3 3
+d26 7
+d244 10
+d367 10
+d434 10
+d450 1
+a450 1
+}
+d520 10
+d542 1
+a542 1
+}
+d601 10
+d614 1
+a614 1
+}
+@
+
+
+1.2
+log
+@set o->sb->ocb field twice
+@
+text
+@d3 3
+d235 2
+a236 1
+    xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+d348 2
+a349 1
+    xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+d405 2
+a406 1
+    xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+d481 2
+a482 1
+	    xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d48 2
+d72 1
+@

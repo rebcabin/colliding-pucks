@@ -1,0 +1,28 @@
+
+	The file tws.h in this directory contains the define 
+for MAX_NUM_OBJECTS with a value for 2500 objects. This
+value can be changed as desired.  Note that the value is used to size
+the array which contains the data for each object.  Thus making it large
+increases the size of this array and takes more memory.  
+ 
+	The file tws-1500.h is the original one and contains
+the standard define for 1500 objects.
+
+	The file Compare is a shell script that will compare all the
+*.c and *.h files in the current directory to another directory and
+tell you about differences.  
+
+	Compare <other directory>
+
+	Example:   Compare /home/timewarp/twcur/twsim
+
+	It first echos the argument, then does a loop which for each
+c or h file in the current directory diffs the file with the one in the
+other directory.  It then echos the file name it just diffed and stops. If
+you type a carriage return it will go on to the next file.  Note that
+some of the *.h files are common between the simulator and timewarp so it
+will NOT find these files in the simulator directory.  It also compares
+the simpar.y and simlex.l files.  The simpar.c and simlex.c files are
+made by yacc and lex when you compile and therefore are likely to differ
+if you last compiled with a different yacc and lex.  It is the simpar.y
+and simlex.l files which should agree.	

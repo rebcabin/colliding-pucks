@@ -1,0 +1,990 @@
+ARG_DEF	tester.h	46
+Ack_msg	tester.h	75
+AddToHomeList	objloc.c	/^FUNCTION struct HomeList_str *AddToHomeList ( name/
+AddToPendingList	objloc.c	/^FUNCTION AddToPendingList(element)$/
+Addr	twcommon.h	50
+Address	twsys.h	322
+Align	twsys.h	764
+BF_MACH_init_args	timewarp.c	/^BF_MACH_init_args()$/
+BITCLR	twsys.h	/^#define BITCLR(FLAG,MASK) ((FLAG) &= (~(MASK)))$/
+BITEST	twsys.h	/^#define BITEST(FLAG,MASK) ((FLAG)&(MASK)) \/* THIS /
+BITSET	twsys.h	/^#define BITSET(FLAG,MASK) ((FLAG) |= (MASK))$/
+BITTEST	twsys.h	/^#define BITTEST(FLAG,MASK) ((FLAG)&(MASK))$/
+BITTST	twsys.h	/^#define BITTST(FLAG,MASK) ((FLAG)&(MASK)) \/* REMEM/
+Byte	twcommon.h	51
+CP_ObjStruct	cp_msg.c	64
+CP_Tester	BF_MACH/BF_MACHrun.c	/^CP_Tester()$/
+CP_ctrlc	BF_MACH/BF_MACHrun.c	/^CP_ctrlc ()$/
+CacheInit	objloc.c	/^FUNCTION CacheInit()$/
+CacheReplace	objloc.c	/^FUNCTION Cache_entry *CacheReplace(name,phase_begi/
+Cache_entry	twsys.h	713
+ChangeHLEntry	objloc.c	/^FUNCTION ChangeHLEntry(name,time,node,generation)$/
+ChangeType	objhead.c	/^FUNCTION Typtbl * ChangeType(o,m)$/
+Char	twcommon.h	52
+CheckQueue	BF_MACH/BF_MACH_Hg.c	/^int CheckQueue (queue)$/
+ChooseNode	objloc.c	/^ChooseNode()$/
+ChoosePosition	objloc.c	/^FUNCTION Cache_entry *ChoosePosition()$/
+Critmsg	twsys.h	869
+Crttext	twsys.h	749
+Dbl	twcommon.h	53
+DequeueQueue	BF_MACH/BF_MACH_Hg.c	/^int DequeueQueue (queue, item_ptr)$/
+DumpCache	objloc.c	/^DumpCache ()$/
+DumpHomeList	objloc.c	/^DumpHomeList ()$/
+DumpHomeListEntry	objloc.c	/^DumpHomeListEntry ( DumpPtr )$/
+DumpPendingList	objloc.c	/^DumpPendingList()$/
+EnqueueQueue	BF_MACH/BF_MACH_Hg.c	/^int EnqueueQueue (queue, item)$/
+Evtlog	twsys.h	450
+Excel_body1	cubeio.c	/^Excel_body1 (o)$/
+Excel_head	cubeio.c	/^Excel_head (elapsed_time)$/
+Excel_tail	cubeio.c	/^Excel_tail ()$/
+FIFO_QUEUE	BBN.h	126
+FLOW_COBJ	logdefs.h	88
+FLOW_LOG_ENTRY	logdefs.h	77
+FUNC	func.h	30
+FUNC_DEF	tester.h	56
+FindInCache	objloc.c	/^FUNCTION Cache_entry   *FindInCache (name,time,buc/
+FindInHomeList	objloc.c	/^FUNCTION  struct HomeList_str *FindInHomeList(name/
+FindInPendingList	objloc.c	/^FUNCTION Pending_entry *FindInPendingList(name,pha/
+FindInSchedQueue	objloc.c	/^FUNCTION Ocb *FindInSchedQueue(name,time)$/
+FindObject	objloc.c	/^FUNCTION FindObject(name,time,message,restart,isAM/
+FinishDeliver	deliver.c	/^FUNCTION FinishDeliver(m,location)$/
+Float	twcommon.h	54
+FootCB	twsys.h	536
+GetLocation	objloc.c	/^FUNCTION Objloc *GetLocation(name,time)$/
+GetSequence1	vtime.h	/^#define GetSequence1(a) (a.sequence1)$/
+GetSequence2	vtime.h	/^#define GetSequence2(a) (a.sequence2)$/
+GetSimTime	vtime.h	/^#define GetSimTime(a) (a.simtime)$/
+Gvtmsg	twsys.h	852
+Gvttype	twsys.h	814
+HEADER	list.c	/^#define HEADER(u)       u-1     \/* header given us/
+HLENGTH	cp_msg.c	792
+HLmsg	twsys.h	886
+HLtype	twsys.h	872
+HOST_FCB	HOST_fileio.c	71
+HOST_fclose	HOST_fileio.c	/^FUNCTION HOST_fclose ( fp )$/
+HOST_fflush	HOST_fileio.c	/^FUNCTION HOST_fflush ( fp )$/
+HOST_fgetc	HOST_fileio.c	/^int FUNCTION HOST_fgetc( fp )$/
+HOST_fgets	HOST_fileio.c	/^FUNCTION int HOST_fgets ( buff, size, fp )$/
+HOST_fopen	HOST_fileio.c	/^FUNCTION FILE  * HOST_fopen ( name, mode )$/
+HOST_fprintf	HOST_fileio.c	/^FUNCTION HOST_fprintf$/
+HOST_fputc	HOST_fileio.c	/^int FUNCTION HOST_fputc( xx,fp )$/
+HOST_fputs	HOST_fileio.c	/^FUNCTION HOST_fputs ( buff, fp )$/
+HOST_fwrite	HOST_fileio.c	/^FUNCTION HOST_fwrite  ( ptr, size, nitems, stream /
+Hex	tester.h	30
+HomeInit	objloc.c	/^HomeInit()$/
+I	comdtab.c	/^#define I(x) (int *)(x)$/
+ISHEAD	list.c	/^#define ISHEAD(l)       ((l)->size==0)$/
+ISRELEASED	list.c	/^#define ISRELEASED(l)   ((l)->prev == NULL && (l)-/
+ISSING	list.c	/^#define ISSING(l)       ((l)->next==(l) && (l)->pr/
+ISVALID	list.c	/^#define ISVALID(l)      ((l)!=NULL)$/
+IS_LOG_ENTRY	logdefs.h	46
+IS_dumplog	islog.c	/^IS_dumplog ()$/
+I_speedup	islog.c	/^FUNCTION I_speedup ()$/
+IncSequence1	services.c	/^VTime IncSequence1 ( incr )$/
+IncSequence2	services.c	/^VTime IncSequence2 ( incr )$/
+IncSimTime	services.c	/^VTime IncSimTime ( incr )$/
+InitQueue	BF_MACH/BF_MACH_Hg.c	/^InitQueue ( newq, qsize, datap )$/
+Int	twcommon.h	56
+LIST_HEADER	twsys.h	/^#define LIST_HEADER(u)    (((List_hdr *)(u))-1)$/
+List_hdr	twsys.h	805
+Loadmsg	twsys.h	860
+Loadtype	twsys.h	825
+Long	twcommon.h	57
+LowLevelMsgH	twsys.h	187
+MAKEHEAD	list.c	/^#define MAKEHEAD(l)     ((l)->size=0)   \/* indicat/
+MAKESING	list.c	/^#define MAKESING(l)     ((l)->next=(l),(l)->prev=(/
+MBF_MACHrun	BF_MACH/BF_MACHrun.c	/^main ( argc, argv )$/
+MEM_HEADER	mem.c	/^#define MEM_HEADER(n)	( ( (Mem_hdr *) ( LIST_HEADE/
+MESSAGE	BBN.h	114
+MSG_COBJ	logdefs.h	127
+MSG_LOG_ENTRY	logdefs.h	110
+MSG_STRUCT	BBN.h	46
+MSG_STRUCT_PTR	BBN.h	46
+MSUNhost	SUNhost.c	/^main ()$/
+MY	twcommon.h	/^#define MY(x) (((State *)obj_myState())->x)$/
+MainSegHdr	rbc_malloc.c	49
+Main_CP_Execution_Loop	BF_MACH/BF_MACHrun.c	/^Main_CP_Execution_Loop()$/
+MakeObject	objloc.c	/^FUNCTION Ocb * MakeObject(name,node,time)$/
+MallocSegHdr	rbc_malloc.c	66
+MemBlockHdr	rbc_malloc.c	38
+Mem_hdr	twsys.h	780
+Message	twcommon.h	70
+MicroAlarmSigFun	SUNtime.c	/^void MicroAlarmSigFun()$/
+MicroTime	SUNhost.c	/^MicroTime(){}$/
+MigrAckInfo	migr.c	842
+MinPendingList	objloc.c	/^VTime FUNCTION MinPendingList ()$/
+Msgh	twsys.h	306
+Mtest	test.c	/^main()$/
+Mtimewarp	timewarp.c	/^FUNCTION main ( argc, argv )$/
+NOBJLEN	twcommon.h	68
+Name	twcommon.h	72
+Name_object	twcommon.h	68
+Node_Arg_Str	BBN.h	79
+NullRestart	objloc.c	/^NullRestart(message)$/
+OBJ_NFOUND	twsys.h	/^#define OBJ_NFOUND(w) (!ON_NODE(w) && !OFF_NODE(w)/
+ON_NODE	twsys.h	/^#define ON_NODE(w)  ((w)->node==tw_node_num)$/
+ObjectFound	objloc.c	/^FUNCTION ObjectFound(message)$/
+ObjectType	twcommon.h	192
+Objloc	twsys.h	705
+Ocb	twsys.h	673
+PendingListInit	objloc.c	/^FUNCTION PendingListInit()$/
+Pending_entry	twsys.h	738
+PhaseInfo	migr.c	2328
+Pointer	twcommon.h	60
+PrintsendOcbQ	migr.c	/^PrintsendOcbQ()$/
+PrintsendStateQ	migr.c	/^PrintsendStateQ()$/
+QUEUE_ITEM	BBN.h	116
+Q_LOG_ENTRY	logdefs.h	62
+RBC_register	rbc_private.h	81
+RELEASE	list.c	/^#define RELEASE(l)      ((l)->prev = NULL,(l)->siz/
+RemoteChangeHListEntry	objloc.c	/^FUNCTION RemoteChangeHListEntry(name,time,HomeNode/
+RemoteRemoveFromHomeList	objloc.c	/^FUNCTION RemoteRemoveFromHomeList(name,time,node)$/
+RemoteSplitHomeListEntry	objloc.c	/^FUNCTION RemoteSplitHomeListEntry(name,time,node)$/
+RemoveFromCache	objloc.c	/^RemoveFromCache(name,time)$/
+RemoveFromHomeList	objloc.c	/^FUNCTION RemoveFromHomeList(name,time)$/
+RemoveFromPendingList	objloc.c	/^FUNCTION RemoveFromPendingList(element,locptr)$/
+SETNEXT	list.c	/^#define SETNEXT(l,n)    ((l)->next=(n))$/
+SETPREV	list.c	/^#define SETPREV(l,p)    ((l)->prev=(p))$/
+SETSIZE	list.c	/^#define SETSIZE(l,s)    ((l)->size=(s))$/
+STime	twcommon.h	75
+SYM_DEF	tester.h	63
+SegmentCB	twsys.h	526
+SendCacheInvalidate	objloc.c	/^FUNCTION SendCacheInvalidate(name,time,node)$/
+ServiceHLRequest	objloc.c	/^FUNCTION ServiceHLRequest ( inmsg, Ctime )$/
+SetMicroAlarm	SUNtime.c	/^SetMicroAlarm ( ms )$/
+SetSequence1	vtime.c	/^VTime SetSequence1 ( aVTime, aSequence1 )$/
+SetSequence2	vtime.c	/^VTime SetSequence2 ( aVTime, aSequence2 )$/
+SetSimTime	vtime.c	/^VTime SetSimTime ( aVTime, aSimTime )$/
+Set_Timer	BF_MACH/BF_MACH_Hg.c	/^Set_Timer (rtc_time, EVT_TYPE )$/
+ShowCacheEntry	objloc.c	/^FUNCTION ShowCacheEntry(name)$/
+ShowHomeListEntry	objloc.c	/^ShowHomeListEntry(name)$/
+SplitHomeListEntry	objloc.c	/^struct HomeList_str * SplitHomeListEntry ( ListEle/
+State	twsys.h	410
+State_Migr_Hdr	twsys.h	441
+Stattext	twsys.h	758
+String	tester.h	28
+SunMicroTimeInit	SUNtime.c	/^SunMicroTimeInit ()$/
+Symbol	tester.h	29
+TOBJLEN	twcommon.h	69
+TW_FILE	twsys.h	896
+TW_STREAM	twsys.h	319
+Type	twcommon.h	73
+Type_object	twcommon.h	69
+Typtbl	twsys.h	150
+USERPTR	list.c	/^#define USERPTR(h)      h+1     \/* user pointer gi/
+Uid	twcommon.h	92
+Uint	twcommon.h	58
+Ulong	twcommon.h	59
+UserDeltaTime	SUNtime.c	/^unsigned long UserDeltaTime ()$/
+VTime	twcommon.h	83
+VTimeInfo	migr.c	2552
+Vtime	twcommon.h	206
+_pprintf	SUNhost.c	/^_pprintf ( ){}$/
+abortint	timewarp.c	/^abortint ()$/
+accept_or_destroy	nq.c	/^FUNCTION accept_or_destroy ( m )$/
+acceptmsg	machifc.c	/^FUNCTION acceptmsg ( tw_msg )$/
+addStats	mproc.c	/^FUNCTION addStats ( object, statsMsg )$/
+addToDeadOcbQ	storage.c	/^FUNCTION addToDeadOcbQ ( phase )$/
+adjustEffectWork	loadman.c	/^FUNCTION adjustEffectWork(o,state)$/
+advance_op	rbc_op.c	/^advance_op ( ocb, num_frames, rb_time )$/
+alarm	BF_MACH/BF_MACH_Hg.c	/^alarm ( seconds )$/
+allowNow	tstrinit.c	/^allowNow()$/
+annihilate	nq.c	/^FUNCTION annihilate ( o, f, m )$/
+areopp_macro	twsys.h	/^#define areopp_macro(M,N)  ( (isanti_macro(M) && i/
+ashowocb	buglib2.c	/^ashowocb (o)$/
+atol	str.c	/^FUNCTION Long atol(s)$/
+bestFit	loadman.c	/^Ocb * bestFit ( lowutil )$/
+bind_socket	SUNnetwork.c	/^int bind_socket ( port )$/
+bothNeg	vtime.h	/^#define bothNeg(a,b) \\$/
+brdcst	machifc.c	/^FUNCTION brdcst ( tw_msg, length )$/
+brdcst_command	command.c	/^FUNCTION brdcst_command ( buff, time )$/
+breakpoint	brkpt.c	/^breakpoint ()$/
+broadcast_event	BF_MACH/BF_MACH_Hg.c	/^broadcast_event (datum)$/
+broken_pipe	SUNnetwork.c	/^broken_pipe ()$/
+bsearch	monitor.c	/^bsearch ( array, x, num, key )$/
+butterfly_dlmAlarm	BF_MACH/BF_MACH_Hg.c	/^butterfly_dlmAlarm ( routine )$/
+butterfly_get_prompt	BF_MACH/BF_MACH_Hg.c	/^butterfly_get_prompt ( prompt, dest )$/
+butterfly_host_init	BF_MACH/BF_MACH_Hg.c	/^butterfly_host_init ()$/
+butterfly_host_wait_for_nodes	BF_MACH/BF_MACH_Hg.c	/^butterfly_host_wait_for_nodes ()$/
+butterfly_min	BF_MACH/BF_MACH_Hg.c	/^VTime butterfly_min ()$/
+butterfly_msigalarm	BF_MACH/BF_MACH_Hg.c	/^butterfly_msigalarm ( routine )$/
+butterfly_node_init	BF_MACH/BF_MACH_Hg.c	/^butterfly_node_init ( )$/
+butterfly_node_term	BF_MACH/BF_MACH_Hg.c	/^butterfly_node_term ()$/
+butterfly_prompt	BF_MACH/BF_MACH_Hg.c	/^butterfly_prompt ( prompt )$/
+butterfly_recv_command	BF_MACH/BF_MACH_Hg.c	/^butterfly_recv_command ( msg )$/
+butterfly_send_command	BF_MACH/BF_MACH_Hg.c	/^butterfly_send_command ( msg, dest )$/
+butterfly_sigalarm	BF_MACH/BF_MACH_Hg.c	/^butterfly_sigalarm ( routine )$/
+butterfly_sigint	BF_MACH/BF_MACH_Hg.c	/^butterfly_sigint ( routine )$/
+butterflytime	BBNtime.c	/^unsigned int butterflytime ()$/
+butterflytime_init	BBNtime.c	/^butterflytime_init ( rtc_sync )$/
+bytcmp	twcommon.h	/^#define bytcmp(a,b,len) bcmp(b,a,len)$/
+bytes_free	mem.c	/^FUNCTION long  bytes_free ()$/
+calculateCritPath	critpath.c	/^FUNCTION calculateCritPath()$/
+calculateUtilization	loadman.c	/^FUNCTION float calculateUtilization ()$/
+cancel	objifc.c	/^FUNCTION cancel(msgID)$/
+cancel_all_output	rollback.c	/^FUNCTION cancel_all_output ( ocb, vt )$/
+cancel_omsgs	objend.c	/^FUNCTION cancel_omsgs ( o, t1, t2 )$/
+cancel_states	rollback.c	/^FUNCTION cancel_states ( ocb, vt )$/
+char	twcommon.h	51
+checkCritPath	critpath.c	/^FUNCTION checkCritPath ( critMsg )$/
+checkOcbRBC	rbc_op.c	/^checkOcbRBC ( ocb, string )$/
+check_alarm	BF_MACH/BF_MACH_Hg.c	/^check_alarm ()$/
+check_empty_footCB	rbc_op.c	/^check_empty_footCB ( p )$/
+check_footCB	rbc_op.c	/^check_footCB ( p, ocb, string )$/
+check_for_events	BF_MACH/BF_MACH_Hg.c	/^check_for_events ()$/
+check_for_keyin	machdep.c	/^check_for_keyin ()$/
+check_i_arg_macro	turboq2.c	/^#define check_i_arg_macro(X) \\$/
+check_i_retval_macro	turboq2.c	/^#define check_i_retval_macro(s,X) \\$/
+check_mercury_queue	machdep.c	/^int check_mercury_queue ()$/
+check_o_arg_macro	turboq2.c	/^#define check_o_arg_macro(X) \\$/
+check_o_retval_macro	turboq2.c	/^#define check_o_retval_macro(s,X) \\$/
+check_old_state	state.c	/^FUNCTION check_old_state ( old_state )$/
+check_stack_and_state	save.c	/^FUNCTION void check_stack_and_state ( ocb )$/
+check_timeouts	timewarp.c	/^check_timeouts ()$/
+checksum	msgcntl.c	/^int checksum ( tw_msg )$/
+chooseObject	loadman.c	/^FUNCTION Ocb *chooseObject( lowutil )$/
+clear	machdep.c	/^clear ( ptr, numbytes )$/
+clear_breakpoint	brkpt.c	/^clear_breakpoint ()$/
+clear_screen	tester.c	/^clear_screen ()$/
+clear_watchpoint	brkpt.c	/^clear_watchpoint ()$/
+clock	BBNclock.c	/^long clock()$/
+clockval	getime.c	/^clockval ()$/
+close_command_file	command.c	/^close_command_file ()$/
+command	command.c	/^int command ( prompt )  \/* returns 1 for ok, 0 for/
+commander	SUNhost.c	/^commander ( command )$/
+commit	commit.c	/^FUNCTION commit ( ocb )$/
+connect_socket	SUNnetwork.c	/^int connect_socket ( port )$/
+copystate	state.c	/^FUNCTION State * copystate ( old_state )$/
+countOutputMsgs	sched.c	/^FUNCTION countOutputMsgs ( ocb )$/
+countQueues	storage.c	/^FUNCTION countQueues(ocb)$/
+cp_flog_msg	cp_msg.c	/^cp_flog_msg ( m )$/
+cp_hist_msg	cp_msg.c	/^cp_hist_msg ( m )$/
+cp_islog_msg	cp_msg.c	/^cp_islog_msg ( m )$/
+cp_mlog_msg	cp_msg.c	/^cp_mlog_msg ( m )$/
+cp_qlog_msg	cp_msg.c	/^cp_qlog_msg ( m )$/
+cp_stdouttime_msg	cp_msg.c	/^cp_stdouttime_msg ( m )$/
+crash	tester.c	/^crash ()$/
+create_object	objifc.c	/^FUNCTION create_object ( object, objtype, node )$/
+create_phase	objifc.c	/^FUNCTION create_phase ( object, objtype, node, beg/
+create_stdout	mproc.c	/^create_stdout ()$/
+createproc	mproc.c	/^FUNCTION        Ocb * createproc (oname,type,time)/
+crit_log_msg	hostifc.c	/^FUNCTION crit_log_msg ( tw_msg )$/
+ctrlc	tester.c	/^ctrlc ()$/
+cubeint	timewarp.c	/^cubeint ()$/
+deadOcb	twsys.h	679
+debug	tester.c	/^debug ()$/
+delObj	objifc.c	/^FUNCTION msgRef delObj ( rcver, rcvtim )$/
+delObjI	oldtw.c	/^FUNCTION delObjI ( rcver, ircvtim )$/
+delay_object	tester.c	/^delay_object ()$/
+delfile	fileio.c	/^delfile ( name )$/
+delimsg	twsys.h	/^#define delimsg(m)      l_remove(m); l_destroy(m)$/
+deliver	deliver.c	/^FUNCTION        deliver (m)$/
+delomsg	twsys.h	/^#define delomsg(m)      l_remove(m); l_destroy(m)$/
+denymsg	machifc.c	/^FUNCTION denymsg ( tw_msg )$/
+destroy_message_vector	objhead.c	/^destroy_message_vector (o)$/
+destroy_msg	msgcntl.c	/^destroy_msg ( msg )$/
+destroy_state	state.c	/^FUNCTION destroy_state ( state )$/
+disable_file_echo	command.c	/^disable_file_echo ()$/
+disable_interrupts	tstrinit.c	/^disable_interrupts ()$/
+disable_message_sendback	tstrinit.c	/^disable_message_sendback ()$/
+dispatch	sched.c	/^FUNCTION dispatch ()$/
+disposeBlockPtr	state.c	/^FUNCTION disposeBlockPtr ( offset )$/
+disposeBlockPtr_b	state.c	/^FUNCTION disposeBlockPtr_b ( offset )$/
+dlmAlarm	BF_MACH/BF_MACH_Hg.c	/^dlmAlarm ( seconds )$/
+dlmTimeoff	timewarp.c	/^FUNCTION dlmTimeoff ()$/
+dlmTimer_interrupt	timewarp.c	/^FUNCTION dlmTimer_interrupt ()$/
+dlmtimint	timewarp.c	/^FUNCTION dlmtimint ()$/
+dm	buglib2.c	/^dm ( msg )$/
+do_timing	gvt2.c	/^do_timing()$/
+dprintf	buglib2.c	/^dprintf (s, a1, a2, a3, a4, a5, a6, a7, a8, a9, a1/
+dqimsg	twsys.h	/^#define dqimsg(m)       l_remove(m)$/
+dqomsg	twsys.h	/^#define dqomsg(m)       l_remove(m)$/
+drawline	buglib2.c	/^drawline ()$/
+dst	buglib2.c	/^dst ( state )$/
+dummy_destroy	objhead.c	/^dummy_destroy () {}$/
+dummy_init	objhead.c	/^dummy_init () {}$/
+dump_id_list	idlist.c	/^dump_id_list ( fp )$/
+dump_mlog	msglog.c	/^dump_mlog ()$/
+dump_ocb_by_name	buglib2.c	/^dump_ocb_by_name ( name )$/
+dump_ocb_by_phase	buglib2.c	/^dump_ocb_by_phase ( name, ptime )$/
+dump_qlog	quelog.c	/^dump_qlog ()$/
+dump_socket	machdep.c	/^dump_socket ( node )$/
+dump_state_hdr	buglib2.c	/^dump_state_hdr ( state_ptr )$/
+dump_state_migr_hdr	buglib2.c	/^dump_state_migr_hdr (migr_hdr )$/
+dump_stats	cubeio.c	/^dump_stats (elapsed_time)$/
+dumparray	buglib2.c	/^dumparray (u, n)$/
+dumpit	SUN_Hg.c	/^dumpit (u, n)$/
+dumplog	flowlog.c	/^dumplog ()$/
+dumpmsg	buglib2.c	/^dumpmsg (m)$/
+dumpmsgx	tester.c	/^dumpmsgx ( msgh )$/
+dumpocb	buglib2.c	/^dumpocb ( o )$/
+dumpstate	buglib2.c	/^dumpstate (s)$/
+dumpstateAddrTable	buglib2.c	/^dumpstateAddrTable (s)$/
+dumpstateAddrTablex	buglib2.c	/^dumpstateAddrTablex (state)$/
+dumpstatex	tester.c	/^dumpstatex ( state )$/
+dynamic_mem	buglib2.c	/^dynamic_mem (m)$/
+e_stdout	stdout.c	/^e_stdout () {}$/
+earliest_later_inputbundle	rollback.c	/^FUNCTION Msgh * earliest_later_inputbundle ( o )$/
+emulate_advance	rbc_emulator.c	/^emulate_advance ()$/
+emulate_dealloc	rbc_emulator.c	/^emulate_dealloc ( seg_no, begin_addr, end_addr )$/
+emulate_mark	rbc_emulator.c	/^emulate_mark ()$/
+emulate_rollback	rbc_emulator.c	/^emulate_rollback ()$/
+emulator_check_frame_count	rbc_emulator.c	/^emulator_check_frame_count ( seg_no, count )$/
+enableCritPath	critpath.c	/^FUNCTION enableCritPath ()$/
+enable_aggressive_cancellation	rollback.c	/^enable_aggressive_cancellation ()$/
+enable_file_echo	command.c	/^enable_file_echo ()$/
+enable_interrupts	tstrinit.c	/^enable_interrupts ()$/
+enable_mem_stats	tstrinit.c	/^enable_mem_stats ()$/
+endCritComputation	critpath.c	/^FUNCTION endCritComputation ()$/
+enq_command	timewarp.c	/^enq_command ( msg )$/
+enq_msg	msgcntl.c	/^enq_msg ( msg )$/
+entcpy	machdep.c	/^entcpy ( dest, src, numbytes )$/
+eqDTime	vtime.h	/^#define eqDTime(a1,a2,b1,b2) \\$/
+eqSTime	vtime.c	/^eqSTime ( a, b )$/
+eqVTime	machifc.c	/^		eqVTime ( oldgvt1, oldgvt2 ) )$/
+error	command.c	/^static error ( string )$/
+eventsBeyondGVT	sched.c	/^FUNCTION eventsBeyondGVT ( o )$/
+exec_commands_in_queue	timewarp.c	/^exec_commands_in_queue ()$/
+exit_handler	SUNhost.c	/^static exit_handler ()$/
+fileNum	fileio.c	/^fileNum(name)$/
+find	turboq2.c	/^FUNCTION Byte  *find ($/
+findInMovedQ	migr.c	/^FUNCTION findInMovedQ ( msg )$/
+findInSendQueue	migr.c	/^FUNCTION Ocb * findInSendQueue ( name, time )$/
+findPhaseInDeadQ	storage.c	/^FUNCTION deadOcb * findPhaseInDeadQ ( object, phas/
+find_nt	monitor.c	/^find_nt ( addr )$/
+find_object_type	mproc.c	/^FUNCTION Typtbl *find_object_type ( type )$/
+finishAddStats	mproc.c	/^FUNCTION finishAddStats ( m, location )$/
+finishCrit	critpath.c	/^FUNCTION finishCrit ( m, location)$/
+finishNonCritPathMsg	critpath.c	/^FUNCTION finishNonCritPathMsg ( m, location)$/
+finish_send_state_copy	migr.c	/^FUNCTION finish_send_state_copy ( state, location /
+flowlog	flowlog.c	/^flowlog ( flow_log_size )$/
+flowlog_entry	flowlog.c	/^flowlog_entry ()$/
+for	loads.c	/^		for (i = 0; i < migrations ; i ++)$/
+form_vtime	format.c	/^form_vtime ( bp, vtime )$/
+format	format.c	/^int format ( bp, name, data, type, level )$/
+formhdr	format.c	/^formhdr ( bp, name, caller )$/
+free_block	rbc_emulator.c	/^free_block ( p )$/
+free_msg_pool_entries	sendback.c	/^FUNCTION free_msg_pool_entries()$/
+free_segment	rbc_malloc.c	/^free_segment ( seg_no )$/
+fstigb	turboq2.c	/^FUNCTION Msgh * fstigb (m)      \/* first input gro/
+fstimsg_macro	twsys.h	/^#define fstimsg_macro(o)  ( _temp = l_next_macro(o/
+fstomb	turboq2.c	/^FUNCTION Msgh * fstomb (m)      \/* first output me/
+fstomsg_macro	twsys.h	/^#define fstomsg_macro(o)  ( _temp = l_next_macro(o/
+fststate_macro	twsys.h	/^#define fststate_macro(o)  ( _temp = l_next_macro(/
+gcpast	storage.c	/^FUNCTION        gcpast ()$/
+geDTime	vtime.h	/^#define geDTime(a1,a2,b1,b2) \\$/
+geSTime	vtime.c	/^geSTime ( a, b )$/
+geVTime	vtime.h	/^#define geVTime(a,b) \\$/
+general_ocb_by_name	buglib2.c	/^Ocb            *general_ocb_by_name (name)$/
+general_ocb_by_phase	buglib2.c	/^Ocb * general_ocb_by_phase ( name, ptime )$/
+get_enum	buglib2.c	/^get_enum (type, symbolic_constant, p)$/
+get_line	command.c	/^int get_line ( buff )   \/* returns 1 for ok, 0 for/
+get_memory_or_denymsg	nq.c	/^FUNCTION Msgh * get_memory_or_denymsg ( o, m )$/
+get_mercury_msg	machdep.c	/^get_mercury_msg ()$/
+get_message_to_send_back	sendback.c	/^FUNCTION get_message_to_send_back ( time )$/
+get_msg	BF_MACH/BF_MACH_Hg.c	/^get_msg ( msg_structure_ptr )$/
+get_msg_w	BF_MACH/BF_MACH_Hg.c	/^get_msg_w ( msg_structure_ptr )$/
+get_tester_input	SUN_Hg.c	/^get_tester_input ()$/
+get_word	command.c	/^int get_word ( word )   \/* returns 1 for ok, 0 for/
+getfile	fileio.c	/^getfile ( filename, name )$/
+getfunc	moninit.c	/^FUNC * getfunc ( func )$/
+getime	getime.c	/^getime ( time )$/
+gettype	moninit.c	/^int gettype ( word )$/
+getword	moninit.c	/^getword ( word )$/
+global	BF_MACH/BF_MACHrun.c	/^global ()$/
+go	tester.c	/^go ()$/
+go_forward	rollback.c	/^FUNCTION go_forward ( o )$/
+gtDTime	vtime.h	/^#define gtDTime(a1,a2,b1,b2) \\$/
+gtSTime	vtime.c	/^gtSTime ( a, b )$/
+gtVTime	vtime.h	/^#define gtVTime(a,b) \\$/
+guess	objifc.c	/^FUNCTION guess(sndtime,rcvtime,rcvr,selector,txtle/
+gvtcfg	gvt2.c	/^FUNCTION gvtcfg()$/
+gvtinit	gvt2.c	/^FUNCTION gvtinit ()$/
+gvtinterrupt	gvt2.c	/^FUNCTION gvtinterrupt ()$/
+gvtlvt	gvt2.c	/^FUNCTION gvtlvt ( lvt )$/
+gvtmessage	gvt2.c	/^FUNCTION gvtmessage ( type, time, dest )$/
+gvtproc	gvt2.c	/^FUNCTION gvtproc ( gvt_message )$/
+gvtstart	gvt2.c	/^FUNCTION gvtstart ( )$/
+gvtupdate	gvt2.c	/^FUNCTION gvtupdate ( newgvt )$/
+handle_cp_msg	cp_msg.c	/^handle_cp_msg ( m )$/
+help	comdtab.c	/^help ()$/
+hist_array	cp_msg.c	792
+hoglog	tstrinit.c	/^void hoglog(hog_log_time)$/
+i_stdout	stdout.c	/^i_stdout () {}$/
+idle	timewarp.c	/^idle ()$/
+if	gvt2.c	/^	if ( mem_stats_enabled )$/
+ih_msgproc	hostifc.c	/^FUNCTION ih_msgproc ( tw_msg )$/
+imcmp	cmp.c	/^FUNCTION int imcmp ( a, b )$/
+informNonCritPredecessors	critpath.c	/^FUNCTION informNonCritPredecessors ( tState )$/
+initInterrupts	start.c	/^FUNCTION void	initInterrupts()$/
+init_args	timewarp.c	/^FUNCTION init_args ( argc, argv )$/
+init_command	command.c	/^init_command ( config_file )$/
+init_islog	islog.c	/^init_islog ( IS_log_size, delta )$/
+init_node	SUNnetwork.c	/^init_node ( node_num )$/
+init_op	rbc_malloc.c	/^init_op ( ocb, size_in_bytes )$/
+init_queues	rbc_emulator.c	/^init_queues ()$/
+init_select	SUN_Hg.c	/^init_select()$/
+init_types	tstrinit.c	/^init_types ()$/
+install_output_object_types	start.c	/^FUNCTION        install_output_object_types ()$/
+int	twcommon.h	50
+interrupt_nodes	BF_MACH/BF_MACH_Hg.c	/^interrupt_nodes ()$/
+ioint	SUNhost.c	/^ioint ()$/
+ioint_rcvack	machdep.c	/^ioint_rcvack ( msg, node )$/
+isanti_macro	twsys.h	/^#define isanti_macro(M)    BITEST( (M)->flags,SIGN/
+isforward_macro	twsys.h	/^#define isforward_macro(M)     (!isreverse_macro(M/
+islocked_macro	twsys.h	/^#define islocked_macro(M)  BITEST( (M)->flags,LOCK/
+ismarked_macro	twsys.h	/^#define ismarked_macro(M)  BITEST( (M)->flags,USED/
+ismoving_macro	mem.c	/^#define ismoving_macro(M)	BITTEST( (M)->flags,MOVI/
+isposi_macro	twsys.h	/^#define isposi_macro(M)    (!isanti_macro(M))$/
+isreverse_macro	twsys.h	/^#define isreverse_macro(M)     BITEST( (M)->flags,/
+issys_macro	twsys.h	/^#define issys_macro(M)     BITEST( (M)->flags,SYSM/
+itoa	tlib.c	/^char *itoa(n,s)$/
+itoh	tlib.c	/^char *itoh(n,s)$/
+keyint	SUNhost.c	/^keyint ()$/
+kilo_alloc	rbc_malloc.c	/^kilo_alloc ( size_in_K )$/
+kilo_block	rbc_emulator.c	46
+kilo_copy	rbc_emulator.c	/^kilo_copy ( dest, src )$/
+kilo_dealloc	rbc_malloc.c	/^kilo_dealloc ( start, end )$/
+kilo_mem	rbc_emulator.h	29
+l_create	list.c	/^FUNCTION List_hdr *l_create (reqsize)$/
+l_destroy	list.c	/^FUNCTION l_destroy (p)$/
+l_hcreate	list.c	/^FUNCTION List_hdr  *l_hcreate ()$/
+l_hdestroy	list.c	/^FUNCTION l_hdestroy (p)$/
+l_insert	list.c	/^FUNCTION l_insert (pos, p)$/
+l_ishead	list.c	/^FUNCTION l_ishead (p)$/
+l_ishead_macro	rollback.c	/^		if ( ( ! l_ishead_macro ( next ) && gtVTime ( o-/
+l_maxelt	list.c	/^FUNCTION int   l_maxelt ()$/
+l_next	list.c	/^FUNCTION List_hdr  *l_next (p)$/
+l_next_macro	machifc.c	/^		  msg = (Msgh *) l_next_macro ( msg ) )$/
+l_prev	list.c	/^FUNCTION List_hdr  *l_prev (p)$/
+l_prev_macro	twsys.h	/^#define l_prev_macro(p)   ( LIST_HEADER(p)->prev +/
+l_remove	list.c	/^FUNCTION List_hdr  *l_remove (p)$/
+l_size	twsys.h	/^#define l_size(p)		  ( LIST_HEADER(p)->size )$/
+ladd	tlib.c	/^long ladd(x,y) long x,y; { return x+y; }$/
+lcmp	tlib.c	/^int  lcmp(x,y) long x,y; { if (x<y) return -1; els/
+ldiv	tlib.c	/^long ldiv(x,y) long x,y; { return x\/y; }$/
+leDTime	vtime.h	/^#define leDTime(a1,a2,b1,b2) \\$/
+leSTime	vtime.c	/^leSTime ( a, b )$/
+leVTime	vtime.h	/^#define leVTime(a,b) \\$/
+list_levels	monitor.c	/^list_levels ()$/
+lmod	tlib.c	/^long lmod(x,y) long x,y; { return x%y; }$/
+lmul	tlib.c	/^long lmul(x,y) long x,y; { return x*y; }$/
+loadStart	loads.c	/^FUNCTION loadStart ( loadArray )$/
+loadUpdate	loads.c	/^FUNCTION loadUpdate ( loadArray )$/
+load_funcs	moninit.c	/^load_funcs ()$/
+load_levels	moninit.c	/^load_levels ()$/
+load_nt	moninit.c	/^load_nt ()$/
+load_obj	sched.c	/^FUNCTION load_obj ( o )$/
+loadinit	loads.c	/^FUNCTION loadinit ()$/
+loadinterrupt	loads.c	/^FUNCTION loadinterrupt ()$/
+loadmessage	loads.c	/^FUNCTION loadmessage ( type, time, dest, loadArray/
+loadproc	loads.c	/^FUNCTION loadproc ( load_message )$/
+loadstatebuffer	state.c	/^FUNCTION int loadstatebuffer (o,tempType)$/
+lock	BF_MACH/BF_MACH_Hg.c	/^lock ( location )$/
+lock_macro	twsys.h	/^#define lock_macro(M)      BITSET( (M)->flags,LOCK/
+log_ack_pending	msgcntl.c	/^log_ack_pending ( msg, node )$/
+log_input_message	storage.c	/^log_input_message ( msg )$/
+log_output_message	storage.c	/^log_output_message ( msg )$/
+logmsg	machifc.c	/^FUNCTION logmsg ()$/
+long	twcommon.h	59
+lstimsg_macro	twsys.h	/^#define lstimsg_macro(o)  ( _temp = l_prev_macro(o/
+lstomsg_macro	twsys.h	/^#define lstomsg_macro(o)  ( _temp = l_prev_macro(o/
+lststate_macro	twsys.h	/^#define lststate_macro(o)  ( _temp = l_prev_macro(/
+lsub	tlib.c	/^long lsub(x,y) long x,y; { return x-y; }$/
+ltDTime	vtime.h	/^#define ltDTime(a1,a2,b1,b2) \\$/
+ltSTime	vtime.c	/^ltSTime ( a, b )$/
+ltVTime	vtime.h	/^#define ltVTime(a,b) \\$/
+ltoa	tlib.c	/^char *ltoa(n,s)$/
+ltoh	tlib.c	/^char *ltoh(n,s)$/
+lvtstop	gvt2.c	/^FUNCTION lvtstop ( t )$/
+m_allocate	mem.c	/^FUNCTION Byte  *m_allocate (n)$/
+m_available	mem.c	/^FUNCTION int   m_available ()$/
+m_contiguous	mem.c	/^FUNCTION int   m_contiguous ()$/
+m_create	sendback.c	/^FUNCTION m_create ( size, time, critical )$/
+m_memory	mem.c	/^FUNCTION Mem_hdr *m_memory (num_units)$/
+m_release	mem.c	/^FUNCTION        m_release (p)$/
+mad_monitor	monitor.c	/^mad_monitor ( arg )$/
+makeCrit	critpath.c	/^FUNCTION makeCrit ( critState )$/
+make_memory	sendback.c	/^FUNCTION make_memory ( size, time )$/
+make_message	mkmsg.c	/^FUNCTION make_message ( mtype, snder, sndtim, rcve/
+make_path	BF_MACH/BF_MACHrun.c	/^make_path ( path_name, file_name, mode )$/
+make_static_msg	mkmsg.c	/^make_static_msg ( message, mtype, snder, sndtim, r/
+makephase	mproc.c	/^FUNCTION        Ocb * makephase ( name, c )$/
+malarm	BF_MACH/BF_MACH_Hg.c	/^malarm ( msecs )$/
+malloc_flog_variables	cp_msg.c	/^malloc_flog_variables()$/
+malloc_islog_variables	cp_msg.c	/^malloc_islog_variables()$/
+malloc_mlog_variables	cp_msg.c	/^malloc_mlog_variables()$/
+malloc_qlog_variables	cp_msg.c	/^malloc_qlog_variables()$/
+manual_event	tester.c	/^manual_event ( state )$/
+manual_gvt	tester.c	/^manual_gvt ()$/
+manual_init	tester.c	/^manual_init ( state )$/
+manual_lvt	tester.c	/^manual_lvt ()$/
+manual_objend	tester.c	/^manual_objend ()$/
+manual_term	tester.c	/^manual_term ( state )$/
+markOcb	mem.c	/^markOcb ( fp, ocb, mask )$/
+mark_macro	twsys.h	/^#define mark_macro(M)      BITSET( (M)->flags,USED/
+mark_op	rbc_op.c	/^mark_op ( ocb, num_frames, rb_time )$/
+markmem	mem.c	/^markmem ( fp )$/
+markmessage	mem.c	/^markmessage ( message, direction )$/
+markstate	mem.c	/^markstate (state, oid)$/
+mavail	mem.c	/^mavail ( tblocks, cblocks)$/
+memUsedOK	loadman.c	/^FUNCTION memUsedOK(o,memAvail)$/
+mem_stats	mem.c	/^mem_stats ()$/
+mem_used_in_queues	buglib2.c	/^mem_used_in_queues ()$/
+memanal	mem.c	/^memanal ()$/
+message_vector	objhead.c	/^FUNCTION message_vector (o)$/
+migr_log_msg	hostifc.c	/^migr_log_msg ( tw_msg )$/
+migr_min	migr.c	/^FUNCTION VTime migr_min ()$/
+minmsg	machifc.c	/^FUNCTION minmsg ( t )$/
+mkocb	make.c	/^FUNCTION Ocb *mkocb ()$/
+mkomsg	make.c	/^FUNCTION Msgh  *mkomsg ( o, rcvtim, rcvr, mtyp, tx/
+moninit	moninit.c	/^moninit ()$/
+monobj	monitor.c	/^monobj ( object_name )$/
+monoff	monitor.c	/^monoff ()$/
+monon	monitor.c	/^monon ()$/
+moreKilos	rbc_malloc.c	/^moreKilos ( ocb, num_units )$/
+move_phase	migr.c	/^FUNCTION move_phase ( ocb, node )$/
+move_phase_cmd	migr.c	/^FUNCTION move_phase_cmd ( name, stime, node )$/
+msgLength	services.c	/^int msgLength ( n )$/
+msgRef	twcommon.h	99
+msgRefRcvTime	twcommon.h	/^#define msgRefRcvTime(x)	(x.rcvtim)$/
+msgRefRcvr	twcommon.h	/^#define msgRefRcvr(x)		(x.rcver)$/
+msgRefUID	twcommon.h	/^#define msgRefUID(x)		(x.gid)$/
+msgSelector	services.c	/^Long msgSelector ( n )$/
+msgSendTime	services.c	/^VTime msgSendTime ( n )$/
+msgSendTimeI	oldtw.c	/^int msgSendTimeI ( n )$/
+msgSender	services.c	/^char * msgSender ( n )$/
+msgText	services.c	/^void * msgText ( n )$/
+msg_cmd	objifc.c	/^msg_cmd ( msgnum )$/
+msgfind	serve.c	/^FUNCTION Msgh * msgfind ( o )$/
+msglog	msglog.c	/^msglog ( msg_log_size )$/
+msglog_entry	msglog.c	/^msglog_entry ( msg )$/
+msgproc	mproc.c	/^FUNCTION        msgproc ()$/
+myName	twcommon.h	/^#define myName(x) (obj_myName(x))$/
+myName_cmd	objifc.c	/^myName_cmd ()$/
+name_hash_function	objloc.c	/^int    name_hash_function (name,hashtype)$/
+namecmp	cmp.c	/^FUNCTION int namecmp ( name1, name2 )$/
+neDTime	vtime.h	/^#define neDTime(a1,a2,b1,b2) \\$/
+neSTime	vtime.c	/^neSTime ( a, b )$/
+neVTime	vtime.h	/^#define neVTime(a,b) \\$/
+negate_macro	twsys.h	/^#define negate_macro(M)    BITSET( (M)->flags,SIGN/
+newBlockPtr	state.c	/^FUNCTION Pointer newBlockPtr ( size )$/
+newBlockPtr_b	state.c	/^FUNCTION newBlockPtr_b ( size )$/
+newBlockWithPtrs	state.c	/^FUNCTION void * newBlockWithPtrs ( size, Ptr )$/
+newBlockWithPtrs_b	state.c	/^FUNCTION newBlockWithPtrs_b ( size )$/
+newObj	objifc.c	/^FUNCTION msgRef newObj ( rcver, rcvtim, objtype )$/
+newObjI	oldtw.c	/^FUNCTION newObjI ( rcver, ircvtim, objtype )$/
+newVTime	vtime.c	/^VTime newVTime ( aSimTime, aSequence1, aSequence2 /
+new_block	rbc_emulator.c	/^kilo_block * new_block ()$/
+new_line	command.c	/^new_line ()$/
+new_segment	rbc_malloc.c	/^new_segment ()$/
+nextBestFit	loadman.c	/^Ocb * nextBestFit ( lowutil )$/
+node_of_addr	timewarp.c	/^#define node_of_addr(addr) ((((unsigned)(addr)) & /
+nonCritEvent	critpath.c	/^FUNCTION nonCritEvent ( o, state, tstate )$/
+nonCritPathMsg	critpath.c	/^FUNCTION nonCritPathMsg ( m )$/
+now_cmd	objifc.c	/^now_cmd ()$/
+nqTruncState	critpath.c	/^FUNCTION nqTruncState ( o, ts )$/
+nq_input_message	nq.c	/^FUNCTION nq_input_message ( o, m )$/
+nq_output_message	nq.c	/^FUNCTION nq_output_message ( o, m )$/
+nqocb	turboq2.c	/^FUNCTION nqocb ( o, next )$/
+nukocb	make.c	/^FUNCTION nukocb (o)$/
+null_event	nullobj.c	/^null_event()$/
+null_init	nullobj.c	/^null_init()$/
+numMigrating	migr.c	/^numMigrating ()$/
+numMsgs_cmd	objifc.c	/^numMsgs_cmd ()$/
+num_faults	gvt2.c	/^num_faults()$/
+nxtDocb_macro	twsys.h	/^#define nxtDocb_macro(m)    ( _temp = l_next_macro/
+nxtibq	turboq2.c	/^FUNCTION Msgh * nxtibq (m)      \/* next input bund/
+nxtigb	turboq2.c	/^FUNCTION Msgh * nxtigb (m)      \/* next input grou/
+nxtimsg_macro	migr.c	/^		for (m = fstimsg_macro (ocb2); m; m = nxtimsg_ma/
+nxtmigrh_macro	twsys.h	/^#define nxtmigrh_macro(m)   ( _temp = l_next_macro/
+nxtobq	turboq2.c	/^FUNCTION Msgh * nxtobq (m)      \/* next output bun/
+nxtocb_macro	twsys.h	/^#define nxtocb_macro(m)    ( _temp = l_next_macro(/
+nxtomb	turboq2.c	/^FUNCTION Msgh * nxtomb (m)      \/* next output mes/
+nxtomsg_macro	migr.c	/^		for (m = fstomsg_macro (ocb2); m; m = nxtomsg_ma/
+nxtstate_macro	migr.c	/^		for (s = fststate_macro (ocb2); s; s = nxtstate_/
+obcreate	objifc.c	/^FUNCTION obcreate ( rcver, objtype, node )$/
+obcreate_b	objifc.c	/^FUNCTION obcreate_b ( rcver, objtype, node )$/
+obcreate_cmd	objifc.c	/^FUNCTION obcreate_cmd ( rcver, objtype, node )$/
+obj_getLibPointer	services.c	/^Pointer obj_getLibPointer()$/
+obj_getLibTable	services.c	/^void *  obj_getLibTable()$/
+obj_myName	services.c	/^char * obj_myName ( name )$/
+obj_myState	services.c	/^void * obj_myState ()$/
+obj_now	services.c	/^VTime obj_now ()$/
+obj_nowI	oldtw.c	/^int obj_nowI ()$/
+obj_numMsgs	services.c	/^int obj_numMsgs ()$/
+obj_setLibPointer	services.c	/^void    obj_setLibPointer(ptr)$/
+objadr	int.c	/^FUNCTION        objadr ()$/
+objdiv0	int.c	/^FUNCTION        objdiv0 ()$/
+objectAddressError	state.c	/^FUNCTION int objectAddressError ( addr, size )$/
+object_error	int.c	/^FUNCTION object_error ( error )$/
+objend	objend.c	/^FUNCTION objend ()$/
+objhead	objhead.c	/^FUNCTION        objhead (o)$/
+objins	int.c	/^FUNCTION        objins ()$/
+objno	cp_msg.c	/^objno ( name, node, sim_time )$/
+objoflow	int.c	/^FUNCTION        objoflow ()$/
+objpast	storage.c	/^FUNCTION        objpast (ocb)$/
+objstk	int.c	/^FUNCTION        objstk ()$/
+objsub	int.c	/^FUNCTION        objsub ()$/
+objtout	int.c	/^FUNCTION        objtout ()$/
+omcmp	cmp.c	/^FUNCTION int omcmp ( a, b )$/
+open_output_file	fileio.c	/^FILE * open_output_file ( name )$/
+outputCritPath	critpath.c	/^FUNCTION outputCritPath ()$/
+output_buf	make.c	/^FUNCTION Msgh *output_buf ()$/
+peekmsg	machifc.c	/^FUNCTION peekmsg ()$/
+percent_free	mem.c	/^FUNCTION int   percent_free ()$/
+percent_used	mem.c	/^FUNCTION int   percent_used ()$/
+pfi	twcommon.h	55
+phcreate	objifc.c	/^FUNCTION phcreate ( rcver, objtype, node, begin, e/
+phcreate_b	objifc.c	/^FUNCTION phcreate_b ( rcver, objtype, node, begin,/
+phcreate_cmd	objifc.c	/^FUNCTION phcreate_cmd ( rcver, objtype, node, begi/
+pointerPtr	state.c	/^FUNCTION void * pointerPtr ( offset )$/
+pointerPtr_b	state.c	/^FUNCTION pointerPtr_b ( offset )$/
+post_event_w	BF_MACH/BF_MACH_Hg.c	/^post_event_w ( equeue, datum )$/
+print_acks	msgcntl.c	/^print_acks ()$/
+print_dispatch_stats	sched.c	/^print_dispatch_stats ()$/
+print_footCB	rbc_op.c	/^print_footCB ( p )$/
+print_frame_counter	rbc_debug.c	/^void print_frame_counter ( seg_no )$/
+print_frame_counter_table	rbc_debug.c	/^void print_frame_counter_table ()$/
+print_kilo_status	rbc_malloc.c	/^print_kilo_status()$/
+print_m_allocate_stats	mem.c	/^print_m_allocate_stats ()$/
+print_m_release_stats	mem.c	/^print_m_release_stats ()$/
+print_malloc_seg_status	rbc_malloc.c	/^print_malloc_seg_status()$/
+print_ocb_mem_list	rbc_malloc.c	/^print_ocb_mem_list ( ocb )$/
+print_ocb_rbc	rbc_op.c	/^print_ocb_rbc ( ocb )$/
+print_q_sizes	rbc_emulator.c	/^print_q_sizes()$/
+print_queues	msgcntl.c	/^print_queues ()$/
+print_resource_utilization	getime.c	/^print_resource_utilization ()$/
+print_seg_def	rbc_debug.c	/^void print_seg_def ( seg_no )$/
+print_seg_def_table	rbc_debug.c	/^void print_seg_def_table ()$/
+print_seg_encode	rbc_debug.c	/^void print_seg_encode ( kilobyte )$/
+print_seg_encode_table	rbc_debug.c	/^void print_seg_encode_table ()$/
+print_seg_status	rbc_debug.c	/^void print_seg_status ( seg_no )$/
+print_status	rbc_debug.c	/^void print_status ()$/
+print_wb	rbc_debug.c	/^void print_wb ( address )$/
+print_wb_seg	rbc_debug.c	/^void print_wb_seg ( seg_no )$/
+prvDocb_macro	twsys.h	/^#define prvDocb_macro(m)    ( _temp = l_prev_macro/
+prvibq	turboq2.c	/^FUNCTION Msgh * prvibq (m)      \/* previous input /
+prvigb	turboq2.c	/^FUNCTION Msgh * prvigb (m)      \/* previous input /
+prvimsg_macro	twsys.h	/^#define prvimsg_macro(m)   ( _temp = l_prev_macro(/
+prvobq	turboq2.c	/^FUNCTION Msgh * prvobq (m)      \/* previous output/
+prvocb_macro	twsys.h	/^#define prvocb_macro(m)    ( _temp = l_prev_macro(/
+prvomsg_macro	twsys.h	/^#define prvomsg_macro(m)   ( _temp = l_prev_macro(/
+prvstate_macro	twsys.h	/^#define prvstate_macro(m)   ( _temp = l_prev_macro/
+putStateInSendQueue	migr.c	/^FUNCTION putStateInSendQueue ( ocb, state )$/
+put_state_in_sq	migr.c	/^FUNCTION put_state_in_sq ( ocb, state )$/
+putfile	fileio.c	/^putfile ( filename, name, node )$/
+q_head	rbc_emulator.c	53
+queack	msgcntl.c	/^FUNCTION queack ( msg )$/
+quelog	quelog.c	/^quelog ( que_log_size )$/
+quelog_entry	quelog.c	/^quelog_entry ( utilization )$/
+quit	BF_MACH/BF_MACHrun.c	/^quit ()$/
+r_deq	machdep.c	/^Msgh * r_deq ()$/
+r_enq	machdep.c	/^r_enq ( msg )$/
+r_min	machdep.c	/^VTime r_min ( min )$/
+rbc_advance	rbc_driver.c	/^rbc_advance ( seg_no, num_frames )$/
+rbc_allocate	rbc_driver.c	/^rbc_allocate ( seg_no, begin_addr, end_addr )$/
+rbc_check_frame_count	rbc_op.c	/^rbc_check_frame_count ( ocb, count )$/
+rbc_dealloc_done	rbc_driver.c	/^rbc_dealloc_done ( seg_no, begin_addr, end_addr, w/
+rbc_dealloc_start	rbc_driver.c	/^rbc_dealloc_start ( seg_no, begin_addr, end_addr )/
+rbc_free	rbc_malloc.c	/^rbc_free ( ocb, p )$/
+rbc_get_cmf	rbc_debug.c	/^rbc_get_cmf ( seg_no )$/
+rbc_get_def	rbc_debug.c	/^rbc_get_def ( seg_no, start_addr, end_addr )$/
+rbc_get_encode	rbc_debug.c	/^unsigned int rbc_get_encode ( address )$/
+rbc_get_omf	rbc_debug.c	/^rbc_get_omf ( seg_no )$/
+rbc_get_wb	rbc_debug.c	/^rbc_get_wb ( address, wb_low, wb_high )$/
+rbc_init_done	rbc_driver.c	/^rbc_init_done()$/
+rbc_init_start	rbc_driver.c	/^rbc_init_start ()$/
+rbc_kilo2real	rbc_public.h	/^#define rbc_kilo2real(x)        ((void *)(1024 * (/
+rbc_malloc	rbc_malloc.c	/^char * rbc_malloc ( ocb, n )$/
+rbc_mark	rbc_driver.c	/^rbc_mark ( seg_no, num_frames )$/
+rbc_put_cmf	rbc_debug.c	/^rbc_put_cmf ( seg_no, new_frame )$/
+rbc_put_def	rbc_debug.c	/^rbc_put_def ( seg_no, start_addr, end_addr )$/
+rbc_put_encode	rbc_debug.c	/^unsigned int rbc_put_encode ( address, seg_no )$/
+rbc_put_omf	rbc_debug.c	/^rbc_put_omf ( seg_no, new_frame )$/
+rbc_read_memory	rbc_driver.c	/^rbc_read_memory ( frame_num, memory_loc, destinati/
+rbc_ready	rbc_debug.c	/^rbc_ready( seg_no )$/
+rbc_real2kilo	rbc_public.h	/^#define rbc_real2kilo(y)        ((((unsigned long)/
+rbc_rollback	rbc_driver.c	/^rbc_rollback ( seg_no, num_frames )$/
+rbc_seg_status	rbc_debug.c	/^unsigned long rbc_seg_status( seg_no )$/
+rbc_status	rbc_debug.c	/^unsigned long rbc_status()$/
+rbc_write_memory	rbc_driver.c	/^rbc_write_memory ( frame_num, memory_loc, source, /
+rcvack	SUNhost.c	/^rcvack(){}$/
+rcvmsg	msgcntl.c	/^FUNCTION rcvmsg ( msg, node )$/
+read_config_file	SUNnetwork.c	/^read_config_file ()$/
+read_the_mail	machdep.c	/^FUNCTION read_the_mail ( check_only )$/
+reclaim_kilos	rbc_malloc.c	/^reclaim_kilos ()$/
+record_min_vt	islog.c	/^FUNCTION record_min_vt ( cputime, vt )$/
+record_obj_stats	cubeio.c	/^void FUNCTION record_obj_stats(tottime,interv)$/
+recv_phase	migr.c	/^FUNCTION recv_phase ( msg )$/
+recv_phase_ack	migr.c	/^FUNCTION recv_phase_ack ( msg )$/
+recv_phase_done	migr.c	/^FUNCTION recv_phase_done ( msg )$/
+recv_phase_nak	migr.c	/^FUNCTION recv_phase_nak ( msg )$/
+recv_state	migr.c	/^FUNCTION recv_state ( msg )$/
+recv_state_ack	migr.c	/^FUNCTION recv_state_ack ( msg )$/
+recv_state_done	migr.c	/^FUNCTION recv_state_done ( msg )$/
+recv_state_nak	migr.c	/^FUNCTION recv_state_nak ( msg )$/
+recv_vtime	migr.c	/^FUNCTION recv_vtime ( msg )$/
+recv_vtime_ack	migr.c	/^FUNCTION recv_vtime_ack ( msg )$/
+recv_vtime_done	migr.c	/^FUNCTION recv_vtime_done ()$/
+recv_vtime_nak	migr.c	/^FUNCTION recv_vtime_nak ()$/
+reorderStateMigrQ	migr.c	/^FUNCTION reorderStateMigrQ ()$/
+resend_msg	SUN_Hg.c	/^resend_msg()$/
+returniqmem	buglib2.c	/^returniqmem (o)$/
+returnoqmem	buglib2.c	/^returnoqmem (o)$/
+returnsqmem	buglib2.c	/^returnsqmem (o)$/
+rmsg_stat	stats.c	/^FUNCTION rmsg_stat ( o, m )$/
+rollback	rollback.c	/^FUNCTION rollback ( o, t_to )$/
+rollback_op	rbc_op.c	/^rollback_op ( ocb, num_frames, rb_time )$/
+rollback_phase	migr.c	/^FUNCTION rollback_phase ( ocb, msg )$/
+rollback_state	migr.c	/^FUNCTION rollback_state ( ocb, statetime )$/
+rtc_tick	timewarp.c	/^rtc_tick ()$/
+save_state	save.c	/^FUNCTION save_state ( ocb )$/
+schedule	objifc.c	/^FUNCTION msgRef schedule ( rcver, rcvtim, selector/
+schedule_next_dlm	timewarp.c	/^schedule_next_dlm()$/
+schedule_next_gvt	timewarp.c	/^schedule_next_gvt()$/
+schedule_next_spare	timewarp.c	/^schedule_next_spare()$/
+schedule_time_out	timewarp.c	/^schedule_time_out()$/
+send_back	sendback.c	/^FUNCTION send_back ( message )$/
+send_command	command.c	/^FUNCTION send_command ( buff, node, time )$/
+send_e_from_q	msgcntl.c	/^FUNCTION send_e_from_q ()$/
+send_from_q	msgcntl.c	/^FUNCTION send_from_q ()$/
+send_message	msgcntl.c	/^FUNCTION send_message ( buf, len, dest, type )$/
+send_message_fast	msgcntl.c	/^FUNCTION send_message_fast ( buf, len, dest, type,/
+send_msg	BF_MACH/BF_MACH_Hg.c	/^send_msg ( msg_structure_ptr )$/
+send_msg_w	BF_MACH/BF_MACH_Hg.c	/^send_msg_w ( msg_structure_ptr )$/
+send_ocb_from_q	migr.c	/^FUNCTION send_ocb_from_q ()$/
+send_phase	migr.c	/^FUNCTION send_phase ( ocb )$/
+send_phase_ack	migr.c	/^FUNCTION send_phase_ack ( msg, ocb )$/
+send_phase_done	migr.c	/^FUNCTION send_phase_done ( msg, ocb )$/
+send_phase_nak	migr.c	/^FUNCTION send_phase_nak ( msg, ocb )$/
+send_state	migr.c	/^FUNCTION send_state ( state, ocb, flags )$/
+send_state_ack	migr.c	/^FUNCTION send_state_ack ( msg, ocb )$/
+send_state_copy	migr.c	/^FUNCTION send_state_copy ( state, ocb )$/
+send_state_done	migr.c	/^FUNCTION send_state_done ( msg, ocb )$/
+send_state_from_q	migr.c	/^FUNCTION send_state_from_q ()$/
+send_state_nak	migr.c	/^FUNCTION send_state_nak ( msg, ocb )$/
+send_stdout_msg	hostifc.c	/^send_stdout_msg ()$/
+send_time_update	hostifc.c	/^send_time_update ( time )$/
+send_to_IH	cubeio.c	/^send_to_IH(hdr_ptr,size,stream_no)$/
+send_vtime	migr.c	/^FUNCTION send_vtime ( ocb )$/
+send_vtime_ack	migr.c	/^FUNCTION send_vtime_ack ( msg, ocb )$/
+send_vtime_done	migr.c	/^FUNCTION send_vtime_done ( msg, ocb )$/
+setBatch	tstrinit.c	/^setBatch()$/
+setChooseStrat	tstrinit.c	/^setChooseStrat ( chooseIn )$/
+setDlmInt	tstrinit.c	/^setDlmInt ( interval )$/
+setEventThrottle	sched.c	/^FUNCTION setEventThrottle ( events )$/
+setIdleDlmCycles	tstrinit.c	/^setIdleDlmCycles ( cycles )$/
+setLibPointer	twsys.h	/^#define setLibPointer(x)        (obj_setLibPointer/
+setMaxFreeMsgs	tstrinit.c	/^setMaxFreeMsgs ( number )$/
+setMaxIQLen	storage.c	/^FUNCTION setMaxIQLen ( length )$/
+setMaxMigr	tstrinit.c	/^setMaxMigr ( migrations )$/
+setMigrGraph	tstrinit.c	/^setMigrGraph()$/
+setMigrRatio	tstrinit.c	/^setMigrRatio ( ratio )$/
+setNumMigrs	tstrinit.c	/^setNumMigrs ( numMigr )$/
+setSplitStrat	tstrinit.c	/^setSplitStrat ( splitIn )$/
+setThrotAddFactor	sched.c	/^FUNCTION setThrotAddFactor ( factor )$/
+setThrotMultFactor	sched.c	/^FUNCTION setThrotMultFactor ( factor )$/
+setWindowMultiplier	sched.c	/^FUNCTION setWindowMultiplier ( multiplier )$/
+set_chklog	tstrinit.c	/^set_chklog ()$/
+set_cpulog	tstrinit.c	/^set_cpulog ()$/
+set_cutoff_time	tstrinit.c	/^set_cutoff_time ( time )$/
+set_dlm	tstrinit.c	/^set_dlm ()$/
+set_evtlog	tstrinit.c	/^set_evtlog ()$/
+set_faults	gvt2.c	/^set_faults()$/
+set_forward_macro	twsys.h	/^#define set_forward_macro(M)   BITCLR( (M)->flags,/
+set_gvt_sync	tstrinit.c	/^set_gvt_sync ( number )$/
+set_its_a_feature	tstrinit.c	/^set_its_a_feature ( number )$/
+set_level	moninit.c	/^static set_level ( name, level )$/
+set_max_acks	tstrinit.c	/^set_max_acks ( number )$/
+set_max_neg_acks	tstrinit.c	/^set_max_neg_acks ( number )$/
+set_memsize	mem.c	/^set_memsize ( memsize )$/
+set_nogvtout	tstrinit.c	/^set_nogvtout ()$/
+set_nostdout	tstrinit.c	/^set_nostdout ()$/
+set_obj_time_mode	tstrinit.c	/^set_obj_time_mode ( number )$/
+set_object_breakpoint	brkpt.c	/^set_object_breakpoint ( object_name )$/
+set_object_watchpoint	brkpt.c	/^set_object_watchpoint ( object_name )$/
+set_objstksize	tstrinit.c	/^set_objstksize ( number )$/
+set_penalty	tstrinit.c	/^set_penalty ( number )$/
+set_pktlen	tstrinit.c	/^set_pktlen ( number )$/
+set_plimit	tstrinit.c	/^set_plimit ( plimit )$/
+set_print_file	rbc_debug.c	/^set_print_file ( filename )$/
+set_prompt	command.c	/^set_prompt ( string )$/
+set_prop_delay	tstrinit.c	/^set_prop_delay ( delay )$/
+set_recv_q_limit	tstrinit.c	/^set_recv_q_limit ( number )$/
+set_reverse_macro	twsys.h	/^#define set_reverse_macro(M)   BITSET( (M)->flags,/
+set_reward	tstrinit.c	/^set_reward ( number )$/
+set_threshold	tstrinit.c	/^set_threshold ( threshold )$/
+set_time_breakpoint	brkpt.c	/^set_time_breakpoint ( stime )$/
+set_time_watchpoint	brkpt.c	/^set_time_watchpoint ( stime )$/
+set_time_window	tstrinit.c	/^set_time_window ( window )$/
+setctx	machifc.c	/^FUNCTION setctx ( state, entry_point, stack )$/
+setnull	machifc.c	/^FUNCTION setnull ()$/
+shortenIQLen	storage.c	/^FUNCTION shortenIQLen ( ocb, length )$/
+showHgMstruct	BF_MACH/BF_MACH_Hg.c	/^showHgMstruct ( Hg_s )$/
+showHomeNode	buglib2.c	/^showHomeNode ( name )$/
+showListHdr	buglib2.c	/^showListHdr ( listElement )$/
+showLoadArray	buglib2.c	/^showLoadArray ( loadArray )$/
+showStatesMovedQ	migr.c	/^FUNCTION showStatesMovedQ	 ()$/
+showTruncSQ	critpath.c	/^FUNCTION showTruncSQ ( o )$/
+showTruncSQ_by_name	critpath.c	/^FUNCTION showTruncSQ_by_name ( name )$/
+show_breakpoint	brkpt.c	/^show_breakpoint ()$/
+show_iq_by_name	buglib2.c	/^show_iq_by_name ( name )$/
+show_iq_by_phase	buglib2.c	/^show_iq_by_phase ( name, ptime )$/
+show_ll_msgh	SUN_Hg.c	/^show_ll_msgh ( sb )$/
+show_miq_by_name	buglib2.c	/^show_miq_by_name ( name )$/
+show_mocb_by_name	buglib2.c	/^show_mocb_by_name ( name )$/
+show_moq_by_name	buglib2.c	/^show_moq_by_name ( name )$/
+show_msq_by_name	buglib2.c	/^show_msq_by_name ( name )$/
+show_oq_by_name	buglib2.c	/^show_oq_by_name ( name )$/
+show_oq_by_phase	buglib2.c	/^show_oq_by_phase ( name, ptime )$/
+show_sq_by_name	buglib2.c	/^show_sq_by_name ( name )$/
+show_sq_by_phase	buglib2.c	/^show_sq_by_phase ( name, ptime )$/
+show_watchpoint	brkpt.c	/^show_watchpoint ()$/
+showbuffstruct	BF_MACH/BF_MACH_Hg.c	/^showbuffstruct ( sb )$/
+showdeadq	buglib2.c	/^showdeadq ()$/
+showiq	buglib2.c	/^showiq (o)$/
+showmsg	buglib2.c	/^showmsg (m)$/
+showmsg_head	buglib2.c	/^showmsg_head ()$/
+showocb	buglib2.c	/^showocb (o)$/
+showocb_head	buglib2.c	/^showocb_head ()$/
+showoq	buglib2.c	/^showoq (o)$/
+showschedq	buglib2.c	/^showschedq ()$/
+showsendbuffs	BF_MACH/BF_MACH_Hg.c	/^showsendbuffs ()$/
+showsq	buglib2.c	/^showsq (o)$/
+showstate	buglib2.c	/^showstate (s)$/
+showstate_head	buglib2.c	/^showstate_head ()$/
+showtypes	buglib2.c	/^showtypes ()$/
+sigHandler	int.c	/^FUNCTION		sigHandler(sig,code,scp,addr)$/
+sigHandler_b	int.c	/^FUNCTION		sigHandler_b(sig,code,scp,addr)$/
+sim_end_msg	hostifc.c	/^sim_end_msg ()$/
+sizeof	SUN_Hg.c	/^char resnd_storage[ MAXPKTL + sizeof ( Msgh ) ];$/
+smsg_stat	stats.c	/^FUNCTION smsg_stat ( o, m )$/
+sndack	SUNhost.c	/^sndack(){}$/
+sndmsg	machifc.c	/^FUNCTION sndmsg ( tw_msg, length, node )$/
+sort	moninit.c	/^static sort (array, x, num)$/
+spare_signal	timewarp.c	/^void (*spare_signal ( routine ))()$/
+specified_outputbundle	rollback.c	/^FUNCTION Msgh * specified_outputbundle ( o )$/
+splitLimitEMsgs	loadman.c	/^Ocb * splitLimitEMsgs ( chosen )$/
+splitMinimal	loadman.c	/^Ocb * splitMinimal ( chosen )$/
+splitNearFuture	loadman.c	/^Ocb * splitNearFuture ( chosen )$/
+split_list	migr.c	/^split_list ( q1, q2, elem )$/
+split_object	migr.c	/^FUNCTION Ocb * split_object ( ocb, vtime )$/
+split_object_cmd	migr.c	/^FUNCTION split_object_cmd ( name, stime )$/
+sprintVTime	vtime.c	/^sprintVTime ( aString, aVTime )$/
+sscanVTime	vtime.c	/^VTime sscanVTime ( aString )$/
+startCritPath	critpath.c	/^FUNCTION startCritPath ()$/
+start_timing	tester.c	/^start_timing ( new_timing_mode )$/
+statePtr	state.c	/^FUNCTION Pointer statePtr ( )$/
+state_compare	state.c	/^FUNCTION state_compare ( old, new, length )$/
+statecmp	cmp.c	/^FUNCTION int statecmp ( a, b )$/
+stats_garbouttime	stats.c	/^FUNCTION stats_garbouttime ( o, msg, nmsg )     \/*/
+stats_garbtime	stats.c	/^FUNCTION stats_garbtime ( o, msg, nmsg )        \/*/
+stats_zaps	stats.c	/^FUNCTION stats_zaps ( o, m )    \/* count number of/
+status_in_english	rbc_debug.c	/^void status_in_english ( status )$/
+stdout_msg	hostifc.c	/^stdout_msg ( tw_msg )$/
+stop	tester.c	/^stop ()$/
+stop_timing	tester.c	/^stop_timing ()$/
+str	moninit.c	/^int str ( word )$/
+strcat	str.c	/^FUNCTION Char *strcat(s1, s2)$/
+strchr	str.c	/^FUNCTION Char *strchr(s, c)$/
+strcmp	str.c	/^FUNCTION Int strcmp(s1, s2)$/
+strcpy	str.c	/^FUNCTION Char *strcpy(s1, s2)$/
+string_to_cp_w	SUN_Hg.c	/^string_to_cp_w ( string )$/
+strlen	str.c	/^FUNCTION Int strlen(s)$/
+strncat	str.c	/^FUNCTION Char *strncat(s1, s2, n)$/
+strncmp	str.c	/^FUNCTION Int strncmp(s1, s2, n)$/
+strncpy	str.c	/^FUNCTION Char *strncpy(s1, s2, n)$/
+strrchr	str.c	/^FUNCTION Char *strrchr(s, c)$/
+subcube	tstrinit.c	/^subcube ( node, number, config )$/
+successorNotOnCP	critpath.c	/^FUNCTION successorNotOnCP ( critRm )$/
+sv_create	serve.c	/^FUNCTION sv_create ( rcver, rcvtim, objtype )$/
+sv_destroy	serve.c	/^FUNCTION sv_destroy ( rcver, rcvtim )$/
+sv_doit	serve.c	/^FUNCTION sv_doit ( o )$/
+sv_interrupt	serve.c	/^FUNCTION sv_interrupt ()$/
+sv_tell	serve.c	/^FUNCTION sv_tell ( rcver, rcvtim, selector, txtlen/
+switch	loadman.c	/^	switch ( chooseStrat )$/
+sysbuf	make.c	/^FUNCTION Msgh *sysbuf ()$/
+sysmsg	deliver.c	/^FUNCTION        sysmsg (msgtype, om, len, node)$/
+takeCritStep	critpath.c	/^FUNCTION takeCritStep ( critMsg )$/
+tell	twcommon.h	/^#define tell(rcver,rcvtim,sel,len,text) tellI(rcve/
+tellI	oldtw.c	/^FUNCTION tellI ( rcver, ircvtim, selector, txtlen,/
+tell_cmd	objifc.c	/^FUNCTION tell_cmd ( rcver, rcvtim, selector, messa/
+term	BF_MACH/BF_MACHrun.c	/^term ()$/
+term_objects	gvt2.c	/^FUNCTION term_objects ()$/
+term_op	rbc_op.c	/^term_op ( ocb )$/
+termint	SUNhost.c	/^termint ()$/
+tester	SUNhost.c	/^tester(){}$/
+time_sync	timewarp.c	/^time_sync ()$/
+timechg	timewarp.c	/^timechg ( t )$/
+timelon	timewarp.c	/^FUNCTION timelon ()$/
+timeon	timewarp.c	/^FUNCTION timeon ()$/
+timer_interrupt	timewarp.c	/^FUNCTION timer_interrupt ()$/
+timeval	timewarp.c	/^timeval ( t )$/
+timint	timewarp.c	/^FUNCTION timint ()$/
+timlint	machifc.c	/^FUNCTION timlint ( loadtimrproc )$/
+timrint	machifc.c	/^FUNCTION timrint ( gvttimrproc )$/
+tobjend	tester.c	/^FUNCTION tobjend ()$/
+tolower	toupper.c	/^char tolower ( c )$/
+toupper	toupper.c	/^char toupper ( c )$/
+transputer_time_init	getime.c	/^transputer_time_init ( time )$/
+truncState	twsys.h	421
+truncateMessage	critpath.c	/^truncateMessage ( msg )$/
+truncateState	critpath.c	/^FUNCTION truncateState( state, ocb )$/
+ttoc	buglib2.c	/^ttoc ( string, time )           \/* time to charact/
+ttoc1	buglib2.c	/^ttoc1 (string, time)            \/* time to charact/
+turnRatioMigrationOn	loads.c	/^FUNCTION turnRatioMigrationOn ( )$/
+turnThrottleOn	sched.c	/^FUNCTION turnThrottleOn ( type )$/
+tw_exit	timewarp.c	/^tw_exit ( code )$/
+tw_fclose	fileio.c	/^tw_fclose ( stream )$/
+tw_feof	fileio.c	/^int tw_feof ( stream )$/
+tw_fgetc	fileio.c	/^int tw_fgetc ( stream )$/
+tw_fgets	fileio.c	/^Byte * tw_fgets ( buff, n, stream )$/
+tw_fopen	fileio.c	/^int tw_fopen ( name, mode )$/
+tw_fprintf	fileio.c	/^tw_fprintf(iostream,fmt, va_alist)$/
+tw_fputc	fileio.c	/^tw_fputc ( buff, stream )$/
+tw_fputs	fileio.c	/^tw_fputs ( buff, stream )$/
+tw_fread	fileio.c	/^int tw_fread ( buff, itemsize, nitems, stream )$/
+tw_fscanf	fileio.c	/^int tw_fscanf ( stream, form, var )$/
+tw_ftell	fileio.c	/^FUNCTION tw_ftell (st)$/
+tw_fwrite	fileio.c	/^tw_fwrite ( buff, size, nitems, stream )$/
+tw_getmem	mem.c	/^tw_getmem ( addr)$/
+tw_interrupt	objifc.c	/^FUNCTION tw_interrupt ()$/
+tw_packetLen	services.c	/^int tw_packetLen ()$/
+tw_printf	fileio.c	/^FUNCTION tw_printf(fmt, va_alist)$/
+tw_scanf	fileio.c	/^int tw_scanf ( form, var )$/
+tw_startup	start.c	/^FUNCTION        tw_startup ()$/
+tw_timeoff	timewarp.c	/^FUNCTION tw_timeoff ()$/
+twerror	start.c	/^FUNCTION twerror ( s )$/
+twerror_msg	hostifc.c	/^twerror_msg ( tw_msg )$/
+twmfu	int.c	/^FUNCTION        twmfu ()$/
+typeMalloc	twcommon.h	/^#define typeMalloc(x)   (type_malloc(x))$/
+type_Area	services.c	/^void * type_Area(type)$/
+type_malloc	services.c	/^void * type_malloc(size)$/
+type_myArea	services.c	/^void * type_myArea()$/
+typeinit	tstrinit.c	/^void typeinit(type_name,msg)$/
+uidcmp	cmp.c	/^FUNCTION int uidcmp ( a, b )$/
+unguess	objifc.c	/^FUNCTION unguess(sndtime,rcvtime,rcvr,selector,txt/
+uniq	serve.c	/^FUNCTION long uniq ()$/
+unlock	BF_MACH/BF_MACH_Hg.c	/^unlock ( location )$/
+unlock_macro	twsys.h	/^#define unlock_macro(M)    BITCLR( (M)->flags,LOCK/
+unmark_all_output	rollback.c	/^FUNCTION unmark_all_output ( ocb, vt )$/
+unmark_macro	twsys.h	/^#define unmark_macro(M)    BITCLR( (M)->flags,USED/
+unnegate_macro	twsys.h	/^#define unnegate_macro(M)  BITCLR( (M)->flags,SIGN/
+unschedule	objifc.c	/^FUNCTION unschedule ( rcver, rcvtim, selector, txt/
+update_arrival	machdep.c	/^update_arrival ( new_q )$/
+userError	state.c	/^FUNCTION userError ( error )$/
+userError_b	state.c	/^FUNCTION userError_b ( error )$/
+validState	buglib2.c	/^validState ( state )$/
+verifySendOcbQ	migr.c	/^FUNCTION verifySendOcbQ ()$/
+verify_free_msg_pool	list.c	/^verify_free_msg_pool()$/
+wait_a_millisecond	BF_MACH/BF_MACH_Hg.c	/^wait_a_millisecond()$/
+watchpoint	brkpt.c	/^watchpoint ()$/
+which_nodes	BF_MACH/BF_MACH_Hg.c	/^which_nodes ( cluster_logical, mach_logical, physi/
+wm_hash_function	objloc.c	/^int    wm_hash_function (name)$/
+x10_Q_LOG_ENTRY	cp_msg.c	982
+x16_IS_LOG_ENTRY	cp_msg.c	654
+x20_FLOW_LOG_ENTRY	cp_msg.c	452
+x8_MSG_LOG_ENTRY	cp_msg.c	231
+xTypeArea	twcommon.h	/^#define xTypeArea(x)	(type_Area(x))$/
+xl_stats_msg	hostifc.c	/^xl_stats_msg ( tw_msg )$/

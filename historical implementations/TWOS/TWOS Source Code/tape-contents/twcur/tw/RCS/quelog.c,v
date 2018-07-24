@@ -1,0 +1,362 @@
+head     1.4;
+branch   ;
+access   ;
+symbols  TW2_7:1.4 TW2_6:1.4 TW2_5_1:1.4 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.4
+date     91.07.17.15.11.48;  author judy;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.07.09.14.39.38;  author steve;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.26.07;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.47;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@handle the queue log
+@
+
+
+1.4
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	quelog.c,v $
+ * Revision 1.3  91/07/09  14:39:38  steve
+ * Added MicroTime and Sun support
+ * 
+ * Revision 1.2  91/06/03  12:26:07  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:40:47  configtw
+ * Initial revision
+ * 
+*/
+char quelog_id [] = "@@(#)quelog.c       1.5\t10/2/89\t16:52:53\tTIMEWARP";
+
+
+#include <stdio.h>  
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+#include "logdefs.h"
+
+
+/* Dynamic Load Management utilization logging code. */
+
+
+#ifdef DLM
+extern int loadCount;
+#endif DLM
+
+Q_LOG_ENTRY *qlog, *qlogp, *qloge;
+int num_que_entries;
+
+quelog ( que_log_size )
+
+	int *que_log_size;
+{
+	qlog = qlogp = (Q_LOG_ENTRY *) m_allocate ( *que_log_size * sizeof (Q_LOG_ENTRY) );
+	if ( qlog == NULL )
+	{
+		_pprintf ( "can't allocate que log space %d\n",
+				*que_log_size * sizeof (Q_LOG_ENTRY) );
+		tester ();
+	}
+	qloge = qlog + *que_log_size;
+}
+
+quelog_entry ( utilization )
+ 
+	float utilization;
+{
+	num_que_entries++;
+
+	if ( qlogp == NULL )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "no que log space\n" );
+		}
+		return;
+	}
+
+	if ( qlogp >= qloge )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "que log full\n" );
+		}
+		return;
+	}
+
+#ifdef MICROTIME
+	MicroTime ();
+#else
+#ifdef MARK3
+	mark3time ();
+#endif
+#ifdef BBN
+	butterflytime ();
+#endif
+#endif
+
+#ifdef DLM
+	qlogp->loadCount = loadCount;
+#endif DLM
+	qlogp->gvt = gvt;
+	qlogp->utilization = utilization;
+	qlogp++;
+}
+
+dump_qlog ()
+{
+	register int i;
+
+	_pprintf ( "num_que_entries = %d\n", num_que_entries );
+
+	qlogp->gvt.simtime = POSINF+1;
+	qlogp++;
+
+	while ( qlog < qlogp )
+	{
+		i = qlogp - qlog;
+
+		if ( i > 10 )
+			i = 10;
+
+		send_message ( qlog, sizeof(Q_LOG_ENTRY) * i, CP, QLOG_DATA );
+
+		qlog += i;
+
+		if ( i != 10 )
+			_pprintf ( "sent %d qlog entries\n", i );
+
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif                                                   
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+
+	if ( tw_node_num == 0 )
+	{
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif                                                   
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif                                                   
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+}
+@
+
+
+1.3
+log
+@Added MicroTime and Sun support
+@
+text
+@d1 4
+d7 3
+a18 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        quelog.c,v $
+d76 3
+d85 1
+a103 1
+#ifdef MARK3_OR_BBN
+d111 1
+a111 1
+		send_message ( qlog, sizeof(Q_LOG_ENTRY) * i, CP, 11 );
+d118 3
+d133 3
+a144 1
+#endif
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char quelog_id [] = "@@(#)quelog.c	1.5\t10/2/89\t16:52:53\tTIMEWARP";
+d9 3
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d33 1
+a33 1
+    int *que_log_size;
+d35 8
+a42 8
+    qlog = qlogp = (Q_LOG_ENTRY *) m_allocate ( *que_log_size * sizeof (Q_LOG_ENTRY) );
+    if ( qlog == NULL )
+    {
+	_pprintf ( "can't allocate que log space %d\n",
+		*que_log_size * sizeof (Q_LOG_ENTRY) );
+	tester ();
+    }
+    qloge = qlog + *que_log_size;
+d47 1
+a47 1
+    float utilization;
+d49 1
+a49 1
+    num_que_entries++;
+d51 1
+a51 4
+    if ( qlogp == NULL )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d53 7
+a59 2
+	    print_once = 1;
+	    _pprintf ( "no que log space\n" );
+a60 2
+	return;
+    }
+d62 1
+a62 4
+    if ( qlogp >= qloge )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d64 7
+a70 2
+	    print_once = 1;
+	    _pprintf ( "que log full\n" );
+a71 2
+	return;
+    }
+d74 1
+a74 1
+    mark3time ();
+d77 1
+a77 1
+    butterflytime ();
+d81 1
+a81 1
+    qlogp->loadCount = loadCount;
+d83 3
+a85 3
+    qlogp->gvt = gvt;
+    qlogp->utilization = utilization;
+    qlogp++;
+d90 1
+a90 1
+    register int i;
+d92 1
+a92 1
+    _pprintf ( "num_que_entries = %d\n", num_que_entries );
+d94 2
+a95 2
+    qlogp->gvt.simtime = POSINF+1;
+    qlogp++;
+d98 3
+a100 3
+    while ( qlog < qlogp )
+    {
+	i = qlogp - qlog;
+d102 2
+a103 2
+	if ( i > 10 )
+	    i = 10;
+d105 1
+a105 1
+	send_message ( qlog, sizeof(Q_LOG_ENTRY) * i, CP, 11 );
+d107 1
+a107 1
+	qlog += i;
+d109 2
+a110 2
+	if ( i != 10 )
+	    _pprintf ( "sent %d qlog entries\n", i );
+d113 1
+a113 1
+	recv.buf = rm_buf;
+d115 2
+a116 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d118 1
+a118 1
+	give_buf ( &recv );
+d120 1
+a120 1
+    }
+d122 2
+a123 2
+    if ( tw_node_num == 0 )
+    {
+d125 1
+a125 1
+        recv.buf = rm_buf;
+d127 2
+a128 2
+        recv.source = ANY;
+        get_msg_w ( &recv );
+d130 1
+a130 1
+        give_buf ( &recv );
+d132 1
+a132 1
+    }
+@

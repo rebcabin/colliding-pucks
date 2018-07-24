@@ -1,0 +1,21 @@
+version.o-CPP: -I../../tw
+twsp1.o-CPP: -I../../tw
+twsp2.o-CPP: -I../../tw
+twsp3.o-CPP: -I../../tw
+HOST_fileio.o-CPP: -I../../tw
+itimer.o-CPP: -I../../tw
+simlex.o-CPP: -I../../tw
+simpar.o-CPP: -I../../tw
+cubeio.o-CPP: -I../../tw
+stdout.o-CPP: -I../../tw
+twhelp.o-CPP: -I../../tw
+twqueues.o-CPP: -I../../tw
+twsd.o-CPP: -I../../tw
+vtime.o-CPP: -I../../tw
+simmem.o-CPP: -I../../tw
+faults.o-CPP: -I../../tw
+oldtw.o-CPP: -I../../tw
+tlib.o-CPP: -I../../tw
+newconf.z-CPP: -I../../tw
+newconf.o-CPP: -I../../tw
+twsiml: .RECURSIVE ../../twulib/Sun3 twulib Makefile.twsim .RECURSIVE . newconf.z Makefile

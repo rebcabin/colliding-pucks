@@ -1,0 +1,565 @@
+head     1.5;
+branch   ;
+access   ;
+symbols  TW2_7:1.5 TW2_6:1.5 TW2_5_1:1.5 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.5
+date     91.07.17.15.06.47;  author judy;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     91.07.11.08.59.27;  author steve;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.07.10.08.42.04;  author steve;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     91.07.09.15.15.12;  author steve;  state Dev;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.11.12.55;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@main()
+@
+
+
+1.5
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	SUNhost.c,v $
+ * Revision 1.4  91/07/11  08:59:27  steve
+ * fixed multiple prompt bug. Support zero length messages.
+ * 
+ * Revision 1.3  91/07/10  08:42:04  steve
+ * commented out debugging printfs
+ * 
+ * Revision 1.2  91/07/09  15:15:12  steve
+ * 1. Signal driven I/O more robust.
+ * 2. Uses mercury like message passing.
+ * 3. Support for `log-ing' code
+ * 4. Sun4 support
+ * 
+ * Revision 1.1  90/08/07  11:12:55  configtw
+ * Initial revision
+ * 
+*/
+char host_id [] = "@@(#)host.c   1.1\t7/7/87\t17:00:46";
+
+
+#include <fcntl.h>
+#include <signal.h>
+#include <stdio.h>
+#include "twcommon.h"
+#include "twsys.h"
+#include "machdep.h"
+
+extern int tw_num_nodes;
+
+extern int msg_port;
+extern int ctl_port;
+
+static int fd = 0;
+static int ichan[16] = 0;
+static int ochan[16] = 0;
+static int ctrlc = 0;
+
+int maybe_socket_io;
+
+
+MicroTime(){}
+sndack(){}
+rcvack(){}
+tester(){}
+_pprintf ( ){}
+
+int mlog;
+int node_cputime;
+int tw_node_num;
+int host_input_waiting;
+char * bp, *buff;
+
+keyint ()
+{
+	ctrlc = 1;
+}
+
+ioint ()
+{
+	maybe_socket_io = 1;
+}
+
+termint ()
+{
+	exit ();
+}
+
+main ()
+{
+	char buff[256];
+	MSG_STRUCT m;
+	int commander ();
+	int exit_handler ();
+	int i, cc;
+	FILE * monout;
+	int mask = sigmask ( SIGINT ) | sigmask ( SIGIO );
+
+	monout = fopen ( "MONOUT", "w" );
+
+	m.buf = buff;
+
+	read_config_file ();
+
+	on_exit ( exit_handler, 0 );
+
+	for ( i = 0; i < tw_num_nodes; i++ )
+	{
+		msg_ichan[i] = ichan[i] = bind_socket ( ctl_port + i );
+		msg_ochan[i] = ochan[i] = bind_socket ( ctl_port + i + 16 );
+	}
+
+	signal ( SIGIO, ioint );
+	signal ( SIGINT, keyint );
+	signal ( SIGTERM, termint );
+
+	printf ( "\nready\n\n" );
+	fcntl ( fd, F_SETFL, FASYNC+FNDELAY );
+
+	tw_node_num = tw_num_nodes;
+
+	for ( ;; )
+	{
+		sigblock ( mask );
+
+		if ( maybe_socket_io == 0 )
+			sigpause ( 0 );
+
+		sigsetmask ( 0 );
+
+		if ( ctrlc )
+		{
+			commander ( "*\n" );
+			ctrlc = 0;
+		}
+
+		if ( maybe_socket_io == 0 )
+			continue;
+
+		maybe_socket_io = 0;
+
+		cc = read ( fd, buff, 80 );
+
+		if ( cc > 1 )
+		{
+/*
+			printf ( "CP got %s", buff );
+*/
+			buff[cc-1] = 0;
+
+			commander ( buff );
+		}
+
+		if ( get_msg ( &m ) )
+		{
+			if ( m.type == TESTER_COMMAND )
+			{
+				buff[m.mlen] = '\0';
+				printf ( "%d--%s", m.source, buff );
+				fflush ( stdout );
+			}
+			else
+				handle_cp_msg ( m );
+		}
+	}
+}
+
+commander ( command )
+
+	char * command;
+{
+	static int node = 0;
+	int i, n;
+
+	LowLevelMsgH m;
+
+	m.from_node = CP;
+	m.type = TESTER_COMMAND;
+
+	if ( *command == '\n' )
+		return;
+
+	if ( strncmp ( command, "stop", 4 )== 0
+	||   strncmp ( command, "quit", 4 ) == 0 )
+		exit ();
+
+	if ( *command == '*' )
+	{
+		command++;
+
+		n = strlen ( command );
+
+		for ( i = 0; i < tw_num_nodes; i++ )
+		{
+			m.to_node = i;
+			m.length = n;
+			write ( ochan[i], &m, sizeof(m) );
+			write ( ochan[i], command, n );
+/*
+			printf ( "sent node %d: <%s>\n", i, command );
+*/
+		}
+
+		return;
+	}
+
+	i = *command - '0';
+
+	if ( i >= 0 && i < tw_num_nodes )
+	{
+		node = i;
+		m.to_node = i;
+		command++;
+	}
+
+	if ( *command == '\n' )
+		return;
+
+	n = strlen ( command );
+
+	m.length = n;
+	write ( ochan[node], &m, sizeof(m) );
+	write ( ochan[node], command, n );
+/*
+	printf ( "sent node %d: <%s>\n", node, command );
+*/
+}
+
+static exit_handler ()
+{
+	int i;
+	LowLevelMsgH m;
+
+	m.from_node = CP;
+	m.type = TESTER_COMMAND;
+	m.length = 5;
+
+	fcntl ( 0, F_SETFL, 0 );
+
+	for ( i = 0; i < tw_num_nodes; i++ )
+	{
+		m.to_node = i;
+		write ( ochan[i], &m, sizeof(LowLevelMsgH) );
+		write ( ochan[i], "stop\0", 5 );
+	}
+
+	for ( i = 0; i < tw_num_nodes; i++ )
+	{
+		shutdown ( ichan[i], 2 );
+		shutdown ( ochan[i], 2 );
+	}
+}
+@
+
+
+1.4
+log
+@fixed multiple prompt bug. Support zero length messages.
+@
+text
+@d1 4
+d7 3
+a24 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.3
+log
+@commented out debugging printfs
+@
+text
+@d3 3
+d113 1
+a113 4
+			for ( i = 0; i < tw_num_nodes; i++ )
+			{
+				commander ( "*\n" );
+			}
+d139 1
+a139 1
+				printf ( "%d--%s", m.source, buff + sizeof(LowLevelMsgH) );
+d176 1
+a176 1
+			m.length = n + sizeof(LowLevelMsgH);
+d179 1
+d181 1
+d201 1
+a201 1
+	m.length = n + sizeof(LowLevelMsgH);
+d216 1
+a216 1
+	m.length = 5 + sizeof(LowLevelMsgH);
+@
+
+
+1.2
+log
+@1. Signal driven I/O more robust.
+2. Uses mercury like message passing.
+3. Support for `log-ing' code
+4. Sun4 support
+@
+text
+@d2 7
+a8 1
+ * $Log:        SUNhost.c,v $
+d126 1
+a126 1
+
+d128 1
+d202 1
+d204 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char host_id [] = "@@(#)host.c	1.1\t7/7/87\t17:00:46";
+d9 3
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d16 3
+a28 1
+static int ioflag = 0;
+d30 15
+d47 1
+a47 1
+    ctrlc = 1;
+d52 1
+a52 1
+    ioflag = 1;
+d57 1
+a57 1
+    exit ();
+d62 7
+a68 5
+    char buff[256];
+    int commander ();
+    int exit_handler ();
+    int i, cc;
+    FILE * monout;
+d70 1
+a70 1
+    monout = fopen ( "MONOUT", "w" );
+d72 1
+a72 1
+    read_config_file ();
+d74 1
+a74 1
+    on_exit ( exit_handler, 0 );
+d76 1
+a76 5
+    for ( i = 0; i < tw_num_nodes; i++ )
+    {
+	ichan[i] = bind_socket ( ctl_port + i );
+	ochan[i] = bind_socket ( ctl_port + i + 16 );
+    }
+d78 1
+a78 14
+    signal ( SIGIO, ioint );
+    signal ( SIGINT, keyint );
+    signal ( SIGTERM, termint );
+
+    printf ( "\nready\n\n" );
+
+    for ( ;; )
+    {
+	fcntl ( fd, F_SETFL, FASYNC+FNDELAY );
+
+	if ( ioflag == 0 )
+	    pause ();
+
+	if ( ctrlc )
+d80 2
+a81 5
+	    for ( i = 0; i < tw_num_nodes; i++ )
+	    {
+		write ( ochan[i], "\n", 1 );
+	    }
+	    ctrlc = 0;
+d84 3
+a86 2
+	if ( ioflag == 0 )
+	    continue;
+d88 2
+a89 1
+	cc = read ( fd, buff, 80 );
+d91 1
+a91 1
+	fcntl ( fd, F_SETFL, 0 );
+d93 1
+a93 1
+	if ( cc > 1 )
+d95 1
+a95 1
+	    buff[cc-1] = 0;
+d97 2
+a98 2
+	    commander ( buff );
+	}
+d100 1
+a100 3
+	for ( i = 0; i < tw_num_nodes; i++ )
+	{
+	    cc = read ( ichan[i], buff, 1 );
+d102 8
+a109 10
+	    if ( cc > 0 )
+	    {
+		do {
+		    for ( cc = 0; buff[cc] != '\n'; )
+		    {
+			cc++;
+			while ( read ( ichan[i], &buff[cc], 1 ) == -1 )
+			    ;
+		    }
+		    cc++;
+d111 2
+a112 1
+		    buff[cc] = 0;
+d114 1
+a114 3
+		    if ( buff[0] == '0'+i && buff[1] == ' ' )
+		    {
+			fputs ( buff, monout );
+d116 1
+a116 6
+			fflush ( monout );
+		    }
+		    else
+		    {
+			if ( cc >= 2 && buff[cc-2] == '\\' )
+			    buff[cc-2] = 0;
+d118 2
+a119 2
+			if ( buff[0] >= ' ' )
+			    printf ( "%d--", i );
+d121 2
+a122 1
+			fputs ( buff, stdout );
+d124 1
+a124 3
+	 		fflush ( stdout );
+		    }
+		    cc = read ( ichan[i], buff, 1 );
+d126 12
+a137 2
+		    while ( cc > 0 );
+	    }
+a138 3
+
+	ioflag = 0;
+    }
+d143 1
+a143 1
+    char * command;
+d145 2
+a146 2
+    static int node = 0;
+    int i, n;
+d148 1
+a148 2
+    if ( *command == '\n' )
+	return;
+d150 2
+a151 3
+    if ( strncmp ( command, "stop", 4 )== 0
+    ||   strncmp ( command, "quit", 4 ) == 0 )
+	exit ();
+d153 2
+a154 3
+    if ( *command == '*' )
+    {
+	command++;
+d156 3
+a158 1
+	n = strlen ( command );
+d160 1
+a160 1
+	for ( i = 0; i < tw_num_nodes; i++ )
+d162 14
+a175 1
+	    write ( ochan[i], command, n );
+d178 1
+a178 2
+	return;
+    }
+d180 6
+a185 1
+    i = *command - '0';
+d187 2
+a188 5
+    if ( i >= 0 && i < tw_num_nodes )
+    {
+	node = i;
+	command++;
+    }
+d190 1
+a190 2
+    if ( *command == '\n' )
+	return;
+d192 4
+a195 3
+    n = strlen ( command );
+
+    write ( ochan[node], command, n );
+d200 2
+a201 1
+    int i;
+d203 3
+a205 1
+    fcntl ( 0, F_SETFL, 0 );
+d207 1
+a207 2
+    for ( i = 0; i < tw_num_nodes; i++ )
+	write ( ochan[i], "stop\n", 5 );
+d209 12
+a220 5
+    for ( i = 0; i < tw_num_nodes; i++ )
+    {
+	shutdown ( ichan[i], 2 );
+	shutdown ( ochan[i], 2 );
+    }
+@

@@ -1,0 +1,30 @@
+#	Copyright (C) 1989, 1991, California Institute of Technology.
+#		U.S Government Sponsorship under NASA Contract NAS7-918
+#	      	is acknowledged.
+	
+TWDIR = ../../tw
+ 
+IFLAGS = -I$(TWDIR)
+ 
+CFLAGS = -f68881 -O $(IFLAGS) -DSUN -DFAST_VTIME_MACROS -Bstatic
+ 
+
+TWULIB_OBJS	=	\
+	twpackages.o	\
+	TWULarray.o \
+	outList.o \
+	TWULfastcpy.o	\
+	twusrlib.o
+
+PACKAGES = \
+	evtList.o	\
+	msgList.o	\
+	multiPacket.o
+
+twulib:	$(TWULIB_OBJS) $(PACKAGES)
+
+.c.o:
+		cc -c $(CFLAGS) $*.c
+
+%.o: ../%.c
+	cc -c $(CFLAGS) ../$*.c

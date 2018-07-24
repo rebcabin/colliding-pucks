@@ -1,0 +1,104 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_6:1.3 TW2_5_1:1.3 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.16.15.34;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.07.10.10.45.44;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.13.36.02;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@Fast clear for Sun 4
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	SUN4clear.c,v $
+ * Revision 1.2  91/07/10  10:45:44  steve
+ * Use bzero system call.
+ * 
+ * Revision 1.1  90/08/07  13:36:02  configtw
+ * Initial revision
+ * 
+*/
+
+clear ( addr, numbytes )
+
+	register char *addr;
+	register int numbytes;
+{
+	bzero ( addr, numbytes );
+#if 0
+	while ( numbytes-- )
+	{
+		*addr++ = 0;
+	}
+#endif
+}
+@
+
+
+1.2
+log
+@Use bzero system call.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        SUN4clear.c,v $
+a13 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 3
+a9 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d13 2
+a14 2
+    register char *addr;
+    register int numbytes;
+d16 7
+a22 4
+    while ( numbytes-- )
+    {
+	*addr++ = 0;
+    }
+@

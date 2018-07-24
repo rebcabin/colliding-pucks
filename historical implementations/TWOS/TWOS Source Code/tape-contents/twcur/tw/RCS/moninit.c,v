@@ -1,0 +1,1325 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_7:1.3 TW2_6:1.3 TW2_5_1:1.3 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.15.10.26;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.25.25;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.19;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@monitor initialization code
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	moninit.c,v $
+ * Revision 1.2  91/06/03  12:25:25  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:40:19  configtw
+ * Initial revision
+ * 
+*/
+char moninit_id [] = "@@(#)moninit.c     1.23\t6/2/89\t12:44:37\tTIMEWARP";
+
+
+#ifndef TRANSPUTER
+
+/*
+
+Purpose:
+
+		moninit.c contains code that initializes the monitoring function
+		of Time Warp, primarily by reading several files into arrays,
+		thereby giving the monitor knowledge of where in its load modules
+		various functions are located, and the number and kind of parameters
+		accepted by those functions.
+
+Functions:
+
+		moninit() - initializes the monitor
+				Parameters - none
+				Returns - Always returns zero
+
+		load_funcs() - fill the mon_funcs[] table
+				Parameters - none
+				Return -  Returns zero on success, calls tw_exit() on failure
+
+		load_nt() - fill the mon_array[] table
+				Parameters - none
+				Return - Returns zero on success, calls tw_exit() on failure
+
+		sort(array,x,num) - perform a bubble sort on an array
+				Parameters - long array[][2], int x, int num
+				Return - Always returns zero
+
+		load_levels() - load function monitor levels into the mon_func[] table
+				Parameters - none
+				Return - Returns zero on success, calls tw_exit() on failure
+
+		set_level(name,level) - set an individual level entry in the mon_func[]
+								table
+				Parameters - char *name, int level
+				Return - Always returns zero
+
+		str(word) - copy a string into a string holding area
+				Parameters - char *word
+				Return - a pointer to the string in the holding area,
+								if successful; tw_exit() is called on failure
+
+		getfunc(func) - read in a function's parameters
+				Parameters - FUNC *func
+				Return - func, if successful; zero for one kind of failure; 
+						tw_exit() is called for another kind of failure
+
+		getword(word) - read in one word from a function description file
+				Parameters - char *word
+				Return - Returns zero on success, calls tw_exit() on failure
+
+		gettype(word) - read in a function's data type
+				Parameters - char *word
+				Return - an index into the types[] table, if successful;
+						calls tw_exit() on failure
+
+		typestr(num) - find a type in the types[] table
+				Parameters - int num
+				Return - a pointer to the type string, if found; a
+						pointer to an error string, if not found
+
+Implementation:
+				
+		The business of routines in this module is largely reading formatted
+		files and transferring their contents to monitor arrays, for use
+		when the monitor is needed.  If moninit() is called at all, filling
+		these arrays is regarded as vital system business, and failure
+		results in a tw_exit from Time Warp.
+
+		moninit() calls several functions that actually read in tables, then
+		it turns the monitor on.
+
+		load_funcs() iteratively calls getfunc(), filling up the mon_funcs[]
+		table.  As a side effect, the types[] table will be filled, as the
+		first call to getfunc() will cause a call to gettype(), and the first
+		call to gettype() will read in the types table.  Also, getfunc()
+		will fill the mon_strs[] table with the names of the functions.
+
+		load_nt() reads in a file that contains the starting addresses of
+		all functions in the system.  (This file is produced at load time
+		by the UNIX nm utility.)  The string names of the functions are
+		compared against the strings in the mon_funcs[] table.  A match is
+		used as an index into the mon_array[] table, which will hold the
+		beginning point for functions.  This table will be used by the
+		monitor when it is trying to figure out which function called
+		mad_monitor().  (See monitor.c for details.)  After the mon_array[]
+		table has been filled, sort() will be used to put it in order.
+
+		sort() is a bubble sort used exclusively to sort the mon_array[],
+		though it is sufficiently general to be used for other purposes.
+
+		load_levels() is called by moninit().  It reads a file describing
+		the diagnostic levels for the various Time Warp functions handled
+		by the monitor.  Higher level numbers imply more diagnostic action
+		taken by the monitor when called for that function.  For each function,
+		load_levels() calls set_level() to put the level information in
+		the mon_funcs[] table.
+
+		set_level() gets pointers from the mon_func[] table to examine 
+		function names in the mon_strs[] table.  Once a match is found
+		to the string given in set_level()'s parameter, the appropriate
+		entry in the mon_func[] table has been found, and its level field
+		is set to the level provided in this function's other parameter.
+
+		str() puts strings into the mon_strs[] table.  It does not try
+		to prevent duplications.  The strings actually being put in the
+		table are the names of functions.  The mon_func[] table entries
+		hold a pointer into the mon_strs[] table, rather than keeping
+		the name in the mon_func[] table entry itself.  Presumably, this
+		method is used because function names vary greatly in length,
+		and less space is wasted by storing them all in a single, packed
+		table.
+
+		getfunc() reads in information about a function for storage in
+		the mon_func[] table.  Reading in the information is moderately
+		complicated, as the file has a somewhat complicated format, to
+		allow simple, human-readable expression of the information it
+		contains.  The function's name, type, and list of arguments is
+		read in.  The most complex part of the routine is the reading
+		in of the argument list.  This part is best understood if one
+		realizes that what is being read is a typical C function 
+		definition argument list.
+
+		getword() is a utility used by getfunc() to get one token at
+		a time.  It skips over white space, and recognizes certain
+		characters as token delimiters, such as ",", ";", "*", "(".
+		and ")".  Everything up to, but not including, the delimiter is
+		returned.  The delimiter itself will be returned as a separate
+		word on the next call to getword().
+
+		gettype() reads in the data types file, if it hasn't been read in 
+		already.
+
+*/
+
+#include <stdio.h>
+#include "twcommon.h"
+#include "twsys.h"
+#include "func.h"
+
+FUNC * getfunc ();
+
+#define MAX_FUNCS 400
+
+FUNC mon_func[MAX_FUNCS];
+int num_mon_funcs = 0;
+long mon_array[MAX_FUNCS][2];
+
+#define STR_SIZE 8192
+
+char mon_strs[STR_SIZE];
+
+int mon_str_len;
+
+static char * monstrp = mon_strs;
+
+extern int tw_node_num;
+
+moninit ()
+{
+#ifndef SUN
+	if ( tw_node_num == 0 )
+#endif
+		printf ( "Monitor Initialization beginning...\n" );
+	load_funcs ();
+	load_nt ();
+	load_levels ();
+	monon ();
+#ifndef SUN
+	if ( tw_node_num == 0 )
+#endif
+		printf ( "Monitor Initialization complete\n" );
+}
+
+load_funcs ()
+{
+/*
+	char *n;
+*/
+
+	num_mon_funcs = 1;
+
+	while ( getfunc ( &mon_func[num_mon_funcs] ) )
+	{
+/*
+		for ( n = &mon_strs[mon_func[num_mon_funcs].name]; *n != 0; n++ )
+			*n = toupper ( *n );
+*/
+/*
+		printf ( "%2d %s\n", num_mon_funcs,
+						&mon_strs[mon_func[num_mon_funcs].name] );
+*/
+		num_mon_funcs++;
+		if ( num_mon_funcs >= MAX_FUNCS )
+		{
+			printf ( "Too Many Functions\n" );
+			tw_exit ();
+		}
+	}
+
+#ifndef SUN
+	if ( tw_node_num == 0 )
+#endif
+		printf ("%d functions loaded...\n", num_mon_funcs) ;
+
+	mon_func[0] = mon_func[num_mon_funcs];      /* UNKNOWN */
+}
+
+load_nt ()
+{
+	FILE * fp;
+	char module[60], *name;
+	long beg, end = 0;
+	int n;
+
+	fp = fopen ( "names", "r" );
+
+	if ( fp == NULL )
+	{
+		printf ( "names file not found\n" );
+		tw_exit (0);
+	}
+
+	for ( ;; )
+	{
+		n = fscanf ( fp, "%s %lx", module, &beg );
+/*
+		printf ( "map: n = %d module = %s beg = %x\n", n, module, beg );
+*/
+		if ( n != 2 )
+			break;
+
+		for ( name = module; *name != 0; name++ )
+			if ( *name == ':' )
+			{
+				name++;
+				break;
+			}
+		if ( *name == 0 )
+			name = module;
+
+		for ( n = 0; n < num_mon_funcs; n++ )
+			if ( strcmp ( name, &mon_strs[mon_func[n].name] ) == 0 )
+				break;
+
+		if ( n < num_mon_funcs )
+		{
+			mon_func[n].beg = beg;
+			mon_func[n].end = end;
+		}
+	}
+
+	fclose ( fp );
+
+	for ( n = 0; n < num_mon_funcs; n++ )
+	{
+		mon_array[n][0] = mon_func[n].beg;
+		mon_array[n][1] = n;
+	}
+
+	sort ( mon_array, 0, num_mon_funcs );
+/*
+	mon_array[n][0] = mon_func[n-1].end;
+*/
+	mon_array[n][0] = 0x7fffffff;
+	mon_array[n][1] = n;
+/*
+	printf ( "\n" );
+	for ( n = 0; n < num_mon_funcs; n++ )
+		printf ( "%2d %lx %ld %s\n", n, mon_array[n][0], mon_array[n][1],
+				&mon_strs[mon_func[mon_array[n][1]].name] );
+*/
+}
+
+static sort (array, x, num)
+
+	long array[][2];
+	int x, num;
+{
+	int i, j;
+	long k;
+
+	for (i=0; i<num-1; i++)
+	{
+		if (array[i][x] > array[i+1][x])
+		{
+			for (j=i; j>=0; j--)
+			{
+				if (array[j][x] > array[j+1][x])
+				{
+					k = array[j][x];
+					array[j][x] = array[j+1][x];
+					array[j+1][x] = k;
+					k = array[j][1-x];
+					array[j][1-x] = array[j+1][1-x];
+					array[j+1][1-x] = k;
+				}
+			}
+		}
+	}
+}
+
+static set_level ( name, level )
+
+	char *name;
+	int level;
+{
+/*
+	char *s;
+*/
+	int n;
+/*
+	for ( s = name; *s != 0; s++ )
+		*s = toupper ( *s );
+*/
+	for ( n = 0; n < num_mon_funcs; n++ )
+		if ( strcmp ( name, &mon_strs[mon_func[n].name] ) == 0 )
+			break;
+
+	if ( n < num_mon_funcs )
+	{
+		mon_func[n].level = (char) level;
+	}
+	else
+		printf ( "Function %s Not Found\n", name );
+}
+
+load_levels ()
+{
+	FILE * fp;
+	char name[60];
+	int level;
+
+	fp = fopen ( "levels", "r" );
+
+	if ( fp == NULL )
+	{
+		printf ( "levels file not found\n");
+		tw_exit (0);
+	}
+
+	while ( fscanf ( fp, "%s %d", name, &level ) == 2 )
+	{
+		set_level ( name, level );
+	}
+
+	fclose ( fp );
+}
+
+int str ( word )
+
+	char * word;
+{
+	char * w = word;
+
+	int offset = monstrp - mon_strs;
+
+	while ( *monstrp++ = *w++ )
+		;
+
+	if ( monstrp > mon_strs + STR_SIZE )
+	{
+		printf ( "String Area Full\n" );
+		tw_exit ();
+	}
+
+	return ( offset );
+}
+
+
+FUNC * getfunc ( func )
+
+	FUNC * func;
+{
+	char word[60];
+	char type[60];
+	char xtra[60];
+
+	int i, j, k, n;
+
+	clear ( func, sizeof (FUNC) );
+
+	getword ( type );
+
+	if ( *type == ';' )
+		getword ( type );
+
+	if ( *type == 0 )
+	{
+		func->name = str ( "UNKNOWN" );
+		mon_str_len = str  ( "" );
+		return ( 0 );
+	}
+
+	if ( strcmp ( type, "static" ) == 0 )
+		getword ( type );
+
+	if ( strcmp ( type, "struct" ) == 0 )
+		getword ( type );
+
+	for ( ;; )
+	{
+		getword ( word );
+
+		if ( *word == '*' )
+			func->fstars++;
+		else
+			break;
+	}
+
+	if ( *word == '(' )
+	{
+		func->name = str ( type );
+	}
+	else
+	{
+		func->name = str ( word );
+		func->ftype = gettype ( type );
+		getword ( word );       /* better be '(' */
+	}
+
+	for ( n = 0; ; )            /* get arg list */
+	{
+		getword ( word );
+
+		if ( *word == ')' )
+			break;
+
+		if ( *word != ',' )
+		{
+			if ( n >= 10 )
+			{
+				printf ( "Too Many Args: %s\n", &mon_strs[func->name] );
+				tw_exit ();
+			}
+			func->args[n++] = str ( word );
+		}
+	}
+
+	for ( i = 0; i < n; i++ )   /* get arg defs */
+	{
+		getword ( word );
+
+		if ( *word == ';' )
+			getword ( word );
+
+		if ( strcmp ( word, "register" ) == 0 )
+			getword ( word );
+
+		if ( *word != ',' )
+			strcpy ( type, word );
+
+		for ( k = 0; ; k++ )
+		{
+			getword ( word );
+
+			if ( *word != '*' )
+				break;
+		}
+
+		if ( *word == '(' )
+		{
+			getword ( word );   /* should be *    */
+			getword ( word );   /* should be Func */
+			getword ( xtra );   /* should be )    */
+			getword ( xtra );   /* should be (    */
+			getword ( xtra );   /* should be )    */
+			strcpy ( type, "(*Func)()" );
+		}
+
+		for ( j = 0; j < n; j++ )
+			if ( strcmp ( word, &mon_strs[func->args[j]] ) == 0 )
+				break;
+
+		func->types[j] = gettype ( type );
+		func->stars[j] = k;
+	}
+
+	return ( func );
+}
+
+#define BUFSIZE 100
+
+getword ( word )
+
+	char *word;
+{
+	static char buff[BUFSIZE];
+	static char *bp = buff;
+	static FILE * fp = 0;
+	char * stat;
+	char *w = word;
+	char c;
+
+	if ( fp == NULL )
+	{
+		fp = fopen ( "str", "r" );
+
+		if ( fp == NULL )
+		{
+			printf ( "str file not found\n" );
+			tw_exit (0);
+		}
+	}
+
+start:
+
+	if ( *bp == 0 )
+	{
+		stat = fgets ( bp = buff, BUFSIZE-1, fp );
+
+		if ( stat == 0 )
+		{
+			fclose ( fp );
+			goto end;
+		}
+	}
+
+	while ( *bp == ' ' || *bp == '\t' || *bp == '\n' )
+		bp++;
+
+	if ( *bp == 0 )
+		goto start;
+
+	if ( *bp == '/' && *(bp+1) == '*' )
+	{
+		while ( *bp != '*' || *(bp+1) != '/' )
+		{
+			if ( *bp == 0 )
+			{
+				stat = fgets ( bp = buff, BUFSIZE-1, fp );
+
+				if ( stat == 0 )
+				{
+					printf ("Unterminated Comment\n");
+					tw_exit ();
+				}
+			}
+			else
+				bp++;
+		}
+		bp += 2;
+		goto start;
+	}
+
+	while ( *bp != 0 && *bp != ' ' && *bp != '\t' && *bp != '\n' )
+	{
+		c = *w++ = *bp++;
+
+		if ( c == '*' || c == '(' || c == ')' || c == ',' || c == ';' )
+			break;
+
+		c = *bp;
+
+		if ( c == '*' || c == '(' || c == ')' || c == ',' || c == ';' )
+			break;
+	}
+
+end:
+	*w = 0;
+}
+
+static char types[50][30];
+
+int gettype ( word )
+
+	char *word;
+{
+	static FILE * fp = 0;
+	int i, n, rc;
+	char type[30];
+
+	if ( fp == NULL )
+	{
+		fp = fopen ( "datatypes", "r" );
+
+		if ( fp == NULL )
+		{
+			printf ( "datatypes file not found\n" );
+			tw_exit (0);
+		}
+
+		while ( ( rc = fscanf ( fp, "%d %s", &n, type ) ) == 2 )
+		{
+			strcpy ( types[n], type );
+		}
+
+		fclose ( fp );
+	}
+
+	for ( i = 1; types[i][0] != 0; i++ )
+		if ( strcmp ( word, types[i] ) == 0 )
+			break;
+
+	return ( i );
+}
+
+#endif  /* TRANSPUTER */
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        moninit.c,v $
+a15 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char moninit_id [] = "@@(#)moninit.c	1.23\t6/2/89\t12:44:37\tTIMEWARP";
+d9 3
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d13 1
+a13 1
+#ifndef	TRANSPUTER
+d19 5
+a23 5
+	moninit.c contains code that initializes the monitoring function
+	of Time Warp, primarily by reading several files into arrays,
+	thereby giving the monitor knowledge of where in its load modules
+	various functions are located, and the number and kind of parameters
+	accepted by those functions.
+d27 3
+a29 3
+	moninit() - initializes the monitor
+		Parameters - none
+		Returns - Always returns zero
+d31 3
+a33 3
+	load_funcs() - fill the mon_funcs[] table
+		Parameters - none
+		Return -  Returns zero on success, calls tw_exit() on failure
+d35 3
+a37 3
+	load_nt() - fill the mon_array[] table
+		Parameters - none
+		Return - Returns zero on success, calls tw_exit() on failure
+d39 3
+a41 3
+	sort(array,x,num) - perform a bubble sort on an array
+		Parameters - long array[][2], int x, int num
+		Return - Always returns zero
+d43 3
+a45 3
+	load_levels() - load function monitor levels into the mon_func[] table
+		Parameters - none
+		Return - Returns zero on success, calls tw_exit() on failure
+d47 4
+a50 4
+	set_level(name,level) - set an individual level entry in the mon_func[]
+				table
+		Parameters - char *name, int level
+		Return - Always returns zero
+d52 4
+a55 4
+	str(word) - copy a string into a string holding area
+		Parameters - char *word
+		Return - a pointer to the string in the holding area,
+				if successful; tw_exit() is called on failure
+d57 4
+a60 4
+	getfunc(func) - read in a function's parameters
+		Parameters - FUNC *func
+		Return - func, if successful; zero for one kind of failure; 
+			tw_exit() is called for another kind of failure
+d62 3
+a64 3
+	getword(word) - read in one word from a function description file
+		Parameters - char *word
+		Return - Returns zero on success, calls tw_exit() on failure
+d66 4
+a69 4
+	gettype(word) - read in a function's data type
+		Parameters - char *word
+		Return - an index into the types[] table, if successful;
+			calls tw_exit() on failure
+d71 4
+a74 4
+	typestr(num) - find a type in the types[] table
+		Parameters - int num
+		Return - a pointer to the type string, if found; a
+			pointer to an error string, if not found
+d77 6
+a82 6
+		
+	The business of routines in this module is largely reading formatted
+	files and transferring their contents to monitor arrays, for use
+	when the monitor is needed.  If moninit() is called at all, filling
+	these arrays is regarded as vital system business, and failure
+	results in a tw_exit from Time Warp.
+d84 2
+a85 2
+	moninit() calls several functions that actually read in tables, then
+	it turns the monitor on.
+d87 5
+a91 5
+	load_funcs() iteratively calls getfunc(), filling up the mon_funcs[]
+	table.  As a side effect, the types[] table will be filled, as the
+	first call to getfunc() will cause a call to gettype(), and the first
+	call to gettype() will read in the types table.  Also, getfunc()
+	will fill the mon_strs[] table with the names of the functions.
+d93 9
+a101 9
+	load_nt() reads in a file that contains the starting addresses of
+	all functions in the system.  (This file is produced at load time
+	by the UNIX nm utility.)  The string names of the functions are
+	compared against the strings in the mon_funcs[] table.  A match is
+	used as an index into the mon_array[] table, which will hold the
+	beginning point for functions.  This table will be used by the
+	monitor when it is trying to figure out which function called
+	mad_monitor().  (See monitor.c for details.)  After the mon_array[]
+	table has been filled, sort() will be used to put it in order.
+d103 2
+a104 2
+	sort() is a bubble sort used exclusively to sort the mon_array[],
+	though it is sufficiently general to be used for other purposes.
+d106 6
+a111 6
+	load_levels() is called by moninit().  It reads a file describing
+	the diagnostic levels for the various Time Warp functions handled
+	by the monitor.  Higher level numbers imply more diagnostic action
+	taken by the monitor when called for that function.  For each function,
+	load_levels() calls set_level() to put the level information in
+	the mon_funcs[] table.
+d113 5
+a117 5
+	set_level() gets pointers from the mon_func[] table to examine 
+	function names in the mon_strs[] table.  Once a match is found
+	to the string given in set_level()'s parameter, the appropriate
+	entry in the mon_func[] table has been found, and its level field
+	is set to the level provided in this function's other parameter.
+d119 8
+a126 8
+	str() puts strings into the mon_strs[] table.  It does not try
+	to prevent duplications.  The strings actually being put in the
+	table are the names of functions.  The mon_func[] table entries
+	hold a pointer into the mon_strs[] table, rather than keeping
+	the name in the mon_func[] table entry itself.  Presumably, this
+	method is used because function names vary greatly in length,
+	and less space is wasted by storing them all in a single, packed
+	table.
+d128 9
+a136 9
+	getfunc() reads in information about a function for storage in
+	the mon_func[] table.  Reading in the information is moderately
+	complicated, as the file has a somewhat complicated format, to
+	allow simple, human-readable expression of the information it
+	contains.  The function's name, type, and list of arguments is
+	read in.  The most complex part of the routine is the reading
+	in of the argument list.  This part is best understood if one
+	realizes that what is being read is a typical C function 
+	definition argument list.
+d138 6
+a143 6
+	getword() is a utility used by getfunc() to get one token at
+	a time.  It skips over white space, and recognizes certain
+	characters as token delimiters, such as ",", ";", "*", "(".
+	and ")".  Everything up to, but not including, the delimiter is
+	returned.  The delimiter itself will be returned as a separate
+	word on the next call to getword().
+d145 2
+a146 2
+	gettype() reads in the data types file, if it hasn't been read in 
+	already.
+d176 1
+a176 1
+    if ( tw_node_num == 0 )
+d178 5
+a182 5
+	printf ( "Monitor Initialization beginning...\n" );
+    load_funcs ();
+    load_nt ();
+    load_levels ();
+    monon ();
+d184 1
+a184 1
+    if ( tw_node_num == 0 )
+d186 1
+a186 1
+	printf ( "Monitor Initialization complete\n" );
+d192 1
+a192 1
+    char *n;
+d195 1
+a195 1
+    num_mon_funcs = 1;
+d197 2
+a198 2
+    while ( getfunc ( &mon_func[num_mon_funcs] ) )
+    {
+d200 2
+a201 2
+	for ( n = &mon_strs[mon_func[num_mon_funcs].name]; *n != 0; n++ )
+	    *n = toupper ( *n );
+d204 2
+a205 2
+	printf ( "%2d %s\n", num_mon_funcs,
+			&mon_strs[mon_func[num_mon_funcs].name] );
+d207 6
+a212 5
+	num_mon_funcs++;
+	if ( num_mon_funcs >= MAX_FUNCS )
+	{
+	    printf ( "Too Many Functions\n" );
+	    tw_exit ();
+a213 1
+    }
+d216 1
+a216 1
+    if ( tw_node_num == 0 )
+d218 1
+a218 1
+	printf ("%d functions loaded...\n", num_mon_funcs) ;
+d220 1
+a220 1
+    mon_func[0] = mon_func[num_mon_funcs];	/* UNKNOWN */
+d225 4
+a228 4
+    FILE * fp;
+    char module[60], *name;
+    long beg, end = 0;
+    int n;
+d230 1
+a230 1
+    fp = fopen ( "names", "r" );
+d232 5
+a236 5
+    if ( fp == NULL )
+    {
+	printf ( "names file not found\n" );
+	tw_exit (0);
+    }
+d238 3
+a240 3
+    for ( ;; )
+    {
+	n = fscanf ( fp, "%s %lx", module, &beg );
+d242 1
+a242 1
+	printf ( "map: n = %d module = %s beg = %x\n", n, module, beg );
+d244 2
+a245 2
+	if ( n != 2 )
+	    break;
+d247 8
+a254 8
+	for ( name = module; *name != 0; name++ )
+	    if ( *name == ':' )
+	    {
+		name++;
+		break;
+	    }
+	if ( *name == 0 )
+	    name = module;
+d256 3
+a258 3
+	for ( n = 0; n < num_mon_funcs; n++ )
+	    if ( strcmp ( name, &mon_strs[mon_func[n].name] ) == 0 )
+		break;
+d260 5
+a264 4
+	if ( n < num_mon_funcs )
+	{
+	    mon_func[n].beg = beg;
+	    mon_func[n].end = end;
+a265 1
+    }
+d267 1
+a267 1
+    fclose ( fp );
+d269 5
+a273 5
+    for ( n = 0; n < num_mon_funcs; n++ )
+    {
+	mon_array[n][0] = mon_func[n].beg;
+	mon_array[n][1] = n;
+    }
+d275 1
+a275 1
+    sort ( mon_array, 0, num_mon_funcs );
+d277 1
+a277 1
+    mon_array[n][0] = mon_func[n-1].end;
+d279 2
+a280 2
+    mon_array[n][0] = 0x7fffffff;
+    mon_array[n][1] = n;
+d282 4
+a285 4
+    printf ( "\n" );
+    for ( n = 0; n < num_mon_funcs; n++ )
+	printf ( "%2d %lx %ld %s\n", n, mon_array[n][0], mon_array[n][1],
+		&mon_strs[mon_func[mon_array[n][1]].name] );
+d291 2
+a292 2
+    long array[][2];
+    int x, num;
+d294 2
+a295 2
+    int i, j;
+    long k;
+d297 1
+a297 3
+    for (i=0; i<num-1; i++)
+    {
+	if (array[i][x] > array[i+1][x])
+d299 1
+a299 3
+	    for (j=i; j>=0; j--)
+	    {
+		if (array[j][x] > array[j+1][x])
+d301 12
+a312 6
+		    k = array[j][x];
+		    array[j][x] = array[j+1][x];
+		    array[j+1][x] = k;
+		    k = array[j][1-x];
+		    array[j][1-x] = array[j+1][1-x];
+		    array[j+1][1-x] = k;
+a313 1
+	    }
+a314 1
+    }
+d319 2
+a320 2
+    char *name;
+    int level;
+d323 1
+a323 1
+    char *s;
+d325 1
+a325 1
+    int n;
+d327 2
+a328 2
+    for ( s = name; *s != 0; s++ )
+	*s = toupper ( *s );
+d330 3
+a332 3
+    for ( n = 0; n < num_mon_funcs; n++ )
+	if ( strcmp ( name, &mon_strs[mon_func[n].name] ) == 0 )
+	    break;
+d334 6
+a339 6
+    if ( n < num_mon_funcs )
+    {
+	mon_func[n].level = (char) level;
+    }
+    else
+	printf ( "Function %s Not Found\n", name );
+d344 3
+a346 3
+    FILE * fp;
+    char name[60];
+    int level;
+d348 1
+a348 1
+    fp = fopen ( "levels", "r" );
+d350 5
+a354 5
+    if ( fp == NULL )
+    {
+	printf ( "levels file not found\n");
+	tw_exit (0);
+    }
+d356 4
+a359 4
+    while ( fscanf ( fp, "%s %d", name, &level ) == 2 )
+    {
+	set_level ( name, level );
+    }
+d361 1
+a361 1
+    fclose ( fp );
+d366 1
+a366 1
+    char * word;
+d368 1
+a368 1
+    char * w = word;
+d370 1
+a370 1
+    int offset = monstrp - mon_strs;
+d372 2
+a373 2
+    while ( *monstrp++ = *w++ )
+	;
+d375 5
+a379 5
+    if ( monstrp > mon_strs + STR_SIZE )
+    {
+	printf ( "String Area Full\n" );
+	tw_exit ();
+    }
+d381 1
+a381 1
+    return ( offset );
+d387 1
+a387 1
+    FUNC * func;
+d389 3
+a391 3
+    char word[60];
+    char type[60];
+    char xtra[60];
+d393 1
+a393 1
+    int i, j, k, n;
+d395 1
+a395 1
+    clear ( func, sizeof (FUNC) );
+a396 3
+    getword ( type );
+
+    if ( *type == ';' )
+d399 2
+a400 6
+    if ( *type == 0 )
+    {
+	func->name = str ( "UNKNOWN" );
+	mon_str_len = str  ( "" );
+	return ( 0 );
+    }
+d402 6
+a407 2
+    if ( strcmp ( type, "static" ) == 0 )
+	getword ( type );
+d409 2
+a410 2
+    if ( strcmp ( type, "struct" ) == 0 )
+	getword ( type );
+d412 2
+a413 3
+    for ( ;; )
+    {
+	getword ( word );
+d415 14
+a428 2
+	if ( *word == '*' )
+	    func->fstars++;
+d430 5
+a434 2
+	    break;
+    }
+d436 3
+a438 10
+    if ( *word == '(' )
+    {
+	func->name = str ( type );
+    }
+    else
+    {
+	func->name = str ( word );
+	func->ftype = gettype ( type );
+	getword ( word );	/* better be '(' */
+    }
+d440 2
+a441 3
+    for ( n = 0; ; )		/* get arg list */
+    {
+	getword ( word );
+d443 10
+a452 2
+	if ( *word == ')' )
+	    break;
+d454 1
+a454 1
+	if ( *word != ',' )
+d456 1
+a456 8
+	    if ( n >= 10 )
+	    {
+		printf ( "Too Many Args: %s\n", &mon_strs[func->name] );
+		tw_exit ();
+	    }
+	    func->args[n++] = str ( word );
+	}
+    }
+d458 2
+a459 3
+    for ( i = 0; i < n; i++ )	/* get arg defs */
+    {
+	getword ( word );
+d461 2
+a462 2
+	if ( *word == ';' )
+	    getword ( word );
+d464 2
+a465 2
+	if ( strcmp ( word, "register" ) == 0 )
+	    getword ( word );
+d467 3
+a469 2
+	if ( *word != ',' )
+	    strcpy ( type, word );
+d471 3
+a473 3
+	for ( k = 0; ; k++ )
+	{
+	    getword ( word );
+d475 9
+a483 3
+	    if ( *word != '*' )
+		break;
+	}
+d485 6
+a490 8
+	if ( *word == '(' )
+	{
+	    getword ( word );	/* should be *    */
+	    getword ( word );	/* should be Func */
+	    getword ( xtra );	/* should be )    */
+	    getword ( xtra );	/* should be (    */
+	    getword ( xtra );	/* should be )    */
+	    strcpy ( type, "(*Func)()" );
+d493 1
+a493 9
+	for ( j = 0; j < n; j++ )
+	    if ( strcmp ( word, &mon_strs[func->args[j]] ) == 0 )
+		break;
+
+	func->types[j] = gettype ( type );
+	func->stars[j] = k;
+    }
+
+    return ( func );
+d500 1
+a500 1
+    char *word;
+d502 6
+a507 6
+    static char buff[BUFSIZE];
+    static char *bp = buff;
+    static FILE * fp = 0;
+    char * stat;
+    char *w = word;
+    char c;
+a508 4
+    if ( fp == NULL )
+    {
+	fp = fopen ( "str", "r" );
+
+d511 7
+a517 2
+	    printf ( "str file not found\n" );
+	    tw_exit (0);
+a518 1
+    }
+d522 3
+a524 3
+    if ( *bp == 0 )
+    {
+	stat = fgets ( bp = buff, BUFSIZE-1, fp );
+d526 5
+a530 4
+	if ( stat == 0 )
+	{
+	    fclose ( fp );
+	    goto end;
+a531 1
+    }
+d533 2
+a534 2
+    while ( *bp == ' ' || *bp == '\t' || *bp == '\n' )
+	bp++;
+d536 2
+a537 2
+    if ( *bp == 0 )
+	goto start;
+d539 1
+a539 3
+    if ( *bp == '/' && *(bp+1) == '*' )
+    {
+	while ( *bp != '*' || *(bp+1) != '/' )
+d541 5
+a545 3
+	    if ( *bp == 0 )
+	    {
+		stat = fgets ( bp = buff, BUFSIZE-1, fp );
+d547 8
+a554 4
+		if ( stat == 0 )
+		{
+		    printf ("Unterminated Comment\n");
+		    tw_exit ();
+d556 2
+a557 3
+	    }
+	    else
+		bp++;
+a558 3
+	bp += 2;
+	goto start;
+    }
+d560 3
+a562 3
+    while ( *bp != 0 && *bp != ' ' && *bp != '\t' && *bp != '\n' )
+    {
+	c = *w++ = *bp++;
+d564 2
+a565 2
+	if ( c == '*' || c == '(' || c == ')' || c == ',' || c == ';' )
+	    break;
+d567 1
+a567 1
+	c = *bp;
+d569 3
+a571 3
+	if ( c == '*' || c == '(' || c == ')' || c == ',' || c == ';' )
+	    break;
+    }
+d574 1
+a574 1
+    *w = 0;
+d581 1
+a581 1
+    char *word;
+d583 3
+a585 3
+    static FILE * fp = 0;
+    int i, n, rc;
+    char type[30];
+a586 4
+    if ( fp == NULL )
+    {
+	fp = fopen ( "datatypes", "r" );
+
+d589 1
+a589 3
+	    printf ( "datatypes file not found\n" );
+	    tw_exit (0);
+	}
+d591 12
+a602 3
+	while ( ( rc = fscanf ( fp, "%d %s", &n, type ) ) == 2 )
+	{
+	    strcpy ( types[n], type );
+d605 3
+a607 2
+	fclose ( fp );
+    }
+d609 1
+a609 5
+    for ( i = 1; types[i][0] != 0; i++ )
+	if ( strcmp ( word, types[i] ) == 0 )
+	    break;
+
+    return ( i );
+d612 1
+a612 1
+#endif	/* TRANSPUTER */
+@

@@ -1,0 +1,63 @@
+head     1.2;
+branch   ;
+access   ;
+symbols  TW2_6:1.2 TW2_5_1:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.2
+date     91.07.17.16.15.56;  author judy;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.13.36.09;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@Sun 4 absolute value function
+@
+
+
+1.2
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	twfabs.c,v $
+ * Revision 1.1  90/08/07  13:36:09  configtw
+ * Initial revision
+ * 
+*/
+
+double fabs ( x )
+
+double x;
+
+{
+   if ( x < 0.0 )
+	x = ( 0.0 - x );
+   return x;
+}
+
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log$
+@

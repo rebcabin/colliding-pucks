@@ -1,0 +1,3411 @@
+head     1.9;
+branch   ;
+access   ;
+symbols  TW2_7:1.9 TW2_6:1.9 TW2_5_1:1.8 TW2_5:1.7 TW2_4_2:1.5 TW2_4_1:1.3 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.9
+date     91.11.01.13.35.44;  author pls;  state Rel;
+branches ;
+next     1.8;
+
+1.8
+date     91.07.17.15.51.48;  author judy;  state Rel;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.03.12.16.20;  author configtw;  state Rel;
+branches ;
+next     1.6;
+
+1.6
+date     91.04.01.15.33.13;  author reiher;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     90.12.10.11.09.21;  author configtw;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     90.11.27.10.16.46;  author csupport;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     90.08.27.10.33.16;  author configtw;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.16.11.10.19;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.06.14.15.29;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@Butterfly node init & termination & message handling
+@
+
+
+1.9
+log
+@1.  Fix bug 11, "Attempt to set timer in the past".
+2.  Fix system message deadlock, bug 17.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	BF_MACH_Hg.c,v $
+ * Revision 1.8  91/07/17  15:51:48  judy
+ * New copyright notice.
+ * 
+ * Revision 1.7  91/06/03  12:16:20  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.6  91/04/01  15:33:13  reiher
+ * Added the weLooped variable to tell when some node went to sleep.  It's
+ * printed out into the XL_STATS file.
+ * 
+ * Revision 1.5  90/12/10  11:09:21  configtw
+ * change block_copy() call to bcopy() for TC2000
+ * 
+ * Revision 1.4  90/11/27  10:16:46  csupport
+ * prevent IH messages from affecting GVT calculation (plr)
+ * 
+ * Revision 1.3  90/08/27  10:33:16  configtw
+ * Add some debugging printouts
+ * 
+ * Revision 1.2  90/08/16  11:10:19  steve
+ * Major Revision
+ * 1. removed the Uniform System
+ * 2. changed the allocation so only `number_of_buffers' are allocated
+ *      on each node.
+ * 3. changed the touch routines for TC2000 alignment
+ * 4. added special case code to snd_msg to help prevent a single node
+ *      failure (or delay) from locking up the system as fast.
+ * 5. added delay functions
+ * 6. added which_nodes()
+ * 7. added lock and unlock
+ * 
+ * Revision 1.1  90/08/06  14:15:29  configtw
+ * Initial revision
+ * 
+*/
+
+/******************************************************************************/
+/*                                                                            */
+/*              BUTTERFLY MESSAGE SEND AND RECEIVE ROUTINES                   */
+
+#include <stdio.h>
+#include <mach.h>
+#include <sys/vm_mapmem.h>
+#include <sys/cluster.h>
+#include "twcommon.h"
+#include "twsys.h"
+#include "BBN.h"
+
+
+
+extern int tw_node_num;
+extern int tw_num_nodes;
+
+#define BUFF_SIZE 824   /*PJH-TC2000    Alignment Problems??    */
+#define RECV_QSIZE 256 
+#define RECV_PQSIZE 256 
+#define EVENT_QSIZE 128 
+#define Q_SIZE ( (sizeof(FIFO_QUEUE)+7)&~7 )
+
+int number_of_buffers = DEFAULT_NUM_BUFFS;
+
+
+/* Global data structures that everyone will get a copy of */
+char * shared_area[MAX_NODES];          /* Start of the shared area */
+unsigned int shared_area_size;          /* Size of the shared area */
+
+FIFO_QUEUE *event_queue[MAX_NODES];     /* Event Queue  */
+FIFO_QUEUE *recv_queue[MAX_NODES];      /* Message Queue */
+FIFO_QUEUE *recv_pqueue[MAX_NODES];     /* Prioirity Message Queue */
+char *buffer_pool[MAX_NODES];
+MESSAGE * send_buff[MAX_NUM_BUFFS];
+
+Uint alarm_time;
+Uint malarm_time;
+Uint dlm_alarm_time;
+
+#define EXHAUST_THRESHOLD       10000
+int buf_exhaust_count = 0;
+
+
+/*****************************************************************************/
+InitQueue ( newq, qsize, datap )
+FIFO_QUEUE * newq;
+int qsize;
+QUEUE_ITEM * datap;
+{
+	newq->data = datap;
+	newq->size = qsize;
+	newq->in = 0;
+	newq->out = 0;
+	newq->lock = 0;
+}
+
+int weLooped = 0;
+
+/******************************************************************************/
+/*                                                                            */
+/*                      H O S T   I N I T I A L I Z A T I O N                 */
+
+
+#define START_SHARE 0x40000000
+
+butterfly_host_init ()
+{
+
+	int i;
+	int node_num;
+	char * vAddress, *askAddress;
+	char temp, *p, *q;
+	kern_return_t ret_error;
+
+	alarm_time = 0;
+	tw_node_num = tw_num_nodes;
+
+	shared_area_size = 3 * Q_SIZE + number_of_buffers * BUFF_SIZE
+		+ sizeof(QUEUE_ITEM) * (RECV_QSIZE + RECV_PQSIZE + EVENT_QSIZE);
+
+	shared_area_size =
+		((shared_area_size + vm_page_size - 1)/vm_page_size) * vm_page_size;
+
+	/* PJH-TC2000 Need to check this for port   */
+	/* man pages imply that these pages must be initialized for atomic
+		operations on the TC2000--when we port to it */
+
+	for ( node_num = 0; node_num <= tw_num_nodes; node_num++ )
+	{
+		askAddress = vAddress =
+			(char *) (START_SHARE + node_num * shared_area_size);
+
+		if ( 0 != (ret_error = vm_mapmem ( task_self(), &vAddress,
+			shared_area_size, VM_MAPMEM_ALLOCATE, 0, 0, node_num ) ) )
+			 /* VM_MAPMEM_WIRE | */
+		{
+			printf ("vm_mapmem failed error code %d\n", ret_error );
+			exit (1);
+		}
+
+		if ( askAddress != vAddress )
+			printf ( "vm_mapmem returned different address\n" );
+
+		if ( 0 != (ret_error = vm_inherit( task_self(), vAddress,
+			shared_area_size, VM_INHERIT_SHARE ) ) )
+		{
+			printf ( "vm_inherit returned %d\n", ret_error );
+
+		}
+
+/*
+ * We need a recv_queue and buffer pool on each node.
+ * Allocate room for each in the shared data area.
+ */
+		shared_area[node_num] = vAddress;
+
+		event_queue[node_num] = (FIFO_QUEUE *) vAddress;
+		vAddress = (char *) ((int)vAddress + Q_SIZE);
+		InitQueue ( event_queue[node_num], EVENT_QSIZE, vAddress );
+		vAddress = (char *) ((int)vAddress + EVENT_QSIZE * sizeof(QUEUE_ITEM) );
+
+		recv_pqueue[node_num] = (FIFO_QUEUE *) vAddress;
+		vAddress = (char *) ((int)vAddress + Q_SIZE);
+		InitQueue ( recv_pqueue[node_num], RECV_PQSIZE, vAddress );
+		vAddress = (char *) ((int)vAddress + RECV_PQSIZE * sizeof(QUEUE_ITEM) );
+
+		recv_queue[node_num] = (FIFO_QUEUE *) vAddress;
+		vAddress = (char *) ((int)vAddress + Q_SIZE);
+		InitQueue ( recv_queue[node_num], RECV_QSIZE, vAddress );
+		vAddress = (char *) ((int)vAddress + RECV_QSIZE * sizeof(QUEUE_ITEM) );
+
+		buffer_pool[node_num] = vAddress;
+	}
+
+
+/* Compute my own set of ptrs into my send buffer space (all of the
+ * child processes will have to do this also)
+ */
+
+	for ( i = 0; i < number_of_buffers; i++ )
+	{
+		send_buff[i] = 
+				(MESSAGE *) (buffer_pool[CP] + (BUFF_SIZE * i));
+	}
+
+
+/* This may help prevent spurious page faults  */
+	for ( i = 0; i <= tw_num_nodes; i++ )
+	{
+		p = shared_area[i];
+		q = (char *)((unsigned long) p + shared_area_size);
+
+		for ( ; p < q; p = (char *)((unsigned long) p + vm_page_size) )
+		{
+			temp = *p;
+			*p = temp;
+		}
+	}
+
+}
+
+/* Here we are waiting for everyone else to initialize their */
+/* Event Queues and message buffers.                         */
+
+
+butterfly_host_wait_for_nodes ()
+{
+	int i,event_type;
+	i = tw_num_nodes;
+
+	while (i !=0)
+	{
+	  event_type = check_for_events ();
+	  if ( event_type == NODE_READY_EVENT )
+	  {
+		 i--;
+	  }
+	}
+	/* start_nodes */ 
+
+	broadcast_event ( START_EVENT );
+
+}
+
+
+/******************************************************************************/
+/*                                                                            */
+/*                      N O D E   I N I T I A L I Z A T I O N                 */
+
+butterfly_node_init ( )
+
+{
+	int i;
+	char *p, *q;
+	char temp;
+	int event_type;
+	extern int rtc_sync;
+
+	alarm_time = 0;
+
+	butterflytime_init ( rtc_sync );  
+
+
+/* Create my own set of pointers into my own send buffer space */
+
+	for (i = 0; i < number_of_buffers; i++)
+	{ 
+		send_buff[i] = (MESSAGE *) 
+						(buffer_pool[tw_node_num] + (BUFF_SIZE * i));
+	}
+
+/* go touch everyone's queues and buffer pools (including myself) */
+	for ( i = 0; i <= tw_num_nodes; i++ )
+	{
+		p = shared_area[i];
+		q = (char *)((unsigned long) p + shared_area_size);
+
+		for ( ; p < q; p = (char *)((unsigned long) p + vm_page_size) )
+		{
+			temp = *p;
+			*p = temp;
+		}
+	}
+
+
+/* tell the CP we're ready  */
+
+	post_event_w (event_queue[CP], NODE_READY_EVENT);
+
+/* Now wait for the START_EVENT */
+
+	event_type = 0;
+
+
+	for ( ;; )
+	{
+
+		event_type = check_for_events ();
+
+		if ( event_type == START_EVENT )
+			break;
+
+		wait_a_millisecond();
+	}
+
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      N O D E   T E R M I N A T I O N                       */
+
+butterfly_node_term ()
+{
+   post_event_w ( event_queue[CP], END_EVENT);
+}
+
+VTime butterfly_min ()
+{
+	register int i;
+	register Msgh * msg;
+	VTime min;
+
+	min = posinfPlus1;
+
+	for ( i = 0; i < number_of_buffers; i++ )
+	{
+		if ( send_buff[i]->use_count == 0 ) continue;
+		if ( send_buff[i]->dest == CP ) continue;
+		msg = (Msgh *) send_buff[i]->data;
+		if ( issys_macro ( msg ) ) continue;
+
+/*  The following line is necessary to omit IH messages from nodes other
+		than node 0 from GVT computation.  The line above that tests
+		destination against CP might not be necessary with the following
+		line in place, but I've left it in for good luck.  PLR */
+
+		if ( strcmp ( msg->rcver, "$IH") == 0 ) continue;
+		if ( ! ( msg->flags & MOVING ) )
+		{
+			if ( gtVTime ( min, msg->sndtim ) )
+				min = msg->sndtim;
+		}
+		if ( ltVTime ( min, gvt ) )
+		{
+			twerror("butterfly_min: setting min %f to before gvt %f\n",
+				min.simtime, gvt.simtime);
+			showmsg ( msg );
+			tester();
+		}
+	}
+
+	return ( min );
+}
+
+showbuffstruct ( sb )
+MESSAGE * sb;
+{
+  _pprintf ("count =%d len =%d src =%d dest =%d type =%d ptr =%lx\n",
+			sb->use_count,
+			sb->length,
+			sb->src,
+			sb->dest,
+			sb->type,
+			sb->data
+		   );
+}
+
+showHgMstruct ( Hg_s )
+MSG_STRUCT * Hg_s;
+{
+  _pprintf ("buf %lx blen =%d mlen =%d dest =%d  src =%d type =%d \n",
+			Hg_s->buf,
+			Hg_s->blen,
+			Hg_s->mlen,
+			Hg_s->dest,
+			Hg_s->source,
+			Hg_s->type
+		   );
+}
+
+showsendbuffs ()
+{
+	int i;
+	Msgh * msg;
+
+	_pprintf("Send buffers\n");
+	for ( i = 0; i < number_of_buffers; i++ )
+	{
+		if ( send_buff[i]->use_count == 0 ) continue;
+		if ( send_buff[i]->dest == CP) continue;
+		msg = (Msgh *) send_buff[i]->data;
+		printf("Destination %d\n",send_buff[i]->dest);
+		showmsg ( msg );
+	}
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      S E N D   M E S S A G E                               */
+
+send_msg ( msg_structure_ptr )
+
+	MSG_STRUCT * msg_structure_ptr;
+{
+	char * msgbuf;
+	int ret, i, node, first, last;
+	int start;
+	int msg_pri;
+	int dest0;
+	int sameNode;
+	extern int not_dumping_stats;
+
+
+	extern int max_acks;
+	extern int mlog, node_cputime;
+
+	msg_pri = 0;
+	msgbuf = NULL;
+
+	if ( msg_structure_ptr->dest != CP
+	&&   issys_macro ( (Msgh *) (msg_structure_ptr->buf) ) )
+		msg_pri = 1;
+
+	if ( msg_pri || isanti_macro ( (Msgh *) (msg_structure_ptr->buf) ) )
+	{
+		for ( i = max_acks; i < number_of_buffers; i++ )
+		{
+			if ( send_buff[i]->use_count == 0 )
+			{
+				msgbuf = send_buff[i]->data;
+				break;
+			}
+		}
+	}
+	else
+	{
+		for ( i = 0; i < max_acks; i++ )
+		{
+			if ( send_buff[i]->use_count == 0 )
+			{
+				msgbuf = send_buff[i]->data;
+				break;
+			}
+		}
+
+/*
+ * The code below is design to help with one node delays.
+ * If all the message buffers < max_acks are to the same
+ * node, and the message we are attempting to send is to
+ * a different node, and buffer number `number_of_buffers - 1'
+ * is free, then we will use this last message buffer to
+ * send this message. 
+ */
+
+		if ( (msgbuf == NULL) &&
+				((dest0 = send_buff[0]->dest) != msg_structure_ptr->dest) &&
+				(send_buff[number_of_buffers - 1]->use_count == 0) )
+		{
+			sameNode = TRUE;
+
+			for ( i = 1; sameNode && (i < max_acks); i++ )
+			{
+				/* sameNode is TRUE if we got here */
+				sameNode = ( dest0 == send_buff[i]->dest );
+			}
+
+			i = number_of_buffers - 1;
+
+			if ( sameNode )
+			{
+				msgbuf = send_buff[i]->data;
+			}
+		}
+	}
+
+	if ( msgbuf == NULL )
+	{
+		if ( (++buf_exhaust_count > EXHAUST_THRESHOLD ) && not_dumping_stats )
+		{
+			_pprintf (
+				"%d loops in send_msg without change: dest:%d msg_pri is %d\n",
+				buf_exhaust_count, msg_structure_ptr->dest, msg_pri );
+			weLooped++;
+
+			for ( i = 0; i < max_acks; i++ )
+				showbuffstruct ( send_buff[i] );
+
+		   buf_exhaust_count =0;
+		} 
+
+		return ( -1 );  /* no buffers */
+	}
+	else
+	{
+		buf_exhaust_count =0;
+	} 
+
+
+	if ( msg_structure_ptr->mlen > 0 )
+	{
+#ifdef TC2000
+		bcopy ( msg_structure_ptr->buf,
+#else
+		block_copy ( msg_structure_ptr->buf,
+#endif
+					 msgbuf, 
+					 msg_structure_ptr->mlen 
+				   );
+
+	}
+	else
+	{   
+		_pprintf ( "send_msg: mlen %d msg %x\n",
+			msg_structure_ptr->mlen, msg_structure_ptr );
+		tester ();
+	}
+
+	send_buff[i]->use_count = 1;
+	send_buff[i]->length = msg_structure_ptr->mlen;
+	send_buff[i]->dest = msg_structure_ptr->dest;
+	send_buff[i]->src = msg_structure_ptr->source;
+	send_buff[i]->type = msg_structure_ptr->type;
+
+
+	if ( msg_structure_ptr->dest == CP )
+	{
+		first = last = CP;
+	}
+	else
+	if ( msg_structure_ptr->dest == ALL )
+	{
+		first = 0; last = (tw_num_nodes -1);
+		send_buff[i]->use_count = last - first;
+	}
+	else
+	{
+		first = last = (msg_structure_ptr->dest);
+	}
+
+	for ( node = first; node <= last; node++ )
+	{
+		if ( node == tw_node_num )
+			continue;
+
+		if ( mlog && ( msg_structure_ptr->dest != CP ) )
+		{
+			butterflytime ();
+			((Msgh *)msgbuf)->msgtimef = node_cputime;
+		}
+
+		for ( ret = FALSE; ret == FALSE; )
+		{
+			if ( msg_pri ) 
+			{
+				ret = EnqueueQueue ( recv_pqueue[node],
+						i + ( tw_node_num << 16 ) );
+			}
+			else   
+			{
+				ret = EnqueueQueue ( recv_queue[node],
+						i + ( tw_node_num << 16 ) );
+
+			}
+
+/* If we are not successfull in getting a DualQ, waiting for a bit.     */
+/* Otherwise, we just increase switch traffic.                          */
+
+			if ( ! ret )
+			{   
+#if 0
+				if ( msg_pri == 0 )
+#endif
+				{
+					send_buff[i]->use_count = 0;
+					return -1;
+				}
+
+				wait_a_millisecond();
+			} 
+		}
+	}
+
+   return ( msg_structure_ptr->mlen );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*              S E N D   M E S S A G E   A N D   W A I T                     */
+
+send_msg_w ( msg_structure_ptr )
+
+	MSG_STRUCT  *msg_structure_ptr;
+
+{
+	char * msgbuf;
+	int ret, i, node, first, last;
+	int start;
+
+
+	for ( msgbuf = 0; msgbuf == 0; )
+	{
+		for ( i = 0; i < number_of_buffers; i++ )
+			if ( send_buff[i]->use_count == 0 )
+				break;
+
+		if ( i < number_of_buffers )
+			msgbuf = send_buff[i]->data;
+	}
+	if ( msgbuf == NULL)
+	{
+		if (++buf_exhaust_count > EXHAUST_THRESHOLD )
+		{
+			_pprintf ( "%d loops in send_msg_w without change\n",
+				buf_exhaust_count );
+
+		   buf_exhaust_count =0;
+		}
+
+		return (-1);
+	}
+	else
+	{
+		buf_exhaust_count =0;
+	}           
+
+	if ( msg_structure_ptr->mlen > 0 )
+	{
+#ifdef TC2000
+		bcopy ( msg_structure_ptr->buf, msgbuf, msg_structure_ptr->mlen );
+#else
+		block_copy ( msg_structure_ptr->buf, msgbuf, msg_structure_ptr->mlen );
+#endif
+	}
+
+
+	send_buff[i]->use_count = 1;
+	send_buff[i]->length = msg_structure_ptr->mlen;
+	send_buff[i]->dest = msg_structure_ptr->dest;
+	send_buff[i]->src = msg_structure_ptr->source;
+	send_buff[i]->type = msg_structure_ptr->type;
+
+	if ( msg_structure_ptr->dest == CP )
+	{
+		first = last = CP;
+	}
+	else
+	if ( msg_structure_ptr->dest == ALL )
+	{
+		first = 0; last = tw_num_nodes - 1;
+		send_buff[i]->use_count = last - first;
+	}
+	else
+		first = last = msg_structure_ptr->dest;
+
+	for ( node = first; node <= last; node++ )
+	{
+		if ( node == tw_node_num )
+			continue;
+
+		for ( ret = FALSE; ret == FALSE; )
+		{
+
+			ret = EnqueueQueue ( recv_queue[node],
+				i + ( tw_node_num << 16 ) );
+
+/* If we are not successfull in getting a DualQ, waiting for a bit.     */
+/* Otherwise, we just increase switch traffic.                          */
+
+			if ( ! ret )
+				wait_a_millisecond();
+		}
+	}
+
+   return ( TRUE );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      R E C E I V E   M E S S A G E                         */
+
+get_msg ( msg_structure_ptr )
+
+  MSG_STRUCT    *msg_structure_ptr;
+
+{
+	int ret, buffno, datum;
+	int  node;
+
+	MESSAGE * baddr;
+
+	ret = FALSE;
+	if ( CheckQueue (recv_pqueue[tw_node_num]) ) 
+	 {
+		ret = DequeueQueue ( recv_pqueue[tw_node_num], &datum );
+	 }
+	if ( ret == FALSE && CheckQueue (recv_queue[tw_node_num]) ) 
+	 {
+		ret = DequeueQueue ( recv_queue[tw_node_num], &datum );
+	 }
+	if ( ret == FALSE )
+	 {
+		 return ( FALSE );
+	 }
+	node = datum >> 16;
+	buffno = datum & 0xffff;
+	baddr = (MESSAGE *)(buffer_pool[node] + ( BUFF_SIZE * buffno ));
+
+/*PJH DEBUG
+	_pprintf ("get_msg()datum = %x no = %x node =%x bp =%lx ptr=%lx\n",
+				datum,buffno,node,buffer_pool[node], baddr );
+*/
+
+
+#ifdef PARANOID  /*This check is obsolete */
+#if 0
+	if ( baddr->src != node )
+	{
+		_pprintf ( "get_msg: baddr %x node %d buffno %d source %d\n",
+			baddr, node, buffno, baddr->src );
+		tester ();
+	}
+
+	if ( baddr->length < 0 || baddr->length > msgdefsize )
+	{
+		_pprintf ( "get_msg: baddr %x node %d buffno %d source %d length %d\n",
+			baddr, node, buffno, baddr->src, baddr->length );
+		tester ();
+	}
+#endif
+#endif
+
+
+	msg_structure_ptr->mlen = baddr->length;
+	msg_structure_ptr->dest = baddr->dest;
+	msg_structure_ptr->source = baddr->src;
+	msg_structure_ptr->type = baddr->type;
+
+
+
+	if ( baddr->length > 0 )
+#ifdef TC2000
+		bcopy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+#else
+		block_copy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+#endif
+
+	atomadd ( &baddr->use_count, -1 );
+
+	return ( TRUE );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*              R E C E I V E   M E S S A G E    W A I T                      */
+
+get_msg_w ( msg_structure_ptr )
+
+  MSG_STRUCT    *msg_structure_ptr;
+
+{
+	int  buffno, datum;
+	int  node;
+
+	MESSAGE * baddr;
+
+	while (  DequeueQueue ( recv_pqueue[tw_node_num], &datum ) == FALSE 
+	&&       DequeueQueue ( recv_queue[tw_node_num], &datum ) == FALSE )
+		; 
+
+	node = datum >> 16;
+	buffno = datum & 0xffff;
+	baddr = (MESSAGE *)(buffer_pool[node] + ( BUFF_SIZE * buffno ));
+
+	msg_structure_ptr->mlen = baddr->length;
+	msg_structure_ptr->dest = baddr->dest;
+	msg_structure_ptr->source = baddr->src;
+	msg_structure_ptr->type = baddr->type;
+
+	if ( baddr->length > 0 )
+	 {
+#ifdef TC2000
+		bcopy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+#else
+		block_copy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+#endif
+	 }
+	atomadd ( &baddr->use_count, -1 );
+
+	return ( TRUE );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      S E N D   C O M M A N D                               */
+
+butterfly_send_command ( msg, dest )
+
+	char * msg;
+	int dest;
+{
+	int i, node, first, last;
+	int length, type = 0;
+	char * msgbuf;
+
+	for ( msgbuf = 0; msgbuf == 0; )
+	{
+		for ( i = 0; i < number_of_buffers; i++ )
+			if ( send_buff[i]->use_count == 0 )
+				break;
+
+		if ( i < number_of_buffers )
+		{
+			msgbuf = send_buff[i]->data;
+		}
+	}
+
+	length = strlen ( msg ) + 1;
+
+#ifdef TC2000
+	bcopy ( msg, msgbuf, length );
+#else
+	block_copy ( msg, msgbuf, length );
+#endif
+
+	if ( dest == ALL )
+	{
+		first = 0; last = tw_num_nodes - 1;
+	}
+	else
+		first = last = dest;
+
+	send_buff[i]->use_count = last - first + 1;
+	send_buff[i]->length = length;
+	send_buff[i]->type = type;
+
+	for ( node = first; node <= last; node++ )
+	{
+		post_event_w ( event_queue[node], COMMAND_EVENT + ( i << 16 ) );
+	}
+}
+
+
+/*****************************************************************************/
+broadcast_event (datum)
+	int datum;
+{
+	int first, last, node;
+
+	first = 0; last = tw_num_nodes - 1;
+
+/*PJH */ 
+	/* note that this version will post to ALL children, regardless of who
+	 * sent it -- if coming from CP, this is probably the right thing.  if
+	 * one child wants to interrupt all others, it should probably NOT
+	 * enqueue an event on its own node.  how about the following ?
+	 */
+
+	for (node = first; node <= last; node++)
+	{
+		if (node != tw_node_num)
+		 {
+			post_event_w (event_queue[node], datum);
+		 }
+	}
+
+}
+
+
+/******************************************************************************/
+/*                                                                            */
+/*              P O S T   E V E N T   A N D   W A I T                         */
+
+post_event_w ( equeue, datum )
+
+	FIFO_QUEUE *equeue;
+	int datum;
+{
+
+int status = FALSE;
+
+	while (!status)
+	{
+		status = EnqueueQueue (equeue, datum);
+	}
+	if ( tw_node_num == CP )
+	{
+			check_for_events ();
+	}
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      R E C E I V E   C O M M A N D                         */
+
+butterfly_recv_command ( msg )
+
+	char * msg;
+{
+	int ret, length, type, buffno;
+	MESSAGE * baddr;
+
+	for ( ;; )
+	{
+		ret = check_for_events ();
+
+		if ( ( ret  & 0xffff ) == COMMAND_EVENT )
+			break;
+	}
+
+	buffno = ret >> 16;
+
+	baddr = buffer_pool[CP] + ( BUFF_SIZE * buffno );
+
+	length = baddr->length;
+	type = baddr->type;
+
+#ifdef TC2000
+	bcopy ( baddr->data, msg, length );
+#else
+	block_copy ( baddr->data, msg, length );
+#endif
+
+	atomadd ( &baddr->use_count, -1 );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      G E T   P R O M P T                                   */
+
+butterfly_get_prompt ( prompt, dest )
+
+	char * prompt;
+	int dest;
+{
+	int i, node, first, last;
+	char * msgbuf;
+
+	for ( msgbuf = 0; msgbuf == 0; )
+	{
+		for ( i = 0; i < number_of_buffers; i++ )
+			if ( send_buff[i]->use_count == 0 )
+				break;
+
+		if ( i < number_of_buffers )
+		{
+			msgbuf = send_buff[i]->data;
+		}
+	}
+
+	if ( dest == ALL )
+	{
+		first = 0; last = tw_num_nodes - 1;
+	}
+	else
+		first = last = dest;
+
+	send_buff[i]->use_count = last - first + 1;
+
+	for ( node = first; node <= last; node++ )
+	{
+		post_event_w ( event_queue[node], PROMPT_EVENT + ( i << 16 ) );
+	}
+
+	while ( send_buff[i]->use_count > 0 )
+	{
+		wait_a_millisecond();
+	}
+
+	strcpy ( prompt, send_buff[i]->data );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      P R O M P T   F O R   C O M M A N D                   */
+
+butterfly_prompt ( prompt )
+
+	char * prompt;
+{
+	int ret, buffno;
+	MESSAGE * baddr;
+
+	for ( ;; )
+	{
+		ret = check_for_events ();
+
+		if ( ( ret  & 0xffff ) == PROMPT_EVENT )
+			break;
+	}
+
+	buffno = ret >> 16;
+
+	baddr = buffer_pool[CP] + ( BUFF_SIZE * buffno );
+
+#ifdef TC2000
+	bcopy ( prompt, baddr->data, strlen(prompt)+1 );
+#else
+	block_copy ( prompt, baddr->data, strlen(prompt)+1 );
+#endif
+
+	atomadd ( &baddr->use_count, -1 );
+}
+
+Set_Timer (rtc_time, EVT_TYPE )
+Uint rtc_time;
+int EVT_TYPE;
+{
+	Uint	nowTime;
+	
+	nowTime = getrtc();
+	if ((rtc_time < nowTime) && ((nowTime - rtc_time) < 0xffff))
+	 {
+		_pprintf ("Set_Timer: Attempt to set timer in the past\n");
+		_pprintf ("Resetting ALL alarms!!\n");
+
+		alarm_time = 0;
+		malarm_time =0;
+		dlm_alarm_time =0;
+	 }
+	else
+	 {
+
+		switch (EVT_TYPE)
+		{
+		case MTIMER_EVENT:
+		   malarm_time = rtc_time;
+		   break;
+		case TIMER_EVENT:
+		   alarm_time = rtc_time;
+		   break;
+#ifdef DLM
+
+		case DLM_EVENT:
+		   dlm_alarm_time = rtc_time;
+		   break;
+#endif
+
+		}
+	 }
+}
+
+
+/******************************************************************************/
+/*                                                                            */
+/*                      S I G N A L   S I G M A L A R M                       */
+
+#define ONE_MSEC ((int)(1000. / 62.5))
+
+static int (*malarm_routine) ();
+
+
+malarm ( msecs )
+
+	int msecs;
+{
+
+	Set_Timer ( getrtc() + ONE_MSEC * msecs, MTIMER_EVENT );
+}
+
+butterfly_msigalarm ( routine )
+
+	int (*routine) ();
+{
+	malarm_routine = routine;
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      S I G N A L   S I G A L A R M                         */
+
+#define ONE_SECOND ((int)(1000000. / 62.5))
+
+static int (*alarm_routine) ();
+
+
+alarm ( seconds )
+
+	int seconds;
+{
+
+	Set_Timer ( getrtc() + ONE_SECOND * seconds, TIMER_EVENT );
+}
+
+butterfly_sigalarm ( routine )
+
+	int (*routine) ();
+{
+	alarm_routine = routine;
+}
+
+#ifdef DLM
+
+static int ( *dlmAlarm_routine ) ();
+
+
+dlmAlarm ( seconds )
+
+	int seconds;
+{
+
+	Set_Timer ( getrtc() + ONE_SECOND * seconds, DLM_EVENT );
+}
+
+butterfly_dlmAlarm ( routine )
+
+	int (*routine) ();
+{
+	dlmAlarm_routine = routine;
+}
+
+#endif DLM
+
+/******************************************************************************/
+/*                                                                            */
+/*                      S I G N A L   S I G I N T                             */
+
+static int (*interrupt_routine) ();
+
+butterfly_sigint ( routine )
+
+	int (*routine) ();
+{
+	interrupt_routine = routine;
+}
+
+
+/*****************************************************************************/
+check_alarm ()
+{
+	Uint		nowTime;
+	
+	nowTime = getrtc();
+	
+/*PJH I wonder if this will work OK with multiple event posts? */
+
+	if ((malarm_time != 0) && 
+		(((nowTime > malarm_time) && ((nowTime - malarm_time) < 0x3fffffff)) ||
+		((nowTime < malarm_time) && ((malarm_time - nowTime) > 0x3fffffff))))
+	{
+/* post the MTIMER event and reset the timer */ 
+		post_event_w(event_queue[tw_node_num], MTIMER_EVENT);
+		malarm_time = 0;
+	}
+
+#ifdef DLM
+
+	if ((dlm_alarm_time != 0) &&
+		(((nowTime > dlm_alarm_time) && ((nowTime - dlm_alarm_time) < 
+			0x3fffffff)) ||
+		((nowTime < dlm_alarm_time) && ((dlm_alarm_time - nowTime) >
+			0x3fffffff))))
+	{
+/* post the DLM_EVENT event and reset the timer */
+		post_event_w(event_queue[tw_node_num], DLM_EVENT);
+		dlm_alarm_time = 0;
+	}
+#endif
+
+	if ((alarm_time != 0) &&
+		(((nowTime > alarm_time) && ((nowTime - alarm_time) < 0x3fffffff)) ||
+		((nowTime < alarm_time) && ((alarm_time - nowTime) > 0x3fffffff))))
+	{
+/* post the TIMER_EVENT event and reset the timer */
+		post_event_w(event_queue[tw_node_num], TIMER_EVENT);
+		alarm_time = 0;
+	}
+}    
+
+
+
+
+/******************************************************************************/
+/*                                                                            */
+/*                      C H E C K   F O R   E V E N T S                       */
+
+check_for_events ()
+{
+	int status;
+	int edata;
+
+	status = 0;
+
+	if ( CheckQueue ( event_queue [tw_node_num] ) )
+		status = DequeueQueue(event_queue[tw_node_num], &edata);
+
+	if ( status )
+	{
+
+		switch ( edata & 0xffff )
+		{
+			case MTIMER_EVENT:
+
+				if ( malarm_routine )
+				{
+					(*malarm_routine) ();
+				}
+				break;
+
+			case TIMER_EVENT:
+
+				if ( alarm_routine )
+				{
+					(*alarm_routine) ();
+				}
+				break;
+#ifdef DLM
+			case DLM_EVENT:
+
+				if ( dlmAlarm_routine )
+				{
+					( *dlmAlarm_routine ) ();
+				}
+				break;
+#endif DLM
+
+			case INTERRUPT_EVENT:
+
+				if ( interrupt_routine )
+				{
+					(*interrupt_routine) ();
+				}
+				break;
+
+			case COMMAND_EVENT:
+
+				break;
+
+			case PROMPT_EVENT:
+
+				break;
+
+			case END_EVENT:
+
+				if ( tw_node_num != CP )
+				{
+				   exit (0);
+				}
+
+				break;
+
+			case NODE_READY_EVENT:
+
+				break;
+
+			case START_EVENT:
+
+				break;
+
+			default:
+
+				printf ( "%d received unknown event %d\n", 
+						tw_node_num,edata );
+		}
+
+		return ( edata );
+	}
+
+	return ( 0 );
+}
+
+/******************************************************************************/
+/*                                                                            */
+/*                      I N T E R R U P T   N O D E S                         */
+
+interrupt_nodes ()
+{
+	int i;
+
+  if ( tw_node_num == CP )
+  {
+	for ( i = 0; i < tw_num_nodes; i++ )
+		post_event_w ( event_queue[i], INTERRUPT_EVENT );
+  }
+  else
+	post_event_w ( event_queue[CP], INTERRUPT_EVENT );
+}
+
+/******************************************************************************/
+
+
+int EnqueueQueue (queue, item)
+
+	FIFO_QUEUE *queue;
+	QUEUE_ITEM item;
+{
+	register int in, qsize;     /* cached copy for speed */
+								/* OK since manipulated under lock */
+
+
+	lock ( &(queue->lock) );
+
+
+	in = queue->in;
+	qsize = queue->size;
+
+	if ( queue->out == ( (in == qsize - 1)? 0 : in + 1 ) )
+	{
+
+#ifdef ENQUEUE_TRACE
+		printf ("Enqueue failed: queue 0x%x is full\n", queue);
+#endif
+
+
+		unlock (&(queue->lock));
+
+
+		return (FALSE);
+	}
+/*
+_pprintf("EQ item is %x queue is %x\n", item, queue );
+*/
+	queue->data[in++] = item;
+
+/* Write back the new in position */
+
+	queue->in = (in == qsize)? 0 : in;
+
+
+	unlock (&(queue->lock));
+
+
+	return (TRUE);
+}
+
+
+int DequeueQueue (queue, item_ptr)
+
+	FIFO_QUEUE *queue;
+	QUEUE_ITEM *item_ptr;
+
+{
+	register int out;           /* cached copy for speed */
+								/* OK since manipulated under lock */
+
+/*
+ * sfb: there should be a separate read lock (dequeue) and
+ * write lock (enqueue) for each queue, since reads and writes
+ * can safely happen in parallel. However, since each node is the only
+ * reader of his queue we don't need a read lock.
+ *
+ */
+
+	out = queue->out;
+
+	if (out == queue->in)
+	{
+#ifdef DEQUEUE_TRACE
+		printf ("Dequeue failed: queue 0x%x is empty\n", queue);
+#endif
+
+
+		return (FALSE);
+	}
+
+	*item_ptr = queue->data[out++];
+
+/* Write back the new in position */
+
+	queue->out = (out == queue->size)? 0 : out;
+
+/*
+_pprintf( "DQ item is %x queue is %x\n", *item_ptr, queue );
+*/
+
+	return (TRUE);
+}
+
+int CheckQueue (queue)
+
+	FIFO_QUEUE *queue;
+
+{
+	int ret, out;                       
+
+	out = queue->out;
+	ret = ((out == queue->in) ? FALSE : TRUE);
+	return (ret);
+
+}
+
+
+/******************************************************************************/
+
+/* debug int max_spins;*/
+
+lock ( location )
+short * location;
+{
+	/* debug int spin = 0; */
+
+	for ( ;; )
+	{
+		if ( 0 == atomior ( location, 1 ) )
+		{
+			/* max_spins = (spin > max_spins)? spin : max_spins; */
+			return;
+		}
+		{
+			register int k = 40;
+
+			while ( k-- )
+			{
+				/* spin for ~ 40 microseconds on GP1000*/
+			}
+		}
+		/* spin++; */
+	}
+}
+
+unlock ( location )
+short * location;
+{
+	atomand ( location, 0 );
+}
+
+wait_a_millisecond()
+{
+	register int k = 1300;
+
+	while ( k-- )
+	{
+		/* spin -- 1300 = about a millisecond on GP1000*/
+	}
+}
+
+which_nodes ( cluster_logical, mach_logical, physical )
+int * cluster_logical;
+int * mach_logical;
+int * physical;
+{
+	cluster_id_t not_used = 0;
+	int data_count;
+	struct home_node_data answer;
+
+	cluster_ctl ( not_used, GET_HOME_NODE, &answer, &data_count);
+
+	*cluster_logical = answer.home_pnn;
+	*mach_logical = answer.system_pnn;
+	*physical = answer.physical_pnn;
+}
+@
+
+
+1.8
+log
+@New copyright notice.
+@
+text
+@d7 3
+a59 1
+#define MAX_NODES 128
+d79 3
+a81 3
+int alarm_time;
+int malarm_time;
+int dlm_alarm_time;
+d553 1
+d555 1
+d988 1
+a988 1
+int rtc_time;
+d991 4
+a994 1
+	if (rtc_time < getrtc())
+d1113 4
+a1116 1
+
+d1119 3
+a1121 1
+	if ((malarm_time != 0) && (getrtc() > malarm_time))
+d1130 5
+a1134 1
+	if ((dlm_alarm_time != 0) && (getrtc() > dlm_alarm_time))
+d1142 3
+a1144 1
+	if ((alarm_time != 0) && (getrtc() > alarm_time))
+@
+
+
+1.7
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        BF_MACH_Hg.c,v $
+a38 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.6
+log
+@Added the weLooped variable to tell when some node went to sleep.  It's
+printed out into the XL_STATS file.
+@
+text
+@d2 5
+a6 1
+ * $Log:	BF_MACH_Hg.c,v $
+d20 1
+a20 1
+ * 	on each node.
+d23 1
+a23 1
+ * 	failure (or delay) from locking up the system as fast.
+d32 3
+a34 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d37 2
+a38 2
+/*									      */
+/*		BUTTERFLY MESSAGE SEND AND RECEIVE ROUTINES		      */
+d54 1
+a54 1
+#define BUFF_SIZE 824 	/*PJH-TC2000	Alignment Problems??	*/
+d64 2
+a65 2
+char * shared_area[MAX_NODES]; 		/* Start of the shared area */
+unsigned int shared_area_size;		/* Size of the shared area */
+d67 3
+a69 3
+FIFO_QUEUE *event_queue[MAX_NODES];	/* Event Queue	*/
+FIFO_QUEUE *recv_queue[MAX_NODES];	/* Message Queue */
+FIFO_QUEUE *recv_pqueue[MAX_NODES];	/* Prioirity Message Queue */
+d77 1
+a77 1
+#define EXHAUST_THRESHOLD	10000
+d87 5
+a91 5
+    newq->data = datap;
+    newq->size = qsize;
+    newq->in = 0;
+    newq->out = 0;
+    newq->lock = 0;
+d97 2
+a98 2
+/*									      */
+/*			H O S T   I N I T I A L I Z A T I O N		      */
+d106 5
+a110 5
+    int i;
+    int node_num;
+    char * vAddress, *askAddress;
+    char temp, *p, *q;
+    kern_return_t ret_error;
+d112 2
+a113 2
+    alarm_time = 0;
+    tw_node_num = tw_num_nodes;
+d115 2
+a116 2
+    shared_area_size = 3 * Q_SIZE + number_of_buffers * BUFF_SIZE
+	+ sizeof(QUEUE_ITEM) * (RECV_QSIZE + RECV_PQSIZE + EVENT_QSIZE);
+d118 2
+a119 2
+    shared_area_size =
+	((shared_area_size + vm_page_size - 1)/vm_page_size) * vm_page_size;
+d121 3
+a123 3
+    /* PJH-TC2000 Need to check this for port	*/
+    /* man pages imply that these pages must be initialized for atomic
+	operations on the TC2000--when we port to it */
+d125 4
+a128 4
+    for ( node_num = 0; node_num <= tw_num_nodes; node_num++ )
+    {
+        askAddress = vAddress =
+	    (char *) (START_SHARE + node_num * shared_area_size);
+d130 7
+a136 7
+        if ( 0 != (ret_error = vm_mapmem ( task_self(), &vAddress,
+            shared_area_size, VM_MAPMEM_ALLOCATE, 0, 0, node_num ) ) )
+             /* VM_MAPMEM_WIRE | */
+        {
+            printf ("vm_mapmem failed error code %d\n", ret_error );
+            exit (1);
+        }
+d138 2
+a139 2
+        if ( askAddress != vAddress )
+            printf ( "vm_mapmem returned different address\n" );
+d141 4
+a144 4
+        if ( 0 != (ret_error = vm_inherit( task_self(), vAddress,
+            shared_area_size, VM_INHERIT_SHARE ) ) )
+        {
+            printf ( "vm_inherit returned %d\n", ret_error );
+d146 1
+a146 1
+        }
+d152 1
+a152 1
+        shared_area[node_num] = vAddress;
+d154 4
+a157 4
+        event_queue[node_num] = (FIFO_QUEUE *) vAddress;
+	vAddress = (char *) ((int)vAddress + Q_SIZE);
+	InitQueue ( event_queue[node_num], EVENT_QSIZE, vAddress );
+	vAddress = (char *) ((int)vAddress + EVENT_QSIZE * sizeof(QUEUE_ITEM) );
+d159 4
+a162 4
+        recv_pqueue[node_num] = (FIFO_QUEUE *) vAddress;
+	vAddress = (char *) ((int)vAddress + Q_SIZE);
+	InitQueue ( recv_pqueue[node_num], RECV_PQSIZE, vAddress );
+	vAddress = (char *) ((int)vAddress + RECV_PQSIZE * sizeof(QUEUE_ITEM) );
+d164 4
+a167 4
+        recv_queue[node_num] = (FIFO_QUEUE *) vAddress;
+	vAddress = (char *) ((int)vAddress + Q_SIZE);
+	InitQueue ( recv_queue[node_num], RECV_QSIZE, vAddress );
+	vAddress = (char *) ((int)vAddress + RECV_QSIZE * sizeof(QUEUE_ITEM) );
+d169 2
+a170 2
+        buffer_pool[node_num] = vAddress;
+    }
+d177 5
+a181 5
+    for ( i = 0; i < number_of_buffers; i++ )
+    {
+        send_buff[i] = 
+	 	(MESSAGE *) (buffer_pool[CP] + (BUFF_SIZE * i));
+    }
+d185 4
+a188 4
+    for ( i = 0; i <= tw_num_nodes; i++ )
+    {
+	p = shared_area[i];
+	q = (char *)((unsigned long) p + shared_area_size);
+d190 5
+a194 4
+	for ( ; p < q; p = (char *)((unsigned long) p + vm_page_size) )
+	{
+	    temp = *p;
+	    *p = temp;
+a195 1
+    }
+d200 1
+a200 1
+/* Event Queues and message buffers.			     */
+d205 2
+a206 2
+    int i,event_type;
+    i = tw_num_nodes;
+d208 9
+a216 9
+    while (i !=0)
+    {
+      event_type = check_for_events ();
+      if ( event_type == NODE_READY_EVENT )
+      {
+ 	 i--;
+      }
+    }
+    /* start_nodes */ 
+d218 1
+a218 1
+    broadcast_event ( START_EVENT );
+d224 2
+a225 2
+/*									      */
+/*			N O D E   I N I T I A L I Z A T I O N		      */
+d230 5
+a234 5
+    int i;
+    char *p, *q;
+    char temp;
+    int event_type;
+    extern int rtc_sync;
+d236 1
+a236 1
+    alarm_time = 0;
+d238 1
+a238 1
+    butterflytime_init ( rtc_sync );  
+d243 5
+a247 5
+    for (i = 0; i < number_of_buffers; i++)
+    { 
+        send_buff[i] = (MESSAGE *) 
+			(buffer_pool[tw_node_num] + (BUFF_SIZE * i));
+    }
+d250 4
+a253 4
+    for ( i = 0; i <= tw_num_nodes; i++ )
+    {
+	p = shared_area[i];
+	q = (char *)((unsigned long) p + shared_area_size);
+d255 5
+a259 4
+	for ( ; p < q; p = (char *)((unsigned long) p + vm_page_size) )
+	{
+	    temp = *p;
+	    *p = temp;
+a260 1
+    }
+d265 1
+a265 1
+    post_event_w (event_queue[CP], NODE_READY_EVENT);
+d269 1
+a269 1
+    event_type = 0;
+d272 2
+a273 2
+    for ( ;; )
+    {
+d275 1
+a275 1
+	event_type = check_for_events ();
+d277 2
+a278 2
+	if ( event_type == START_EVENT )
+	    break;
+d280 2
+a281 2
+	wait_a_millisecond();
+    }
+d286 2
+a287 2
+/*									      */
+/*			N O D E   T E R M I N A T I O N			      */
+d296 3
+a298 3
+    register int i;
+    register Msgh * msg;
+    VTime min;
+d300 1
+a300 1
+    min = posinfPlus1;
+d302 6
+a307 6
+    for ( i = 0; i < number_of_buffers; i++ )
+    {
+	if ( send_buff[i]->use_count == 0 ) continue;
+	if ( send_buff[i]->dest == CP ) continue;
+	msg = (Msgh *) send_buff[i]->data;
+	if ( issys_macro ( msg ) ) continue;
+d310 3
+a312 3
+	than node 0 from GVT computation.  The line above that tests
+	destination against CP might not be necessary with the following
+	line in place, but I've left it in for good luck.  PLR */
+d314 13
+a326 5
+	if ( strcmp ( msg->rcver, "$IH") == 0 ) continue;
+	if ( ! ( msg->flags & MOVING ) )
+	{
+	    if ( gtVTime ( min, msg->sndtim ) )
+		min = msg->sndtim;
+a327 8
+	if ( ltVTime ( min, gvt ) )
+	{
+	    twerror("butterfly_min: setting min %f to before gvt %f\n",
+		min.simtime, gvt.simtime);
+	    showmsg ( msg );
+	    tester();
+	}
+    }
+d329 1
+a329 1
+    return ( min );
+d336 7
+a342 7
+	    sb->use_count,
+	    sb->length,
+	    sb->src,
+	    sb->dest,
+	    sb->type,
+	    sb->data
+	   );
+d349 7
+a355 7
+	    Hg_s->buf,
+	    Hg_s->blen,
+	    Hg_s->mlen,
+	    Hg_s->dest,
+	    Hg_s->source,
+	    Hg_s->type
+	   );
+d360 2
+a361 2
+    int i;
+    Msgh * msg;
+d363 9
+a371 9
+    _pprintf("Send buffers\n");
+    for ( i = 0; i < number_of_buffers; i++ )
+    {
+	if ( send_buff[i]->use_count == 0 ) continue;
+	if ( send_buff[i]->dest == CP) continue;
+	msg = (Msgh *) send_buff[i]->data;
+	printf("Destination %d\n",send_buff[i]->dest);
+	showmsg ( msg );
+    }
+d375 2
+a376 2
+/*									      */
+/*			S E N D   M E S S A G E				      */
+d380 1
+a380 1
+    MSG_STRUCT * msg_structure_ptr;
+d382 7
+a388 7
+    char * msgbuf;
+    int ret, i, node, first, last;
+    int start;
+    int msg_pri;
+    int dest0;
+    int sameNode;
+    extern int not_dumping_stats;
+d391 2
+a392 2
+    extern int max_acks;
+    extern int mlog, node_cputime;
+d394 2
+a395 2
+    msg_pri = 0;
+    msgbuf = NULL;
+d397 3
+a399 3
+    if ( msg_structure_ptr->dest != CP
+    &&   issys_macro ( (Msgh *) (msg_structure_ptr->buf) ) )
+	msg_pri = 1;
+d401 1
+a401 3
+    if ( msg_pri || isanti_macro ( (Msgh *) (msg_structure_ptr->buf) ) )
+    {
+	for ( i = max_acks; i < number_of_buffers; i++ )
+d403 8
+a410 5
+	    if ( send_buff[i]->use_count == 0 )
+	    {
+		msgbuf = send_buff[i]->data;
+		break;
+	    }
+d412 1
+a412 4
+    }
+    else
+    {
+	for ( i = 0; i < max_acks; i++ )
+d414 8
+a421 6
+	    if ( send_buff[i]->use_count == 0 )
+	    {
+		msgbuf = send_buff[i]->data;
+		break;
+	    }
+	}
+d432 5
+a436 5
+	if ( (msgbuf == NULL) &&
+		((dest0 = send_buff[0]->dest) != msg_structure_ptr->dest) &&
+		(send_buff[number_of_buffers - 1]->use_count == 0) )
+	{
+	    sameNode = TRUE;
+d438 5
+a442 5
+	    for ( i = 1; sameNode && (i < max_acks); i++ )
+	    {
+		/* sameNode is TRUE if we got here */
+		sameNode = ( dest0 == send_buff[i]->dest );
+	    }
+d444 1
+a444 1
+	    i = number_of_buffers - 1;
+d446 5
+a450 4
+	    if ( sameNode )
+	    {
+		msgbuf = send_buff[i]->data;
+	    }
+a451 1
+    }
+d453 1
+a453 3
+    if ( msgbuf == NULL )
+    {
+ 	if ( (++buf_exhaust_count > EXHAUST_THRESHOLD ) && not_dumping_stats )
+d455 6
+a460 4
+	    _pprintf (
+		"%d loops in send_msg without change: dest:%d msg_pri is %d\n",
+		buf_exhaust_count, msg_structure_ptr->dest, msg_pri );
+            weLooped++;
+d462 2
+a463 2
+	    for ( i = 0; i < max_acks; i++ )
+		showbuffstruct ( send_buff[i] );
+d465 8
+a472 1
+	   buf_exhaust_count =0;
+a474 6
+	return ( -1 );	/* no buffers */
+    }
+    else
+    {
+	buf_exhaust_count =0;
+    } 
+d476 2
+a477 3
+
+    if ( msg_structure_ptr->mlen > 0 )
+    {
+d479 1
+a479 1
+	bcopy ( msg_structure_ptr->buf,
+d481 1
+a481 1
+	block_copy ( msg_structure_ptr->buf,
+d483 3
+a485 3
+		     msgbuf, 
+		     msg_structure_ptr->mlen 
+		   );
+d487 7
+a493 7
+    }
+    else
+    {   
+	_pprintf ( "send_msg: mlen %d msg %x\n",
+	    msg_structure_ptr->mlen, msg_structure_ptr );
+	tester ();
+    }
+d495 5
+a499 5
+    send_buff[i]->use_count = 1;
+    send_buff[i]->length = msg_structure_ptr->mlen;
+    send_buff[i]->dest = msg_structure_ptr->dest;
+    send_buff[i]->src = msg_structure_ptr->source;
+    send_buff[i]->type = msg_structure_ptr->type;
+d502 1
+a502 21
+    if ( msg_structure_ptr->dest == CP )
+    {
+	first = last = CP;
+    }
+    else
+    if ( msg_structure_ptr->dest == ALL )
+    {
+	first = 0; last = (tw_num_nodes -1);
+	send_buff[i]->use_count = last - first;
+    }
+    else
+    {
+	first = last = (msg_structure_ptr->dest);
+    }
+
+    for ( node = first; node <= last; node++ )
+    {
+	if ( node == tw_node_num )
+	    continue;
+
+	if ( mlog && ( msg_structure_ptr->dest != CP ) )
+d504 1
+a504 2
+	    butterflytime ();
+	    ((Msgh *)msgbuf)->msgtimef = node_cputime;
+d506 10
+d517 1
+a517 1
+	for ( ret = FALSE; ret == FALSE; )
+d519 2
+a520 9
+	    if ( msg_pri ) 
+	    {
+		ret = EnqueueQueue ( recv_pqueue[node],
+			i + ( tw_node_num << 16 ) );
+	    }
+	    else   
+	    {
+		ret = EnqueueQueue ( recv_queue[node],
+			i + ( tw_node_num << 16 ) );
+d522 5
+a526 1
+	    }
+d528 11
+a538 2
+/* If we are not successfull in getting a DualQ, waiting for a bit.	*/
+/* Otherwise, we just increase switch traffic.				*/
+d540 15
+a554 6
+	    if ( ! ret )
+	    {   
+		if ( msg_pri == 0 )
+		{
+		    send_buff[i]->use_count = 0;
+		    return -1;
+a555 3
+
+		wait_a_millisecond();
+	    } 
+a556 1
+    }
+d562 2
+a563 2
+/*									      */
+/*		S E N D   M E S S A G E   A N D   W A I T		      */
+d567 1
+a567 1
+    MSG_STRUCT  *msg_structure_ptr;
+d570 3
+a572 3
+    char * msgbuf;
+    int ret, i, node, first, last;
+    int start;
+d575 5
+a579 5
+    for ( msgbuf = 0; msgbuf == 0; )
+    {
+	for ( i = 0; i < number_of_buffers; i++ )
+	    if ( send_buff[i]->use_count == 0 )
+		break;
+d581 4
+a584 6
+	if ( i < number_of_buffers )
+	    msgbuf = send_buff[i]->data;
+    }
+    if ( msgbuf == NULL)
+    {
+	if (++buf_exhaust_count > EXHAUST_THRESHOLD )
+d586 4
+a589 2
+	    _pprintf ( "%d loops in send_msg_w without change\n",
+		buf_exhaust_count );
+d591 4
+a594 1
+	   buf_exhaust_count =0;
+d596 4
+d601 2
+a602 9
+	return (-1);
+    }
+    else
+    {
+	buf_exhaust_count =0;
+    }		
+
+    if ( msg_structure_ptr->mlen > 0 )
+    {
+d604 1
+a604 1
+	bcopy ( msg_structure_ptr->buf, msgbuf, msg_structure_ptr->mlen );
+d606 1
+a606 1
+	block_copy ( msg_structure_ptr->buf, msgbuf, msg_structure_ptr->mlen );
+d608 1
+a608 1
+    }
+d611 5
+a615 5
+    send_buff[i]->use_count = 1;
+    send_buff[i]->length = msg_structure_ptr->mlen;
+    send_buff[i]->dest = msg_structure_ptr->dest;
+    send_buff[i]->src = msg_structure_ptr->source;
+    send_buff[i]->type = msg_structure_ptr->type;
+d617 12
+a628 12
+    if ( msg_structure_ptr->dest == CP )
+    {
+	first = last = CP;
+    }
+    else
+    if ( msg_structure_ptr->dest == ALL )
+    {
+	first = 0; last = tw_num_nodes - 1;
+	send_buff[i]->use_count = last - first;
+    }
+    else
+	first = last = msg_structure_ptr->dest;
+d630 1
+a630 6
+    for ( node = first; node <= last; node++ )
+    {
+	if ( node == tw_node_num )
+	    continue;
+
+	for ( ret = FALSE; ret == FALSE; )
+d632 2
+d635 2
+a636 2
+	    ret = EnqueueQueue ( recv_queue[node],
+		i + ( tw_node_num << 16 ) );
+d638 2
+a639 2
+/* If we are not successfull in getting a DualQ, waiting for a bit.	*/
+/* Otherwise, we just increase switch traffic.				*/
+d641 6
+a646 2
+	    if ( ! ret )
+		wait_a_millisecond();
+a647 1
+    }
+d653 2
+a654 2
+/*									      */
+/*			R E C E I V E   M E S S A G E			      */
+d658 1
+a658 1
+  MSG_STRUCT	*msg_structure_ptr;
+d661 2
+a662 2
+    int ret, buffno, datum;
+    int  node;
+d664 1
+a664 1
+    MESSAGE * baddr;
+d666 16
+a681 16
+    ret = FALSE;
+    if ( CheckQueue (recv_pqueue[tw_node_num]) ) 
+     {
+        ret = DequeueQueue ( recv_pqueue[tw_node_num], &datum );
+     }
+    if ( ret == FALSE && CheckQueue (recv_queue[tw_node_num]) ) 
+     {
+	ret = DequeueQueue ( recv_queue[tw_node_num], &datum );
+     }
+    if ( ret == FALSE )
+     {
+	 return ( FALSE );
+     }
+    node = datum >> 16;
+    buffno = datum & 0xffff;
+    baddr = (MESSAGE *)(buffer_pool[node] + ( BUFF_SIZE * buffno ));
+d684 2
+a685 2
+    _pprintf ("get_msg()datum = %x no = %x node =%x bp =%lx ptr=%lx\n",
+		datum,buffno,node,buffer_pool[node], baddr );
+d691 6
+a696 6
+    if ( baddr->src != node )
+    {
+	_pprintf ( "get_msg: baddr %x node %d buffno %d source %d\n",
+	    baddr, node, buffno, baddr->src );
+	tester ();
+    }
+d698 6
+a703 6
+    if ( baddr->length < 0 || baddr->length > msgdefsize )
+    {
+	_pprintf ( "get_msg: baddr %x node %d buffno %d source %d length %d\n",
+	    baddr, node, buffno, baddr->src, baddr->length );
+	tester ();
+    }
+d708 4
+a711 4
+    msg_structure_ptr->mlen = baddr->length;
+    msg_structure_ptr->dest = baddr->dest;
+    msg_structure_ptr->source = baddr->src;
+    msg_structure_ptr->type = baddr->type;
+d715 1
+a715 1
+    if ( baddr->length > 0 )
+d717 1
+a717 1
+	bcopy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+d719 1
+a719 1
+	block_copy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+d722 1
+a722 1
+    atomadd ( &baddr->use_count, -1 );
+d724 1
+a724 1
+    return ( TRUE );
+d728 2
+a729 2
+/*									      */
+/*		R E C E I V E   M E S S A G E    W A I T		      */
+d733 1
+a733 1
+  MSG_STRUCT	*msg_structure_ptr;
+d736 2
+a737 2
+    int  buffno, datum;
+    int  node;
+d739 1
+a739 1
+    MESSAGE * baddr;
+d741 3
+a743 3
+    while (  DequeueQueue ( recv_pqueue[tw_node_num], &datum ) == FALSE 
+    &&	     DequeueQueue ( recv_queue[tw_node_num], &datum ) == FALSE )
+	; 
+d745 3
+a747 3
+    node = datum >> 16;
+    buffno = datum & 0xffff;
+    baddr = (MESSAGE *)(buffer_pool[node] + ( BUFF_SIZE * buffno ));
+d749 4
+a752 4
+    msg_structure_ptr->mlen = baddr->length;
+    msg_structure_ptr->dest = baddr->dest;
+    msg_structure_ptr->source = baddr->src;
+    msg_structure_ptr->type = baddr->type;
+d754 2
+a755 2
+    if ( baddr->length > 0 )
+     {
+d757 1
+a757 1
+	bcopy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+d759 1
+a759 1
+	block_copy ( baddr->data, msg_structure_ptr->buf, baddr->length );
+d761 2
+a762 2
+     }
+    atomadd ( &baddr->use_count, -1 );
+d764 1
+a764 1
+    return ( TRUE );
+d768 2
+a769 2
+/*									      */
+/*			S E N D   C O M M A N D				      */
+d773 2
+a774 2
+    char * msg;
+    int dest;
+d776 3
+a778 3
+    int i, node, first, last;
+    int length, type = 0;
+    char * msgbuf;
+d780 5
+a784 5
+    for ( msgbuf = 0; msgbuf == 0; )
+    {
+	for ( i = 0; i < number_of_buffers; i++ )
+	    if ( send_buff[i]->use_count == 0 )
+		break;
+d786 4
+a789 3
+	if ( i < number_of_buffers )
+	{
+	    msgbuf = send_buff[i]->data;
+a790 1
+    }
+d792 1
+a792 1
+    length = strlen ( msg ) + 1;
+d795 1
+a795 1
+    bcopy ( msg, msgbuf, length );
+d797 1
+a797 1
+    block_copy ( msg, msgbuf, length );
+d800 6
+a805 6
+    if ( dest == ALL )
+    {
+	first = 0; last = tw_num_nodes - 1;
+    }
+    else
+	first = last = dest;
+d807 3
+a809 3
+    send_buff[i]->use_count = last - first + 1;
+    send_buff[i]->length = length;
+    send_buff[i]->type = type;
+d811 4
+a814 4
+    for ( node = first; node <= last; node++ )
+    {
+	post_event_w ( event_queue[node], COMMAND_EVENT + ( i << 16 ) );
+    }
+d820 1
+a820 1
+    int datum;
+d822 1
+a822 1
+    int first, last, node;
+d824 1
+a824 1
+    first = 0; last = tw_num_nodes - 1;
+d827 5
+a831 5
+    /* note that this version will post to ALL children, regardless of who
+     * sent it -- if coming from CP, this is probably the right thing.  if
+     * one child wants to interrupt all others, it should probably NOT
+     * enqueue an event on its own node.  how about the following ?
+     */
+d833 7
+a839 7
+    for (node = first; node <= last; node++)
+    {
+        if (node != tw_node_num)
+         {
+            post_event_w (event_queue[node], datum);
+ 	 }
+    }
+d845 2
+a846 2
+/*									      */
+/*		P O S T   E V E N T   A N D   W A I T			      */
+d850 2
+a851 2
+    FIFO_QUEUE *equeue;
+    int datum;
+d856 8
+a863 8
+    while (!status)
+    {
+        status = EnqueueQueue (equeue, datum);
+    }
+    if ( tw_node_num == CP )
+    {
+	    check_for_events ();
+    }
+d867 2
+a868 2
+/*									      */
+/*			R E C E I V E   C O M M A N D			      */
+d872 1
+a872 1
+    char * msg;
+d874 2
+a875 2
+    int ret, length, type, buffno;
+    MESSAGE * baddr;
+d877 3
+a879 3
+    for ( ;; )
+    {
+	ret = check_for_events ();
+d881 3
+a883 3
+	if ( ( ret  & 0xffff ) == COMMAND_EVENT )
+	    break;
+    }
+d885 1
+a885 1
+    buffno = ret >> 16;
+d887 1
+a887 1
+    baddr = buffer_pool[CP] + ( BUFF_SIZE * buffno );
+d889 2
+a890 2
+    length = baddr->length;
+    type = baddr->type;
+d893 1
+a893 1
+    bcopy ( baddr->data, msg, length );
+d895 1
+a895 1
+    block_copy ( baddr->data, msg, length );
+d898 1
+a898 1
+    atomadd ( &baddr->use_count, -1 );
+d902 2
+a903 2
+/*									      */
+/*			G E T   P R O M P T				      */
+d907 2
+a908 2
+    char * prompt;
+    int dest;
+d910 2
+a911 2
+    int i, node, first, last;
+    char * msgbuf;
+d913 5
+a917 5
+    for ( msgbuf = 0; msgbuf == 0; )
+    {
+	for ( i = 0; i < number_of_buffers; i++ )
+	    if ( send_buff[i]->use_count == 0 )
+		break;
+d919 7
+a925 1
+	if ( i < number_of_buffers )
+d927 1
+a927 1
+	    msgbuf = send_buff[i]->data;
+d929 2
+a930 1
+    }
+d932 1
+a932 6
+    if ( dest == ALL )
+    {
+	first = 0; last = tw_num_nodes - 1;
+    }
+    else
+	first = last = dest;
+d934 4
+a937 1
+    send_buff[i]->use_count = last - first + 1;
+d939 4
+a942 4
+    for ( node = first; node <= last; node++ )
+    {
+	post_event_w ( event_queue[node], PROMPT_EVENT + ( i << 16 ) );
+    }
+d944 1
+a944 6
+    while ( send_buff[i]->use_count > 0 )
+    {
+	wait_a_millisecond();
+    }
+
+    strcpy ( prompt, send_buff[i]->data );
+d948 2
+a949 2
+/*									      */
+/*			P R O M P T   F O R   C O M M A N D		      */
+d953 1
+a953 1
+    char * prompt;
+d955 2
+a956 2
+    int ret, buffno;
+    MESSAGE * baddr;
+d958 3
+a960 3
+    for ( ;; )
+    {
+	ret = check_for_events ();
+d962 3
+a964 3
+	if ( ( ret  & 0xffff ) == PROMPT_EVENT )
+	    break;
+    }
+d966 1
+a966 1
+    buffno = ret >> 16;
+d968 1
+a968 1
+    baddr = buffer_pool[CP] + ( BUFF_SIZE * buffno );
+d971 1
+a971 1
+    bcopy ( prompt, baddr->data, strlen(prompt)+1 );
+d973 1
+a973 1
+    block_copy ( prompt, baddr->data, strlen(prompt)+1 );
+d976 1
+a976 1
+    atomadd ( &baddr->use_count, -1 );
+d983 4
+a986 4
+    if (rtc_time < getrtc())
+     {
+        _pprintf ("Set_Timer: Attempt to set timer in the past\n");
+        _pprintf ("Resetting ALL alarms!!\n");
+d988 6
+a993 6
+        alarm_time = 0;
+	malarm_time =0;
+	dlm_alarm_time =0;
+     }
+    else
+     {
+d995 8
+a1002 8
+	switch (EVT_TYPE)
+	{
+	case MTIMER_EVENT:
+	   malarm_time = rtc_time;
+ 	   break;
+	case TIMER_EVENT:
+	   alarm_time = rtc_time;
+	   break;
+d1005 3
+a1007 3
+	case DLM_EVENT:
+	   dlm_alarm_time = rtc_time;
+	   break;
+d1010 2
+a1011 2
+        }
+     }
+d1026 1
+a1026 1
+    int msecs;
+d1029 1
+a1029 1
+    Set_Timer ( getrtc() + ONE_MSEC * msecs, MTIMER_EVENT );
+d1034 1
+a1034 1
+    int (*routine) ();
+d1036 1
+a1036 1
+    malarm_routine = routine;
+d1040 2
+a1041 2
+/*									      */
+/*			S I G N A L   S I G A L A R M			      */
+d1050 1
+a1050 1
+    int seconds;
+d1053 1
+a1053 1
+    Set_Timer ( getrtc() + ONE_SECOND * seconds, TIMER_EVENT );
+d1058 1
+a1058 1
+    int (*routine) ();
+d1060 1
+a1060 1
+    alarm_routine = routine;
+d1070 1
+a1070 1
+    int seconds;
+d1073 1
+a1073 1
+    Set_Timer ( getrtc() + ONE_SECOND * seconds, DLM_EVENT );
+d1078 1
+a1078 1
+    int (*routine) ();
+d1080 1
+a1080 1
+    dlmAlarm_routine = routine;
+d1086 2
+a1087 2
+/*									      */
+/*			S I G N A L   S I G I N T			      */
+d1093 1
+a1093 1
+    int (*routine) ();
+d1095 1
+a1095 1
+    interrupt_routine = routine;
+d1105 2
+a1106 2
+    if ((malarm_time != 0) && (getrtc() > malarm_time))
+    {
+d1108 3
+a1110 3
+        post_event_w(event_queue[tw_node_num], MTIMER_EVENT);
+        malarm_time = 0;
+    }
+d1114 2
+a1115 2
+    if ((dlm_alarm_time != 0) && (getrtc() > dlm_alarm_time))
+    {
+d1117 3
+a1119 3
+        post_event_w(event_queue[tw_node_num], DLM_EVENT);
+        dlm_alarm_time = 0;
+    }
+d1122 2
+a1123 2
+    if ((alarm_time != 0) && (getrtc() > alarm_time))
+    {
+d1125 3
+a1127 3
+        post_event_w(event_queue[tw_node_num], TIMER_EVENT);
+        alarm_time = 0;
+    }
+d1134 2
+a1135 2
+/*									      */
+/*			C H E C K   F O R   E V E N T S			      */
+d1139 2
+a1140 2
+    int status;
+    int edata;
+d1142 1
+a1142 1
+    status = 0;
+d1144 2
+a1145 2
+    if ( CheckQueue ( event_queue [tw_node_num] ) )
+        status = DequeueQueue(event_queue[tw_node_num], &edata);
+d1147 1
+a1147 4
+    if ( status )
+    {
+
+	switch ( edata & 0xffff )
+a1148 1
+	    case MTIMER_EVENT:
+d1150 1
+a1150 1
+		if ( malarm_routine )
+d1152 1
+a1152 3
+		    (*malarm_routine) ();
+		}
+		break;
+d1154 5
+a1158 1
+	    case TIMER_EVENT:
+d1160 7
+a1166 5
+		if ( alarm_routine )
+		{
+		    (*alarm_routine) ();
+		}
+		break;
+d1168 1
+a1168 1
+	    case DLM_EVENT:
+d1170 5
+a1174 5
+		if ( dlmAlarm_routine )
+		{
+		    ( *dlmAlarm_routine ) ();
+		}
+		break;
+d1177 1
+a1177 1
+	    case INTERRUPT_EVENT:
+d1179 5
+a1183 5
+		if ( interrupt_routine )
+		{
+		    (*interrupt_routine) ();
+		}
+		break;
+d1185 1
+a1185 1
+	    case COMMAND_EVENT:
+d1187 1
+a1187 1
+		break;
+d1189 1
+a1189 1
+	    case PROMPT_EVENT:
+d1191 1
+a1191 1
+		break;
+d1193 1
+a1193 1
+	    case END_EVENT:
+d1195 4
+a1198 4
+		if ( tw_node_num != CP )
+		{
+		   exit (0);
+		}
+d1200 1
+a1200 1
+		break;
+d1202 1
+a1202 1
+	    case NODE_READY_EVENT:
+d1204 1
+a1204 1
+		break;
+d1206 1
+a1206 1
+	    case START_EVENT:
+d1208 1
+a1208 1
+		break;
+d1210 1
+a1210 1
+	    default:
+d1212 5
+a1216 2
+		printf ( "%d received unknown event %d\n", 
+		 	tw_node_num,edata );
+d1219 1
+a1219 4
+	return ( edata );
+    }
+
+    return ( 0 );
+d1223 2
+a1224 2
+/*									      */
+/*			I N T E R R U P T   N O D E S			      */
+d1228 1
+a1228 1
+    int i;
+d1232 2
+a1233 2
+    for ( i = 0; i < tw_num_nodes; i++ )
+	post_event_w ( event_queue[i], INTERRUPT_EVENT );
+d1236 1
+a1236 1
+    post_event_w ( event_queue[CP], INTERRUPT_EVENT );
+d1244 2
+a1245 2
+    FIFO_QUEUE *queue;
+    QUEUE_ITEM item;
+d1247 2
+a1248 2
+    register int in, qsize;     /* cached copy for speed */
+                                /* OK since manipulated under lock */
+d1251 1
+a1251 1
+    lock ( &(queue->lock) );
+d1254 2
+a1255 2
+    in = queue->in;
+    qsize = queue->size;
+d1257 2
+a1258 2
+    if ( queue->out == ( (in == qsize - 1)? 0 : in + 1 ) )
+    {
+d1261 1
+a1261 1
+        printf ("Enqueue failed: queue 0x%x is full\n", queue);
+d1265 1
+a1265 1
+        unlock (&(queue->lock));
+d1268 2
+a1269 2
+        return (FALSE);
+    }
+d1273 1
+a1273 1
+    queue->data[in++] = item;
+d1277 1
+a1277 1
+    queue->in = (in == qsize)? 0 : in;
+d1280 1
+a1280 1
+    unlock (&(queue->lock));
+d1283 1
+a1283 1
+    return (TRUE);
+d1289 2
+a1290 2
+    FIFO_QUEUE *queue;
+    QUEUE_ITEM *item_ptr;
+d1293 2
+a1294 2
+    register int out;           /* cached copy for speed */
+                                /* OK since manipulated under lock */
+d1304 1
+a1304 1
+    out = queue->out;
+d1306 2
+a1307 2
+    if (out == queue->in)
+    {
+d1309 1
+a1309 1
+        printf ("Dequeue failed: queue 0x%x is empty\n", queue);
+d1313 2
+a1314 2
+        return (FALSE);
+    }
+d1316 1
+a1316 1
+    *item_ptr = queue->data[out++];
+d1320 1
+a1320 1
+    queue->out = (out == queue->size)? 0 : out;
+d1326 1
+a1326 1
+    return (TRUE);
+d1331 1
+a1331 1
+    FIFO_QUEUE *queue;
+d1334 1
+a1334 1
+    int ret, out;           		
+d1336 3
+a1338 3
+    out = queue->out;
+    ret = ((out == queue->in) ? FALSE : TRUE);
+    return (ret);
+d1350 1
+a1350 1
+    /* debug int spin = 0; */
+d1352 16
+a1367 6
+    for ( ;; )
+    {
+        if ( 0 == atomior ( location, 1 ) )
+        {
+	    /* max_spins = (spin > max_spins)? spin : max_spins; */
+            return;
+a1368 10
+        {
+            register int k = 40;
+
+            while ( k-- )
+            {
+                /* spin for ~ 40 microseconds on GP1000*/
+            }
+        }
+	/* spin++; */
+    }
+d1374 1
+a1374 1
+    atomand ( location, 0 );
+d1379 1
+a1379 1
+    register int k = 1300;
+d1381 4
+a1384 4
+    while ( k-- )
+    {
+	/* spin -- 1300 = about a millisecond on GP1000*/
+    }
+d1392 3
+a1394 3
+    cluster_id_t not_used = 0;
+    int data_count;
+    struct home_node_data answer;
+d1396 1
+a1396 1
+    cluster_ctl ( not_used, GET_HOME_NODE, &answer, &data_count);
+d1398 3
+a1400 3
+    *cluster_logical = answer.home_pnn;
+    *mach_logical = answer.system_pnn;
+    *physical = answer.physical_pnn;
+@
+
+
+1.5
+log
+@change block_copy() call to bcopy() for TC2000
+@
+text
+@d3 3
+d90 1
+d456 1
+@
+
+
+1.4
+log
+@prevent IH messages from affecting GVT calculation (plr)
+@
+text
+@d3 3
+d47 1
+a47 1
+#define BUFF_SIZE 824 
+d113 1
+d240 1
+a240 1
+ 
+d469 3
+d473 1
+d594 3
+d598 1
+d625 1
+a625 1
+    
+d681 1
+d696 1
+d707 3
+d711 1
+d747 3
+d751 1
+d785 3
+d789 1
+d801 1
+a801 1
+ 
+d814 1
+a814 1
+ 
+d816 1
+a816 1
+ 
+d823 1
+a823 1
+ 
+d831 1
+a831 1
+ 
+d846 1
+a846 1
+ 
+d883 3
+d887 1
+d924 1
+a924 1
+ 
+d961 3
+d965 1
+d978 1
+a978 1
+	
+d1016 1
+a1016 1
+ 
+d1019 1
+a1019 1
+ 
+d1022 1
+a1022 1
+ 
+d1089 1
+a1089 1
+ 
+d1132 1
+a1132 1
+    
+d1185 1
+a1185 1
+	
+d1326 1
+a1326 1
+  
+@
+
+
+1.3
+log
+@Add some debugging printouts
+@
+text
+@d3 3
+d296 7
+@
+
+
+1.2
+log
+@Major Revision
+1. removed the Uniform System
+2. changed the allocation so only `number_of_buffers' are allocated
+	on each node.
+3. changed the touch routines for TC2000 alignment
+4. added special case code to snd_msg to help prevent a single node
+	failure (or delay) from locking up the system as fast.
+5. added delay functions
+6. added which_nodes()
+7. added lock and unlock
+@
+text
+@d3 12
+d341 1
+d347 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d17 2
+a18 1
+#include <us.h>
+a24 4
+#ifdef SIMULATOR
+int tw_node_num;
+int tw_num_nodes;
+#else
+a26 2
+extern int number_of_buffers;
+#endif
+a27 1
+#define CP_PHYS	0
+d29 1
+a29 3
+#define NUM_BUFFS 64 
+#define BUFF_SIZE 820 
+#define B_SIZE ( BUFF_SIZE * NUM_BUFFS )
+d33 1
+d35 1
+d39 2
+d42 5
+a46 5
+FIFO_QUEUE **event_queue;	/* Event Queue	*/
+FIFO_QUEUE **recv_queue;		/* Message Queue */
+FIFO_QUEUE **recv_pqueue;	/* Prioirity Message Queue */
+char **buffer_pool;
+MESSAGE * send_buff[NUM_BUFFS];
+d52 1
+a52 1
+#define EXHAUST_THRESHOLD	20000
+d57 4
+a60 5
+ 
+FIFO_QUEUE *MakeQueueonNode (node, qsize)
+ 
+    int node;
+    int qsize;                          /* number of items */
+d62 1
+a62 7
+ 
+    FIFO_QUEUE *newq;
+ 
+    newq = recv_queue[node] =
+      (FIFO_QUEUE *) UsAllocOnUsProc (node, sizeof(FIFO_QUEUE));
+    newq->data =
+      (QUEUE_ITEM *) UsAllocOnUsProc (node, qsize * sizeof(QUEUE_ITEM));
+a66 2
+ 
+    return (newq);
+a67 1
+ 
+a68 13
+/*****************************************************************************/
+ 
+char *MakeBufferPoolonNode (node)
+ 
+    int node;
+{
+ 
+    char *newbuf;
+ 
+    newbuf = (char *) UsAllocOnUsProc (node, NUM_BUFFS * BUFF_SIZE);
+    return (newbuf);
+}
+ 
+a69 2
+
+
+d75 1
+a75 1
+extern cluster_num_nodes;
+d80 5
+a84 1
+    int i,j;
+d89 2
+d92 32
+a123 2
+/* We need a recv_queue and buffer pool on each node.
+ * Register each in the shared data structure that will later be copied.
+d125 1
+d127 4
+a130 3
+    event_queue = (FIFO_QUEUE **) UsAllocLocal 
+				  ((cluster_num_nodes) * sizeof(FIFO_QUEUE *)
+				  );
+d132 11
+a142 15
+    recv_queue = (FIFO_QUEUE **) UsAllocLocal
+				  ((cluster_num_nodes) * sizeof(FIFO_QUEUE *)
+				  );    
+    recv_pqueue = (FIFO_QUEUE **) UsAllocLocal
+				  ((cluster_num_nodes) * sizeof(FIFO_QUEUE *)
+				  );    
+    buffer_pool = (char **) UsAllocLocal
+			          ((cluster_num_nodes) * sizeof(char *)
+				  );
+    for (i=0; i < cluster_num_nodes; i++)
+    {
+        event_queue[i] = MakeQueueonNode (i, EVENT_QSIZE);
+        recv_pqueue[i] = MakeQueueonNode (i, RECV_PQSIZE); 
+        recv_queue[i] = MakeQueueonNode (i, RECV_QSIZE);
+        buffer_pool[i] = MakeBufferPoolonNode (i);
+a143 4
+    SharePtrAndBlk(&event_queue, cluster_num_nodes * sizeof(FIFO_QUEUE *));
+    SharePtrAndBlk(&recv_queue, cluster_num_nodes * sizeof(FIFO_QUEUE *));
+    SharePtrAndBlk(&recv_pqueue, cluster_num_nodes * sizeof(FIFO_QUEUE *)); 
+    SharePtrAndBlk(&buffer_pool, cluster_num_nodes * sizeof(char *));
+d145 1
+d150 2
+a151 2
+    for ( i = 0; i < NUM_BUFFS; i++ )
+     {
+d153 2
+a154 3
+	 	(MESSAGE *) (buffer_pool[CP_PHYS] + 
+		 	    (BUFF_SIZE * i));
+     }
+a155 2
+/* go touch everyone's queues and buffer pools (including myself) */
+/* This may help prevent spurious page faults			  */
+d157 2
+a158 3
+    /* for (i=0; i <= tw_num_nodes; i++) */
+    /* touching my pages makes sense, but the others are off node! */
+    i = UsProc_Node;
+d160 8
+a167 4
+        touch (event_queue[i]);
+        touch (recv_queue[i]);
+        for (j=0; j < NUM_BUFFS; j++)
+          touch (buffer_pool[i] + (BUFF_SIZE * j));
+a169 1
+
+d189 1
+a189 1
+    start_nodes ();
+a190 6
+}
+
+start_nodes ()
+{
+    int i;
+
+d195 1
+d203 3
+a205 1
+    int i,j;
+a208 1
+    tw_node_num = (UsProc_Node -1);
+d211 3
+d216 1
+a216 1
+    for (i = 0; i < NUM_BUFFS; i++)
+d219 1
+a219 1
+			(buffer_pool[UsProc_Node] + (BUFF_SIZE * i));
+d223 1
+a223 3
+    /* for (i=0; i <= tw_num_nodes; i++) */
+    /* touching my pages makes sense, but the others are off node! */
+    i = UsProc_Node;
+d225 8
+a232 5
+        touch (event_queue[i]);
+        touch (recv_queue[i]);
+        touch (recv_pqueue[i]);
+        for (j=0; j < NUM_BUFFS; j++)
+          touch (buffer_pool[i] + (BUFF_SIZE * j));
+d238 1
+a238 1
+    post_event_w (event_queue[CP_PHYS], NODE_READY_EVENT);
+d253 1
+a253 1
+	UsWait ( 100 );
+a255 2
+    butterflytime_init ( rtc_sync );  
+
+d264 1
+a264 3
+
+   post_event_w ( event_queue[CP_PHYS], END_EVENT);
+
+d275 1
+a275 1
+    for ( i = 0; i < NUM_BUFFS; i++ )
+a323 5
+
+
+
+
+
+d329 1
+a329 1
+    for ( i = 0; i < NUM_BUFFS; i++ )
+d332 1
+a332 1
+	if ( send_buff[i]->dest == CP_PHYS ) continue;
+d350 2
+a351 1
+    int my_phys_node;
+a359 1
+    my_phys_node = UsProc_Node;
+d367 1
+a367 1
+	for ( i = max_acks; i < NUM_BUFFS; i++ )
+d386 29
+d418 1
+a418 1
+     {
+d421 7
+a427 1
+	   _pprintf("Hg Buffer exhaustion!!\n");
+d432 1
+a432 1
+     }
+d434 1
+a434 1
+     {
+d436 1
+a436 1
+     } 
+d463 1
+a463 1
+	first = last = CP_PHYS;
+d468 1
+a468 1
+	first = 1; last = (tw_num_nodes );
+d473 1
+a473 1
+	first = last = (msg_structure_ptr->dest +1);
+d478 1
+a478 1
+	if ( node == UsProc_Node )
+d492 1
+a492 1
+			i + ( my_phys_node << 16 ) );
+d497 1
+a497 1
+			i + ( my_phys_node << 16 ) );
+d511 2
+a512 4
+		start = getrtc();
+		while ( getrtc() < (start+16) )
+		{
+		}
+d536 1
+a536 1
+	for ( i = 0; i < NUM_BUFFS; i++ )
+d540 1
+a540 1
+	if ( i < NUM_BUFFS )
+d547 3
+a549 1
+	   _pprintf("Hg Buffer exhaustion!!\n");
+d574 1
+a574 1
+	first = last = CP_PHYS;
+d579 1
+a579 1
+	first = 1; last = tw_num_nodes ;
+d583 1
+a583 1
+	first = last = msg_structure_ptr->dest+1;
+d587 1
+a587 1
+	if ( node == UsProc_Node )
+d594 1
+a594 1
+		i + ( UsProc_Node << 16 ) );
+d600 1
+a600 6
+	    {   
+		start = getrtc();
+		while ( getrtc() < (start+16) )
+		{
+		}
+	    } 
+d622 1
+a622 1
+    if ( CheckQueue (recv_pqueue[UsProc_Node]) ) 
+d624 1
+a624 1
+        ret = DequeueQueue ( recv_pqueue[UsProc_Node], &datum );
+d626 1
+a626 1
+    if ( ret == FALSE && CheckQueue (recv_queue[UsProc_Node]) ) 
+d628 1
+a628 1
+	ret = DequeueQueue ( recv_queue[UsProc_Node], &datum );
+d690 2
+a691 2
+    while (  DequeueQueue ( recv_pqueue[UsProc_Node], &datum ) == FALSE 
+    &&	     DequeueQueue ( recv_queue[UsProc_Node], &datum ) == FALSE )
+d727 1
+a727 1
+	for ( i = 0; i < NUM_BUFFS; i++ )
+d731 1
+a731 1
+	if ( i < NUM_BUFFS )
+d743 1
+a743 1
+	first = 1; last = tw_num_nodes ;
+d746 1
+a746 1
+	first = last = dest+1;
+d765 1
+a765 1
+    first = 1; last = tw_num_nodes;
+d776 1
+a776 1
+        if (node != UsProc_Node)
+a784 2
+
+
+d797 2
+a798 1
+    while (!status) {
+d828 1
+a828 1
+    baddr = buffer_pool[CP_PHYS] + ( BUFF_SIZE * buffno );
+d852 1
+a852 1
+	for ( i = 0; i < NUM_BUFFS; i++ )
+d856 1
+a856 1
+	if ( i < NUM_BUFFS )
+d864 1
+a864 1
+	first = 1; last = tw_num_nodes ;
+d867 1
+a867 1
+	first = last = dest+1;
+d877 3
+a879 1
+	UsWait( );
+d905 1
+a905 1
+    baddr = buffer_pool[CP_PHYS] + ( BUFF_SIZE * buffno );
+a947 1
+
+a1008 2
+
+
+d1041 1
+a1041 1
+        post_event_w(event_queue[UsProc_Node], MTIMER_EVENT);
+d1050 1
+a1050 1
+        post_event_w(event_queue[UsProc_Node], DLM_EVENT);
+d1058 1
+a1058 1
+        post_event_w(event_queue[UsProc_Node], TIMER_EVENT);
+d1077 2
+a1078 2
+    if ( CheckQueue ( event_queue [UsProc_Node] ) )
+        status = DequeueQueue(event_queue[UsProc_Node], &edata);
+d1146 1
+a1146 1
+		 	UsProc_Node,edata );
+d1165 1
+a1165 1
+    for ( i = 1; i <= tw_num_nodes; i++ )
+d1169 1
+a1169 1
+    post_event_w ( event_queue[CP_PHYS], INTERRUPT_EVENT );
+d1175 1
+a1175 1
+QUEUE_ITEM EnqueueQueue (queue, item)
+d1184 1
+a1184 2
+    /* Spin on queue lock with 50 us sleep */
+    UsLock (&(queue->lock), 5);
+d1190 3
+a1192 1
+    if (((in + 1) % qsize) == queue->out) {
+d1198 1
+a1198 1
+        UsUnlock (&(queue->lock));
+d1203 3
+a1205 1
+
+d1208 1
+a1208 1
+/* Write back the new in posn */
+d1210 1
+a1210 1
+    queue->in = (((in % qsize) == 0) ? 0 : in);
+d1213 1
+a1213 1
+    UsUnlock (&(queue->lock));
+d1229 7
+a1236 4
+    /* Spin on queue lock with 50 us sleep */
+    UsLock (&(queue->lock), 5);
+
+
+d1239 2
+a1240 1
+    if (out == queue->in) {
+a1244 1
+        UsUnlock (&(queue->lock));
+a1245 1
+
+d1251 1
+a1251 1
+/* Write back the new in posn */
+d1253 1
+a1253 1
+    queue->out = (((out % queue->size) == 0) ? 0 : out);
+d1255 3
+a1257 1
+   UsUnlock (&(queue->lock));
+a1258 1
+
+a1268 2
+
+
+d1275 1
+d1277 58
+@

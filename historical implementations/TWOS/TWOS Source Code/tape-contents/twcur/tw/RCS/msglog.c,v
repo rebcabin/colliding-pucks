@@ -1,0 +1,438 @@
+head     1.5;
+branch   ;
+access   ;
+symbols  TW2_7:1.5 TW2_6:1.5 TW2_5_1:1.5 TW2_5:1.3 TW2_4_2:1.2 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.5
+date     91.07.17.15.10.55;  author judy;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     91.07.09.14.35.54;  author steve;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.06.03.12.25.41;  author configtw;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     90.12.10.10.51.40;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.28;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@message logging
+@
+
+
+1.5
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	msglog.c,v $
+ * Revision 1.4  91/07/09  14:35:54  steve
+ * Add MicroTime and Sun support
+ * 
+ * Revision 1.3  91/06/03  12:25:41  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.2  90/12/10  10:51:40  configtw
+ * use .simtime field as necessary
+ * 
+ * Revision 1.1  90/08/07  15:40:28  configtw
+ * Initial revision
+ * 
+*/
+char msglog_id [] = "@@(#)msglog.c       1.21\t9/26/89\t15:35:30\tTIMEWARP";
+
+
+#include <stdio.h>  
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+#include "logdefs.h"
+
+
+
+MSG_LOG_ENTRY *mlog, *mlogp, *mloge;
+int num_msg_entries;
+
+msglog ( msg_log_size )
+
+	int *msg_log_size;
+{
+	mlog = mlogp = (MSG_LOG_ENTRY * ) m_allocate
+						( *msg_log_size * sizeof (MSG_LOG_ENTRY) );
+	if ( mlog == NULL )
+	{
+		_pprintf ( "can't allocate msg log space %d\n",
+				*msg_log_size * sizeof (MSG_LOG_ENTRY) );
+		tester ();
+	}
+	mloge = mlog + *msg_log_size;
+}
+
+msglog_entry ( msg )
+
+	Msgh * msg;
+{
+	if ( leSTime( msg->sndtim.simtime, neginfPlus1.simtime ) || 
+				geSTime( msg->rcvtim.simtime, posinf.simtime ) )
+		return;
+
+	num_msg_entries++;
+
+	if ( mlogp == NULL )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "no msg log space\n" );
+		}
+		return;
+	}
+
+	if ( mlogp >= mloge )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "msg log full\n" );
+		}
+		return;
+	}
+
+#ifdef MICROTIME
+	MicroTime ();
+#else
+#ifdef MARK3
+	mark3time ();
+#endif
+#ifdef BBN
+	butterflytime();
+#endif
+#endif
+	mlogp->twtimet = node_cputime;      /* nq_input_message */
+	mlogp->twtimef = msg->cputime;      /* smsg_stat */
+	mlogp->hgtimet = msg->msgtimet;     /* read_the_mail */
+	mlogp->hgtimef = msg->msgtimef;     /* send_from_q */
+	strcpy ( mlogp->snder, msg->snder );
+	strcpy ( mlogp->rcver, msg->rcver );
+	mlogp->sndtim = msg->sndtim.simtime;
+	mlogp->rcvtim = msg->rcvtim.simtime;
+	mlogp->id_num = msg->gid.num;
+	mlogp->mtype = msg->mtype;
+	mlogp->flags = msg->flags;
+	mlogp->len = sizeof(Msgh)+msg->txtlen;
+	mlogp++;
+}
+
+dump_mlog ()
+{
+#ifdef BBN_SMALL
+	char filename[10];
+	FILE * fp;
+
+	_pprintf ( "num_msg_entries = %d\n", num_msg_entries );
+
+	sprintf ( filename, "mlog%d", tw_node_num );
+
+	fp = (FILE *) HOST_fopen ( filename, "w" );
+
+	HOST_fwrite ( mlog, (char *)mlogp - (char *)mlog, 1, fp );
+
+	HOST_fclose ( fp );
+
+	_pprintf ( "msglog done\n" );
+
+#else
+
+	int i;
+
+	_pprintf ( "num_msg_entries = %d\n", num_msg_entries );
+
+	mlogp->twtimet = MAXINT;
+	mlogp++;
+
+	while ( mlog < mlogp )
+	{
+		i = mlogp - mlog;
+
+		if ( i > 8 )
+			i = 8;
+
+		send_message ( mlog, sizeof(MSG_LOG_ENTRY) * i, CP, MSG_DATA );
+
+		mlog += i;
+
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+
+	if ( tw_node_num == 0 )
+	{
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+#endif
+}
+@
+
+
+1.4
+log
+@Add MicroTime and Sun support
+@
+text
+@d1 4
+d7 3
+a21 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.3
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        msglog.c,v $
+d78 3
+d87 1
+a129 1
+#ifdef MARK3_OR_BBN
+d137 1
+a137 1
+		send_message ( mlog, sizeof(MSG_LOG_ENTRY) * i, CP, 8 );
+d141 3
+d157 3
+a168 1
+#endif
+@
+
+
+1.2
+log
+@use .simtime field as necessary
+@
+text
+@d2 4
+a5 1
+ * $Log:	msglog.c,v $
+d10 1
+a10 1
+char msglog_id [] = "@@(#)msglog.c	1.21\t9/26/89\t15:35:30\tTIMEWARP";
+d12 3
+a14 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d30 1
+a30 1
+    int *msg_log_size;
+d32 9
+a40 9
+    mlog = mlogp = (MSG_LOG_ENTRY * ) m_allocate
+			( *msg_log_size * sizeof (MSG_LOG_ENTRY) );
+    if ( mlog == NULL )
+    {
+	_pprintf ( "can't allocate msg log space %d\n",
+		*msg_log_size * sizeof (MSG_LOG_ENTRY) );
+	tester ();
+    }
+    mloge = mlog + *msg_log_size;
+d45 1
+a45 1
+    Msgh * msg;
+d47 3
+a49 3
+    if ( leSTime( msg->sndtim.simtime, neginfPlus1.simtime ) || 
+		geSTime( msg->rcvtim.simtime, posinf.simtime ) )
+	return;
+d51 1
+a51 1
+    num_msg_entries++;
+d53 1
+a53 4
+    if ( mlogp == NULL )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d55 7
+a61 2
+	    print_once = 1;
+	    _pprintf ( "no msg log space\n" );
+a62 2
+	return;
+    }
+d64 1
+a64 4
+    if ( mlogp >= mloge )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d66 7
+a72 2
+	    print_once = 1;
+	    _pprintf ( "msg log full\n" );
+a73 2
+	return;
+    }
+d76 1
+a76 1
+    mark3time ();
+d79 1
+a79 1
+    butterflytime();
+d81 13
+a93 13
+    mlogp->twtimet = node_cputime;	/* nq_input_message */
+    mlogp->twtimef = msg->cputime;	/* smsg_stat */
+    mlogp->hgtimet = msg->msgtimet;	/* read_the_mail */
+    mlogp->hgtimef = msg->msgtimef;	/* send_from_q */
+    strcpy ( mlogp->snder, msg->snder );
+    strcpy ( mlogp->rcver, msg->rcver );
+    mlogp->sndtim = msg->sndtim.simtime;
+    mlogp->rcvtim = msg->rcvtim.simtime;
+    mlogp->id_num = msg->gid.num;
+    mlogp->mtype = msg->mtype;
+    mlogp->flags = msg->flags;
+    mlogp->len = sizeof(Msgh)+msg->txtlen;
+    mlogp++;
+d99 2
+a100 2
+    char filename[10];
+    FILE * fp;
+d102 1
+a102 1
+    _pprintf ( "num_msg_entries = %d\n", num_msg_entries );
+d104 1
+a104 1
+    sprintf ( filename, "mlog%d", tw_node_num );
+d106 1
+a106 1
+    fp = (FILE *) HOST_fopen ( filename, "w" );
+d108 1
+a108 1
+    HOST_fwrite ( mlog, (char *)mlogp - (char *)mlog, 1, fp );
+d110 1
+a110 1
+    HOST_fclose ( fp );
+d112 1
+a112 1
+    _pprintf ( "msglog done\n" );
+d116 1
+a116 1
+    int i;
+d118 1
+a118 1
+    _pprintf ( "num_msg_entries = %d\n", num_msg_entries );
+d120 2
+a121 2
+    mlogp->twtimet = MAXINT;
+    mlogp++;
+d124 3
+a126 3
+    while ( mlog < mlogp )
+    {
+	i = mlogp - mlog;
+d128 2
+a129 2
+	if ( i > 8 )
+	    i = 8;
+d131 1
+a131 1
+	send_message ( mlog, sizeof(MSG_LOG_ENTRY) * i, CP, 8 );
+d133 1
+a133 1
+	mlog += i;
+d136 1
+a136 1
+	recv.buf = rm_buf;
+d138 2
+a139 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d142 1
+a142 1
+	give_buf ( &recv );
+d144 1
+a144 1
+    }
+d146 2
+a147 2
+    if ( tw_node_num == 0 )
+    {
+d149 1
+a149 1
+	recv.buf = rm_buf;
+d151 2
+a152 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d154 1
+a154 1
+	give_buf ( &recv );
+d156 1
+a156 1
+    }
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d44 2
+a45 2
+    if ( leSTime( msg->sndtim.simtime, neginfPlus1 ) || 
+		geSTime( msg->rcvtim.simtime, posinf ) )
+@

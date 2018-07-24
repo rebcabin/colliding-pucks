@@ -1,0 +1,15 @@
+#! /bin/sh
+#
+
+if [ ! -f "NODES" ]; then
+	echo I do not see any NODES file here.
+	exit 1;
+fi
+
+echo reading NODES
+exec < NODES
+while  read number node 
+do
+	xhost $node;
+done
+echo Done!

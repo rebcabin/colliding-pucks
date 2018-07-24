@@ -1,0 +1,469 @@
+head     1.5;
+branch   ;
+access   ;
+symbols  TW2_7:1.5 TW2_6:1.5 TW2_5_1:1.4 TW2_5:1.3 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.5
+date     91.11.01.12.36.56;  author pls;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     91.07.17.15.12.27;  author judy;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.06.03.12.26.43;  author configtw;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.03.26.09.41.47;  author pls;  state Dev;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.41.01;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@user service routines
+@
+
+
+1.5
+log
+@1.  Change ifdef's and version id.
+2.  Add type_Area() function.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	services.c,v $
+ * Revision 1.4  91/07/17  15:12:27  judy
+ * New copyright notice.
+ * 
+ * Revision 1.3  91/06/03  12:26:43  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.2  91/03/26  09:41:47  pls
+ * 1.  Add type_myArea() and type_malloc() routines for type init.
+ * 2.  Add obj_getLibPointer(), obj_setLibPointer() and
+ *     obj_getLibTable() routines for library support.
+ * 3.  Add Steve's RBC code.
+ * 
+ * Revision 1.1  90/08/07  15:41:01  configtw
+ * Initial revision
+ * 
+*/
+char services_id [] = "@@(#)services.c   $Revision$\t$Date$\tTIMEWARP";
+
+
+/*
+Purpose:
+
+		services.c contains a number of entry points into the operating
+		system.  Unlike the entry points in serve.c, these entry points
+		do not cause a trap into the operating system.  The implication
+		of this is that calls to routines in this module will not
+		cause an object to stop executing in favor of a different
+		object.  All of these calls are fairly simple, and generally
+		only return information, rather than do work that changes
+		any aspect of the system.
+
+Functions:
+
+Implementation:
+
+*/
+
+#include "twcommon.h"
+#include "twsys.h"
+
+int     initing_type = FALSE;
+
+VTime obj_now ()
+{
+	return ( xqting_ocb->svt );
+}
+
+VTime IncSimTime ( incr )
+
+	double incr;
+{
+	VTime next;
+
+	next = xqting_ocb->svt;
+
+	next.simtime += incr;
+
+	return ( next );
+}
+
+VTime IncSequence1 ( incr )
+
+	Ulong incr;
+{
+	VTime next;
+
+	next = xqting_ocb->svt;
+
+	next.sequence1 += incr;
+
+	return ( next );
+}
+
+VTime IncSequence2 ( incr )
+
+	Ulong incr;
+{
+	VTime next;
+
+	next = xqting_ocb->svt;
+
+	next.sequence2 += incr;
+
+	return ( next );
+}
+
+void * type_malloc(size)
+
+	int size;
+	
+{   /* m_allocate memory for the type */
+	if (initing_type)
+		return ((void *)(m_allocate(size)));
+	else
+		twerror("Illegal call to typeMalloc");
+		return(NULL);
+}
+
+void * type_Area(type)
+
+	Type	type;
+{
+	Typtbl	*typepointer;
+
+	typepointer = find_object_type(type);
+	if (typepointer == NULL)
+		{	/* bad type */
+		twerror("typeArea: type not found: %s",type);
+		tester();
+		}
+	return(typepointer->typeArea);
+}
+
+void * type_myArea()
+{
+	return (xqting_ocb->typepointer->typeArea);
+}
+
+Pointer obj_getLibPointer()
+{
+	return (xqting_ocb->libPointer);
+}
+
+void *  obj_getLibTable()
+{
+	return (xqting_ocb->typepointer->libTable);
+}
+
+void    obj_setLibPointer(ptr)
+	Pointer     ptr;
+{
+	xqting_ocb->libPointer = ptr;
+}
+
+void * obj_myState ()
+{
+#if RBC
+	if ( xqting_ocb->uses_rbc )
+	{
+		return ( (void *)(xqting_ocb->footer) );
+	}
+	else
+#endif
+	return ( (void *)(xqting_ocb->sb + 1) );
+}
+
+char * obj_myName ( name )
+
+	char * name;
+{
+	strcpy ( name, xqting_ocb->name );
+
+	return ( name );
+}
+
+int obj_numMsgs ()
+{
+	return ( xqting_ocb->ecount );
+}
+
+void * msgText ( n )
+
+	int n;
+{
+	return ( (void *) (*(xqting_ocb->msgv + n) + 1) );
+}
+
+Long msgSelector ( n )
+
+	int n;
+{
+	return ( (*(xqting_ocb->msgv + n))->selector );
+}
+
+int msgLength ( n )
+
+	int n;
+{
+	return ( (*(xqting_ocb->msgv + n))->txtlen );
+}
+
+char * msgSender ( n )
+
+	int n;
+{
+	return ( (*(xqting_ocb->msgv + n))->snder );
+}
+
+VTime msgSendTime ( n )
+
+	int n;
+{
+	return ( (*(xqting_ocb->msgv + n))->sndtim );
+}
+
+int tw_packetLen ()
+{
+	return ( pktlen );
+}
+@
+
+
+1.4
+log
+@New copyright notice.
+@
+text
+@d7 3
+d23 1
+a23 1
+char services_id [] = "@@(#)services.c   1.19\t6/23/89\t13:59:19\tTIMEWARP";
+d105 15
+d143 1
+a143 1
+#ifdef RBC
+@
+
+
+1.3
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        services.c,v $
+a21 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.2
+log
+@1.  Add type_myArea() and type_malloc() routines for type init.
+2.  Add obj_getLibPointer(), obj_setLibPointer() and
+    obj_getLibTable() routines for library support.
+3.  Add Steve's RBC code.
+@
+text
+@d2 7
+a8 1
+ * $Log:	services.c,v $
+d13 1
+a13 1
+char services_id [] = "@@(#)services.c	1.19\t6/23/89\t13:59:19\tTIMEWARP";
+d15 3
+a17 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d22 8
+a29 8
+	services.c contains a number of entry points into the operating
+	system.  Unlike the entry points in serve.c, these entry points
+	do not cause a trap into the operating system.  The implication
+	of this is that calls to routines in this module will not
+	cause an object to stop executing in favor of a different
+	object.  All of these calls are fairly simple, and generally
+	only return information, rather than do work that changes
+	any aspect of the system.
+d40 1
+a40 1
+int	initing_type = FALSE;
+d44 1
+a44 1
+    return ( xqting_ocb->svt );
+d49 1
+a49 1
+    double incr;
+d51 1
+a51 1
+    VTime next;
+d53 1
+a53 1
+    next = xqting_ocb->svt;
+d55 1
+a55 1
+    next.simtime += incr;
+d57 1
+a57 1
+    return ( next );
+d62 1
+a62 1
+    Ulong incr;
+d64 1
+a64 1
+    VTime next;
+d66 1
+a66 1
+    next = xqting_ocb->svt;
+d68 1
+a68 1
+    next.sequence1 += incr;
+d70 1
+a70 1
+    return ( next );
+d75 1
+a75 1
+    Ulong incr;
+d77 1
+a77 1
+    VTime next;
+d79 1
+a79 1
+    next = xqting_ocb->svt;
+d81 1
+a81 1
+    next.sequence2 += incr;
+d83 1
+a83 1
+    return ( next );
+d88 2
+a89 2
+    int	size;
+    
+d91 5
+a95 5
+    if (initing_type)
+    	return ((void *)(m_allocate(size)));
+    else
+	twerror("Illegal call to typeMalloc");
+	return(NULL);
+d100 1
+a100 1
+    return (xqting_ocb->typepointer->typeArea);
+d103 1
+a103 1
+Pointer	obj_getLibPointer()
+d105 1
+a105 1
+    return (xqting_ocb->libPointer);
+d108 1
+a108 1
+void *	obj_getLibTable()
+d110 1
+a110 1
+    return (xqting_ocb->typepointer->libTable);
+d113 2
+a114 2
+void	obj_setLibPointer(ptr)
+    Pointer	ptr;
+d116 1
+a116 1
+    xqting_ocb->libPointer = ptr;
+d122 5
+a126 5
+    if ( xqting_ocb->uses_rbc )
+    {
+	return ( (void *)(xqting_ocb->footer) );
+    }
+    else
+d128 1
+a128 1
+    return ( (void *)(xqting_ocb->sb + 1) );
+d133 1
+a133 1
+    char * name;
+d135 1
+a135 1
+    strcpy ( name, xqting_ocb->name );
+d137 1
+a137 1
+    return ( name );
+d142 1
+a142 1
+    return ( xqting_ocb->ecount );
+d147 1
+a147 1
+    int n;
+d149 1
+a149 1
+    return ( (void *) (*(xqting_ocb->msgv + n) + 1) );
+d154 1
+a154 1
+    int n;
+d156 1
+a156 1
+    return ( (*(xqting_ocb->msgv + n))->selector );
+d161 1
+a161 1
+    int n;
+d163 1
+a163 1
+    return ( (*(xqting_ocb->msgv + n))->txtlen );
+d168 1
+a168 1
+    int n;
+d170 1
+a170 1
+    return ( (*(xqting_ocb->msgv + n))->snder );
+d175 1
+a175 1
+    int n;
+d177 1
+a177 1
+    return ( (*(xqting_ocb->msgv + n))->sndtim );
+d182 1
+a182 1
+    return ( pktlen );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d34 2
+d80 1
+d82 31
+d115 7
+@

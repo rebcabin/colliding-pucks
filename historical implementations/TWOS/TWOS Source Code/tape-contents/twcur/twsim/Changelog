@@ -1,0 +1,69 @@
+
+************** This is for version 2.5 updated from v 2.4.2 ***********
+
+
+************************************************************************
+tw2.6 version starts 6-24-91
+************************************************************************
+last mods to tw2.6:::::
+
+10-7-91 cubeio.c statsio.c  Change to abolish statsio.c and use the time warp
+	cubeio.c for creating XL_STATS.  At this date cubeio.c is modification
+	of the TW program because of ifdef SIMULATOR stuff in it.  This will stay
+	in the file in some form.  The program also now needs twsys.h which is
+	another TW file. It needs an ifndef SIMULATOR in order to prevent
+	it from including the twsys.dcl file.
+
+10-25-91  Moved cubeio.c, and friends to the regular distirbution in this directory
+	and updated version.c to give this date. Fixed Makefile in Sun3 subdir.
+
+11-7-91	twsp2.c twsp3.c tws.h	Fix memry_pointers field in obj_bod so that it
+	is a pointer to the address array for checking pointer fields rather than
+	a full size array for each entry amd possible object.  The space is allocated
+        only when an obcreate is done.
+	This saves much memory and because the BFLY touches all
+	the memory to alleviate page faults the program will load much faster on that
+	machine (about 5 seconds vs 30 or 40 seconds)
+
+11-13-91	twsp3.c  Change ther dynamic memory alloc/release stuff so that the
+	pointer (an index int) returned by newBlockPtr and friends is one
+	greater than the actual index into memry.ptrs.  This prevents the program from
+	returning a zero on the the first allocation (the index is zero) and makes
+	the simulator consistant with TW. StatePtr now returns one more than
+	MaxAddresses.
+
+11-15-91 twsp2.c  Clear out the array that is malloc-ed for the
+	address table when it is created for each object and also (later)
+fix an error in the size of space which is grabbed.
+
+11-19-91 simmem.c	On the Butterfly, mapmem 296 pages. This
+	prevents the simulator from getting more pages as it runs
+	pucks and also prevents page faults in at least one test.
+
+*********************************************************************
+version 2.7 starts on Dec 2, 1991
+*********************************************************************
+12-2-91 version.c	Changed version and date.
+12-2-91	twsp2.c		Added some printout (if debug switch is on)
+		 to functions unschedule, guess, and unguess.
+
+ 
+12-5-91 twsp2.c twsp3.c	Moved memry_ptrs array construction
+	program from twsp2.c to twsp3.c. twsp2.c initializes
+	pointer to zero.  ptrsetup() now looks for zero pointer
+	and sets up the table itself.  fills in the first one at
+	that time so no sentinel is needed.
+
+12-9-91	twsp3.c reimplemented statePtr so it simply returns 
+	Max_Addresses + 1 and then if pointerPtr reads this
+	value it gets the statepointer and returns it.
+
+1-2-92  twsp3.c add size printout to out of memory message in
+	newBlockPtr.
+
+
+1-2-92  twsp2.c return value in type_myArea is now initptr
+	instead of initType which is a pointer to a function
+	and totally wrong.
+
+

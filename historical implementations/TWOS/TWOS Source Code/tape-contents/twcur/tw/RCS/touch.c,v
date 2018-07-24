@@ -1,0 +1,77 @@
+head     1.2;
+branch   ;
+access   ;
+symbols  TW2_7:1.2 TW2_6:1.2 TW2_5_1:1.2 TW2_5:1.2 TW2_4_2:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.2
+date     90.08.16.10.57.11;  author steve;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.41.27;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@touch data to force localization
+@
+
+
+1.2
+log
+@This file is no longer needed. Its functionality is now inline code.
+@
+text
+@/*
+ * $Log:	touch.c,v $
+ * Revision 1.1  90/08/07  15:41:27  configtw
+ * Initial revision
+ * 
+*/
+/*
+ * this code broke on the TC2000 since touch was called with
+ * an (char *) in timewarp.c and simmem.c to touch the data
+ * segment. This could be corrected by changing the parameter
+ * to an (char *), but this unit is not logical part of the
+ * time warp executive so i was moved (inline) to BF_MACH
+ * code areas in timewarp.c and BF_MACH_Hg.c. Thus touch.c
+ * is no longer a part of timewarp.
+ */
+
+#if 0
+/*
+ * touch - touch the page containing the provided address
+ *
+ */
+void touch (addr)
+    int *addr;
+{
+    int tmp;
+
+    /* simply read the first byte, then write it back */
+
+    tmp = *addr;
+    *addr = tmp;
+}
+#endif
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d8 11
+a21 1
+
+d32 1
+@

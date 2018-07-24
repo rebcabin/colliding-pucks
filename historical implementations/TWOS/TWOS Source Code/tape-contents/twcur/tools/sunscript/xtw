@@ -1,0 +1,169 @@
+#! /bin/sh
+#
+usage="usage: $0 tw-prog config-file [memarg] (number of nodes is in the NODES file)"
+
+if [ $# -lt 2 ]; then
+	echo $usage
+	exit 1
+fi
+if [ $# -gt 4 ]; then
+	echo $usage
+	exit 1
+fi
+if [ ! -f "NODES" ]; then
+	echo I do not see any NODES file here.
+	exit 1;
+fi
+
+dir=`pwd`
+program=$1
+config=$2
+memarg=$3
+
+host=`hostname`
+
+echo reading NODES
+exec < NODES
+while  read number node 
+do
+	if [ $number = "0" ]; then
+		node0=$node;
+	elif [ $number = "1" ]; then
+		node1=$node;
+	elif [ $number = "2" ]; then
+		node2=$node;
+	elif [ $number = "3" ]; then
+		node3=$node;
+	elif [ $number = "4" ]; then
+		node4=$node;
+	elif [ $number = "5" ]; then
+		node5=$node;
+	elif [ $number = "6" ]; then
+		node6=$node;
+	elif [ $number = "7" ]; then
+		node7=$node;
+	elif [ $number = "8" ]; then
+		node8=$node;
+	elif [ $number = "9" ]; then
+		node9=$node;
+	elif [ $number = "10" ]; then
+		node10=$node;
+	elif [ $number = "11" ]; then
+		echo  Too Many Nodes
+		exit 1;
+	fi
+	oldnode=$node
+	oldnumber=$number
+done
+number=$oldnumber
+node=$oldnode
+#
+#
+# always start host program
+#
+if [ $host = $node ]; then
+	xterm -display :0 -geometry 80x24+10+50 -fn '*-courier-medium-r-*-10-*' -e host&
+else
+	rsh $node "(cd $dir; /bin/X11/xterm -title \"Host -- $node\" -display $host:0 -geometry 80x24+10+50 -fn '*-courier-medium-r-*-10-*' -e host )" &
+fi
+echo Started host program on $node.
+sleep 5
+#
+#
+# always start node 0
+#
+if [ $host = $node0 ]; then
+	xterm -title "Node 0 -- $node0" -display :0 -geometry 80x24+550+50 \
+-fn '*-courier-medium-r-*-10-*' -e $program 0 $config $memarg &
+else
+	rsh $node0 "(cd $dir; /bin/X11/xterm -title \"Node 0 -- $node0\" -display $host:0 -geometry 80x24+550+50 -fn '*-courier-medium-r-*-10-*' -e $program 0 $config $memarg )" &
+fi
+echo Started node zero on $node0.
+sleep 5
+#
+#
+# always start node 1
+#
+if [ "1" -lt $number ]; then
+	rsh $node1 "(cd $dir; /bin/X11/xterm -title \"Node 1 -- $node1\" -display $host:0 -geometry 80x24+10+325 -fn '*-courier-medium-r-*-10-*' -e $program 1 $memarg )" &
+	echo Started node one on $node1.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "2" -lt $number ]; then
+	rsh $node2 "(cd $dir; /bin/X11/xterm -title \"Node 2 -- $node2\" -display $host:0 -geometry 80x24+280+325 -fn '*-courier-medium-r-*-10-*' -e $program 2  $memarg )" &
+	echo Started node two on $node2.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "3" -lt $number ]; then
+	rsh $node3 "(cd $dir; /bin/X11/xterm -title \"Node 3 -- $node3\" -display $host:0 -geometry 80x24+550+325 -fn '*-courier-medium-r-*-10-*' -e $program 3  $memarg )" &
+	echo Started node three on $node3.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "4" -lt $number ]; then
+	rsh $node4 "(cd $dir; /bin/X11/xterm -title \"Node 4 -- $node4\" -display $host:0 -geometry 80x24+820+325 -fn '*-courier-medium-r-*-10-*' -e $program 4  $memarg )" &
+	echo Started node four on $node4.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "5" -lt $number ]; then
+	rsh $node5 "(cd $dir; /bin/X11/xterm -title \"Node 5 -- $node5\" -display $host:0 -geometry 80x24+10+600 -fn '*-courier-medium-r-*-10-*' -e $program 5  $memarg )" &
+	echo Started node five on $node5.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "6" -lt $number ]; then
+	rsh $node6 "(cd $dir; /bin/X11/xterm -title \"Node 6 -- $node6\" -display $host:0 -geometry 80x24+280+600 -fn '*-courier-medium-r-*-10-*' -e $program 6  $memarg )" &
+	echo Started node six on $node6.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "7" -lt $number ]; then
+	rsh $node7 "(cd $dir; /bin/X11/xterm -title \"Node 7 -- $node7\" -display $host:0 -geometry 80x24+550+600 -fn '*-courier-medium-r-*-10-*' -e $program 7  $memarg )" &
+	echo Started node seven on $node7.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "8" -lt $number ]; then
+	rsh $node8 "(cd $dir; /bin/X11/xterm -title \"Node 8 -- $node8\" -display $host:0 -geometry 80x24+820+600 -fn '*-courier-medium-r-*-10-*' -e $program 8  $memarg )" &
+	echo Started node eight on $node8.
+	sleep 5
+fi
+#
+#
+#
+#
+if [ "9" -lt $number ]; then
+	rsh $node9 "(cd $dir; /bin/X11/xterm -title \"Node 9 -- $node9\" -display $host:0 -geometry 80x24+820+50 -fn '*-courier-medium-r-*-10-*' -e $program 9  $memarg )" &
+	echo Started node nine on $node9.
+fi
+#
+#
+#
+#
+echo Roll-em.
+wait
+echo Done!

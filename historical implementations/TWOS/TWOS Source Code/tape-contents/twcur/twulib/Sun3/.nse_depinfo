@@ -1,0 +1,7 @@
+twpackages.o-CPP: -I../../tw -I../../twsim
+TWULarray.o-CPP: -I../../tw -I../../twsim
+outList.o-CPP: -I../../tw -I../../twsim
+twusrlib.o-CPP: -I../../tw -I../../twsim
+evtList.o-CPP: -I../../tw -I../../twsim
+msgList.o-CPP: -I../../tw -I../../twsim
+multiPacket.o-CPP: -I../../tw -I../../twsim

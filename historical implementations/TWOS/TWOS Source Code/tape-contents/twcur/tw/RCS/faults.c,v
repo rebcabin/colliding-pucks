@@ -1,0 +1,109 @@
+head     1.2;
+branch   ;
+access   ;
+symbols  TW2_7:1.2 TW2_6:1.2 TW2_5_1:1.2 TW2_5:1.2 TW2_4_2:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.2
+date     90.08.16.10.31.14;  author steve;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.15;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@print out page faults
+@
+
+
+1.2
+log
+@this functionality moved to gvt2.c -- this file is no longer needed!
+@
+text
+@/*
+ * $Log:	faults.c,v $
+ * Revision 1.1  90/08/07  15:38:15  configtw
+ * Initial revision
+ * 
+*/
+/*
+ * these routines are now in gvt2.c protected by #ifdef GETRUSAGE
+ */
+#if 0
+#ifdef BF_MACH
+#include <sys/time.h>
+#include <sys/resource.h>
+
+int initFaults = 0;
+int lastFaultCount = 0;
+int printCount = 0;
+
+set_faults()
+{
+    struct rusage u;
+
+    getrusage (0, &u);
+    lastFaultCount = initFaults =  u.ru_majflt;
+}
+
+num_faults()
+{
+    struct rusage u;
+
+    getrusage (0, &u);
+    return  u.ru_majflt - initFaults;
+}
+
+print_faults()
+{
+    int thisCount;
+    struct rusage u;
+
+
+    printCount++;
+    getrusage (0, &u);
+    thisCount =  u.ru_majflt;
+
+    if ( thisCount > lastFaultCount )
+	_pprintf
+	( "%4d -- %d more faults -- total: %d\n", 
+	    printCount, thisCount - lastFaultCount,
+	    thisCount - initFaults );
+
+    lastFaultCount = thisCount;
+}
+#endif
+#endif
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 4
+a14 1
+int myPid;
+a39 4
+    if ( !printCount )
+    {
+	myPid = getpid();
+    }
+d46 3
+a48 3
+	printf
+	( "%4d pid <%d> %d more faults -- total: %d\n", 
+	    printCount, myPid, thisCount - lastFaultCount,
+d53 1
+@

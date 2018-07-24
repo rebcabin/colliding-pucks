@@ -1,0 +1,2362 @@
+head     1.12;
+branch   ;
+access   ;
+symbols  TW2_7:1.12 TW2_6:1.11 TW2_5_1:1.9 TW2_5:1.7 TW2_4_2:1.2 TW2_4_1:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.12
+date     91.12.27.09.10.27;  author pls;  state Rel;
+branches ;
+next     1.11;
+
+1.11
+date     91.11.01.13.32.23;  author reiher;  state Rel;
+branches ;
+next     1.10;
+
+1.10
+date     91.11.01.09.56.00;  author pls;  state Dev;
+branches ;
+next     1.9;
+
+1.9
+date     91.07.17.15.11.26;  author judy;  state Rel;
+branches ;
+next     1.8;
+
+1.8
+date     91.07.09.14.38.03;  author steve;  state Dev;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.07.13.48.58;  author configtw;  state Rel;
+branches ;
+next     1.6;
+
+1.6
+date     91.06.03.12.25.53;  author configtw;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     91.04.01.15.45.22;  author reiher;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.03.26.09.36.15;  author pls;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.03.25.16.27.27;  author csupport;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.27.10.44.30;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.39;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@object interface routines
+@
+
+
+1.12
+log
+@Fix up TIMING code.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	objifc.c,v $
+ * Revision 1.11  91/11/01  13:32:23  reiher
+ * Added timing code (PLR)
+ * 
+ * Revision 1.10  91/11/01  09:56:00  pls
+ * 1.  Change ifdef's, version id.
+ * 2.  Add speculative computing interface (SCR 172).
+ * 3.  Change "NULL" error message.
+ * 
+ * Revision 1.9  91/07/17  15:11:26  judy
+ * New copyright notice.
+ * 
+ * Revision 1.8  91/07/09  14:38:03  steve
+ * Added MicroTime and object_timing_mode support
+ * 
+ * Revision 1.7  91/06/07  13:48:58  configtw
+ * Handle non CRT_ACK messages.
+ * 
+ * Revision 1.6  91/06/03  12:25:53  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.5  91/04/01  15:45:22  reiher
+ * Phase creation routines, plus support for Tapas Som's work.
+ * 
+ * Revision 1.4  91/03/26  09:36:15  pls
+ * Change hoglog implementation.
+ * 
+ * Revision 1.3  91/03/25  16:27:27  csupport
+ * 1.  Implement hoglog.
+ * 2.  Change tell() to schedule().
+ *
+ * Revision 1.2  90/08/27  10:44:30  configtw
+ * Split cycle time from committed time.
+ * 
+ * Revision 1.1  90/08/07  15:40:39  configtw
+ * Initial revision
+ * 
+*/
+char objifc_id [] = "@@(#)objifc.c       $Revision: 1.11 $\t$Date: 91/11/01 13:32:23 $\tTIMEWARP";
+
+
+/*
+
+Purpose:
+
+		objifc.c contains the object interface for Time Warp.  Objects
+		wishing to communicate with Time Warp typically go through this
+		code to get to the system.  Since many object actions can be faked
+		through the tester, much of this code is set up to permit manual
+		execution of the commands.
+
+Functions:
+
+		obcreate_b(rcver,rcvtim,objtype,node) - do the actual work of creating 
+						an object and informing all nodes of its creation
+				Parameters - Name * rcver, VTime rcvtim, Name * objtype, 
+						int node
+				Return - Always returns zero
+
+		obcreate(rcver,rcvtim,objtype,node) - prepare to switch context
+						for an object creation
+				Parameters - Name * rcver, VTime rcvtim, Name * objtype, 
+						int node
+				Return - Always returns zero
+				
+		newObj(rcver,rcvtim,objtype) - prepare for object creation
+				Parameters - Name *rcver, VTime rcvtim, Name *objtype
+				Return - msgRef structure for use by cancel()
+		
+		delObj(rcver,rcvtim) - prepare for object deletion
+				Parameters - Name *rcver, VTime rcvtim
+				Return - msgRef structure for use by cancel()
+
+		schedule(rcver,rcvtim,selector,txtlen,message) - prepare to switch
+					context for a schedule message call
+				Parameters - Name * rcver, VTime rcvtim,
+						Long selector, int txtlen, String * message
+				Return - msgRef structure for use by cancel()
+				
+		cancel(msgID) - cancel a previously sent message
+				Parameters - msgRef msgID
+				Return -
+				
+		guess(sndtime,rcvtime,rcvr,selector,txtlen,text) - send a
+					speculative messsage
+				Parameters - VTime sndtime, VTime rcvtime, Name *rcvr,
+					Long selector, Int txtlen, String *text
+				Return -
+				
+		unguess(sndtime,rcvtime,rcvr,selector,txtlen,text) - unsend a
+					speculative messsage
+				Parameters - VTime sndtime, VTime rcvtime, Name *rcvr,
+					Long selector, Int txtlen, String *text
+				Return -									
+
+		tw_interrupt() - switch context to give Time Warp control
+
+Implementation:
+
+		obcreate_b() provides a manual way to create an object,
+		by calling create_object() and create_inform() on the
+		parameters provided to it. obcreate() is the system version,
+		which basically just calls switch_back() with obcreate_b() as a 
+		parameter (thus causing execution to switch to that routine.)
+
+		tw_interrupt was implemented in version 2.5.  It's sole purpose
+		is to allow objects which take large time slices to make dummy
+		calls to Time Warp in order to check for such things as incoming
+		messages and higher priority objects to execute.  
+*/
+
+#include <stdio.h>  
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+
+extern int object_ended;
+
+extern Byte * object_context;
+extern Byte * object_data;
+
+#if TIMING
+#define SERVE_TIMING_MODE 9
+#endif
+
+extern int      hlog;
+extern VTime    hlogVTime;
+extern int      maxSlice;
+extern Ocb*     maxSliceObj;
+extern VTime    maxSliceTime;
+extern int      sliceTime;
+
+
+FUNCTION create_object ( object, objtype, node )
+
+	Name * object;
+	Name * objtype;
+	int node;
+{
+	char * snder;
+	VTime sndtim;
+	VTime rcvtim;
+	Int txtlen;
+	Msgh * tw_msg;
+	Crttext create_text;
+	int n;
+	Int home;
+
+  Debug
+	clear ( &create_text, sizeof ( Crttext ) );
+
+	strcpy ( create_text.tp, objtype );
+
+	n = node % tw_num_nodes;
+
+	create_text.node = n;
+
+	snder = "IH";
+	sndtim = rcvtim = neginf;
+	txtlen = sizeof ( Crttext );
+
+	create_text.phase_begin = neginf;
+	create_text.phase_end = posinfPlus1;
+
+
+	/* Find this object's home node and send a message to it notifying it of
+		the object's initial location. */
+
+	home = name_hash_function(object,HOME_NODE);
+
+	tw_msg = make_message ( HOMENOTIF, snder, sndtim, object,
+				newVTime ( 0.0, 0, 0 ), txtlen, &create_text);
+
+	tw_msg->flags |= SYSMSG;
+
+
+	sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, home );
+
+	/* If the local node is the home node, call msgproc() to handle the
+		home node notification right away. */
+
+	if (home == tw_node_num)
+	{
+		msgproc();
+	}
+
+	tw_msg = make_message ( (Byte) CREATESYS, snder, sndtim, object, 
+				rcvtim, txtlen, &create_text );
+
+	tw_msg->flags |= SYSMSG ;
+
+
+	sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, n );
+
+	if ( n == tw_node_num )
+	{
+		msgproc ();
+	}
+	else /* Node 0 cheat for performance for schedules from config file */
+	{
+		CacheReplace ( object, neginf, posinfPlus1, n, 0,
+			name_hash_function ( object, CACHE ) );
+	}
+}
+
+
+/* Create a phase.  Send a notification message to its home node, and a
+		create message to the node hosting it. */
+
+/* Things needing more work -
+		2.  Need to write code to handle create phase sys msg in mproc.c
+		3.  Need to write code to actually do phase creation
+		4.  Probably need some VTime utility routines to allow users to
+				specify positive and negative infinity
+*/
+
+FUNCTION create_phase ( object, objtype, node, begin, end )
+
+	Name * object;
+	Name * objtype;
+	int node;
+	double begin;
+	double end;
+{
+	char * snder;
+	VTime sndtim;
+	VTime rcvtim;
+	Int txtlen;
+	Msgh * tw_msg;
+	Crttext create_text;
+	int n;
+	Int home;
+
+  Debug
+	clear ( &create_text, sizeof ( Crttext ) );
+
+	strcpy ( create_text.tp, objtype );
+
+	n = node % tw_num_nodes;
+
+	create_text.node = n;
+
+	snder = "IH";
+	sndtim = rcvtim = neginf;
+	txtlen = sizeof ( Crttext );
+
+	create_text.phase_begin = newVTime ( begin, 0, 0 );
+	create_text.phase_end = newVTime ( end, 0, 0 );
+
+
+	/* Find this object's home node and send a message to it notifying it of
+		the object's initial location. */
+
+	home = name_hash_function(object,HOME_NODE);
+
+/* Make sure home notification code knows that there's a begin and end time
+		to deal with in this message. */
+
+	tw_msg = make_message ( HOMENOTIF, snder, sndtim, object,
+				newVTime ( 0.0, 0, 0 ), txtlen, &create_text);
+
+	tw_msg->flags |= SYSMSG;
+
+
+	sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, home );
+
+	/* If the local node is the home node, call msgproc() to handle the
+		home node notification right away. */
+
+	if (home == tw_node_num)
+	{
+		msgproc();
+	}
+
+/* Be sure to set things up so everyone knows about the PCREATESYS message
+		type, and handles it correctly. */
+
+
+	tw_msg = make_message ( (Byte) PCREATESYS, snder, sndtim, object, 
+				rcvtim, txtlen, &create_text );
+
+	tw_msg->flags |= SYSMSG ;
+
+
+	sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, n );
+
+	if ( n == tw_node_num )
+	{
+		msgproc ();
+	}
+	else /* Node 0 cheat for performance for tells from config file */
+	{
+		CacheReplace ( object, neginf, posinfPlus1, n, 0,
+			name_hash_function ( object, CACHE ) );
+	}
+}
+
+now_cmd ()
+
+{
+	VTime time;
+
+	if ( manual_mode )
+	{
+		time = obj_now ();
+		_pprintf ( "NOW = %f,%d,%d\n", time.simtime, time.sequence1, time.sequence2 );
+	}
+	else
+		_pprintf ( "now can only be called from manual mode\n" );
+}
+
+myName_cmd ()
+{
+	Name object_name;
+
+	if ( manual_mode )
+	{
+		obj_myName (object_name);
+		_pprintf ( "OBJECT NAME = %s\n", object_name );
+	}
+	else
+		_pprintf ( "myName can only be called from manual mode\n" );
+}
+
+FUNCTION obcreate_cmd ( rcver, objtype, node )
+
+	Name * rcver;
+	Name * objtype;
+	int * node;
+{
+
+
+	if ( strcmp ( rcver, "stdout" ) == 0 )
+	{
+		_pprintf ( "You don't need to create stdout any more\n" );
+		return;
+	}
+
+	if ( manual_mode )
+		obcreate ( rcver, objtype, *node );
+	else
+		obcreate_b ( rcver, objtype, * node );
+}
+
+FUNCTION obcreate_b ( rcver, objtype, node )
+
+	Name * rcver;
+	Name * objtype;
+	int node;
+{
+	int n;
+
+  Debug
+
+#if TIMING
+	start_timing ( TESTER_TIMING_MODE );
+#endif
+
+	create_object ( rcver, objtype, node );
+
+
+	n = node % tw_num_nodes;
+
+
+	if ( n != 0 )
+	{
+		while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+			msgproc ();
+		while ( rm_msg == NULL )
+		{
+			send_from_q();	/* in case CREATESYS still in pmq */
+			read_the_mail ( 0 );        /* wait for CRT_ACK */
+
+			while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+				msgproc ();
+		}
+		if ( rm_msg->mtype != CRT_ACK )
+		{
+			_pprintf ( "obcreate got a bad response\n" );
+			dumpmsg ( rm_msg );
+			tw_exit (0);
+		}
+		acceptmsg ( NULL );
+	}
+
+#if TIMING
+	stop_timing ();
+#endif
+}
+
+FUNCTION phcreate_cmd ( rcver, objtype, node, begin, end )
+
+	Name * rcver;
+	Name * objtype;
+	int * node;
+	STime * begin;
+	STime * end;
+{
+
+
+
+	if ( strcmp ( rcver, "stdout" ) == 0 )
+	{
+		_pprintf ( "You don't need to create stdout any more\n" );
+		return;
+	}
+
+	if ( manual_mode )
+		phcreate ( rcver, objtype, *node, *begin, *end );
+	else
+		phcreate_b ( rcver, objtype, * node, *begin, *end );
+}
+
+/* Create a phase from the config file.  The parameters are the phase's name,
+		type, node hosting it, phase begin time, and phase end time.  This
+		command will only create phases on simulation time boundaries, as
+		the begin and end do not accept full VTime structures.  Also, this
+		routine does no error checking to determine that the object has all
+		phases necessary to make up its full interval, nor that there are
+		no overlapping phases, nor that all phases are of the same type.
+		Therefore, this command is currently an "experts-only" command. */
+
+FUNCTION phcreate_b ( rcver, objtype, node, begin, end )
+
+	Name * rcver;
+	Name * objtype;
+	int node;
+	double begin;
+	double end;
+{
+	int n;
+
+  Debug
+
+#if TIMING
+	start_timing ( TESTER_TIMING_MODE );
+#endif
+
+	create_phase ( rcver, objtype, node, begin, end );
+
+
+	n = node % tw_num_nodes;
+
+
+	if ( n != 0 )
+	{
+		while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+			msgproc ();
+		while ( rm_msg == NULL )
+		{
+			read_the_mail ( 0 );        /* wait for CRT_ACK */
+
+			while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+				msgproc ();
+		}
+		if ( rm_msg->mtype != CRT_ACK )
+		{
+			_pprintf ( "phcreate got a bad response\n" );
+			dumpmsg ( rm_msg );
+			tw_exit (0);
+		}
+		acceptmsg ( NULL );
+	}
+
+#if TIMING
+	stop_timing ();
+#endif
+}
+
+FUNCTION obcreate ( rcver, objtype, node )
+
+	Name * rcver;
+	Name * objtype;
+	int node;
+{
+  Debug
+
+	if ( object_context != NULL )
+	{
+#if TIMING
+		stop_timing ();
+#endif
+		if ( prop_delay )
+			delay_object ();
+
+#if MICROTIME
+		switch ( object_timing_mode )
+		{
+		case WALLOBJTIME:
+			MicroTime ();
+			object_end_time = node_cputime;
+			break;
+		case USEROBJTIME:
+			object_end_time = UserDeltaTime(); /* end clock */
+			/* object_start_time is still zero */
+			break;
+		case NOOBJTIME:
+		default:
+			/* no measure */
+			break;
+		}
+#else
+#if MARK3
+		mark3time ();
+#endif
+#if BBN
+		butterflytime ();
+#endif
+		object_end_time = node_cputime;
+#endif
+
+		xqting_ocb->stats.cputime += object_end_time - object_start_time;
+
+
+		switch_back ( obcreate_b, object_context,
+			rcver, objtype, node );
+	}
+	else
+	{
+		obcreate_b ( rcver, objtype, node );
+	}
+
+}  /* obcreate */
+
+FUNCTION phcreate ( rcver, objtype, node, begin, end )
+
+	Name * rcver;
+	Name * objtype;
+	int node;
+	double begin;
+	double end;
+{
+  Debug
+
+	if ( object_context != NULL )
+	{  
+#if TIMING
+	  stop_timing ();
+#endif
+	  if ( prop_delay )
+		  delay_object ();
+
+#if MICROTIME
+	switch ( object_timing_mode )
+	{
+	case WALLOBJTIME:
+		MicroTime ();
+		object_end_time = node_cputime;
+		break;
+	case USEROBJTIME:
+		object_end_time = UserDeltaTime(); /* end clock */
+		/* object_start_time is still zero */
+		break;
+	case NOOBJTIME:
+	default:
+		/* no measure */
+		break;
+	}
+#else
+#if MARK3
+	  mark3time ();
+#endif
+#if BBN
+	  butterflytime ();
+#endif
+	  object_end_time = node_cputime;
+#endif
+
+	  xqting_ocb->stats.cputime += object_end_time - object_start_time;
+
+
+	  switch_back ( phcreate_b, object_context,
+		  rcver, objtype, node, begin, end );
+	}  
+	else
+	{  
+	  phcreate_b ( rcver, objtype, node, begin, end );
+	}  
+
+}
+
+
+
+FUNCTION msgRef newObj ( rcver, rcvtim, objtype )
+
+	Name *rcver;
+	VTime rcvtim;
+	Name *objtype;
+{
+	msgRef	retVal;
+	int sv_create ();
+
+  Debug
+
+	retVal.gid.node = tw_node_num;
+	retVal.gid.num = 0;		/* error value */
+	objectCode = FALSE;		/* not executing object code now */
+	if ( object_context != NULL )
+	{
+		if ( prop_delay )
+			delay_object ();
+
+#if TIMING
+		stop_timing();
+#endif
+
+#if MICROTIME
+		switch ( object_timing_mode )
+		{
+		case WALLOBJTIME:
+			MicroTime ();
+			object_end_time = node_cputime;
+			break;
+		case USEROBJTIME:
+			object_end_time = UserDeltaTime(); /* end clock */
+			/* object_start_time is still zero */
+			break;
+		case NOOBJTIME:
+		default:
+			/* no measure */
+			break;
+		}
+#else
+#if MARK3
+		mark3time ();
+#endif
+#if BBN
+		butterflytime ();
+#endif
+		object_end_time = node_cputime;
+#endif
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}
+
+		xqting_ocb->stats.cputime += object_end_time - object_start_time;
+		xqting_ocb->cycletime += object_end_time - object_start_time;
+		xqting_ocb->stats.comtime += object_end_time - object_start_time;
+		xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+		switch_back ( sv_create, object_context, rcver, rcvtim, objtype );
+	}
+	else
+		_pprintf ( "You must call newObj() from within an object.\n" );
+	return(retVal);
+}  /* newObj */
+
+FUNCTION msgRef delObj ( rcver, rcvtim )
+
+	Name *rcver;
+	VTime rcvtim;
+{
+	msgRef	retVal;
+
+	int sv_destroy ();
+
+  Debug
+
+	retVal.gid.node = tw_node_num;
+	retVal.gid.num = 0;		/* error value */
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( object_context != NULL )
+	{
+		if ( prop_delay )
+			delay_object ();
+
+#if TIMING
+        stop_timing();
+#endif
+
+#if MICROTIME
+		switch ( object_timing_mode )
+		{
+		case WALLOBJTIME:
+			MicroTime ();
+			object_end_time = node_cputime;
+			break;
+		case USEROBJTIME:
+			object_end_time = UserDeltaTime(); /* end clock */
+			/* object_start_time is still zero */
+			break;
+		case NOOBJTIME:
+		default:
+			/* no measure */
+			break;
+		}
+#else
+#if MARK3
+		mark3time ();
+#endif
+#if BBN
+		butterflytime ();
+#endif
+		object_end_time = node_cputime;
+#endif
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}  /* if hlog */
+
+		xqting_ocb->stats.cputime += object_end_time - object_start_time;
+		xqting_ocb->cycletime += object_end_time - object_start_time;
+		xqting_ocb->stats.comtime += object_end_time - object_start_time;
+		xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+		switch_back ( sv_destroy, object_context, rcver, rcvtim );
+	}
+	else
+		_pprintf ( "You must call delObj() from within an object.\n" );
+	return(retVal);
+}  /* delObj */
+
+int config_eposfs;
+
+#ifdef MSGTIMER
+long msgstart, msgend;
+long msgtime = 0;
+long msgcount = 0;
+int onNodeTime = TRUE;
+#endif MSGTIMER
+
+FUNCTION tell_cmd ( rcver, rcvtim, selector, message )
+
+	Name * rcver;
+	STime * rcvtim;
+	Long * selector;
+	String * message;
+{
+	register int txtlen = strlen ( message ) + 1;
+	extern int mlog, node_cputime;
+
+  Debug
+
+#ifdef MSGTIMER
+	msgstart = clock ();
+#endif MSGTIMER
+
+	if ( manual_mode )
+		schedule(rcver,newVTime ( *rcvtim, 0, 0 ), *selector, txtlen, message );
+	else
+	{
+		register Msgh * msg;
+		register char * snder;
+		VTime sndtim;
+
+		snder = "IH";
+		sndtim = neginf;
+
+		msg = make_message ( EMSG, snder, sndtim, rcver,
+						newVTime ( *rcvtim, 0, 0 ), txtlen, message );
+
+		msg->selector = *selector;
+#ifdef MSGTIMER
+	if ( !mlog )
+		msg->msgtimef = msgstart;
+#endif MSGTIMER
+
+		if ( mlog )
+		{
+#if MICROTIME
+			MicroTime ();
+#else
+#if MARK3
+			mark3time ();
+#endif
+#if BBN
+			butterflytime ();
+#endif
+#endif
+			msg->cputime = node_cputime;
+		}
+
+		deliver ( msg );
+
+		config_eposfs++;
+	}
+}
+
+FUNCTION msgRef schedule ( rcver, rcvtim, selector, txtlen, message )
+
+	Name * rcver;
+	VTime rcvtim;
+	Long selector;
+	int txtlen;
+	String * message;
+{
+	msgRef	retVal;
+
+	int sv_tell ();
+
+	extern STime cutoff_time;
+
+	retVal.gid.node = tw_node_num;
+	retVal.gid.num = 0;		/* error value */
+	if ( gtSTime ( rcvtim.simtime, cutoff_time ) )
+		return(retVal);
+
+  Debug
+#ifdef MSGTIMER
+	gstart = clock ();
+	NodeTime = FALSE;
+#endif MSGTIMER
+
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( object_context != NULL )
+	{
+		if ( prop_delay )
+			delay_object ();
+
+#if TIMING
+	stop_timing ();
+#endif
+
+#if MICROTIME
+		switch ( object_timing_mode )
+		{
+		case WALLOBJTIME:
+			MicroTime ();
+			object_end_time = node_cputime;
+			break;
+		case USEROBJTIME:
+			object_end_time = UserDeltaTime(); /* end clock */
+			/* object_start_time is still zero */
+			break;
+		case NOOBJTIME:
+		default:
+			/* no measure */
+			break;
+		}
+#else
+#if MARK3
+		mark3time ();
+#endif
+#if BBN
+		butterflytime ();
+#endif
+		object_end_time = node_cputime;
+#endif
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				 maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}  /* if hlog */
+
+		xqting_ocb->stats.cputime += object_end_time - object_start_time;
+		xqting_ocb->cycletime += object_end_time - object_start_time;
+		xqting_ocb->stats.comtime += object_end_time - object_start_time;
+		xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+#if SOM
+	/*  Calculate the ept for the state of the event just interrupted. */
+
+	xqting_ocb->sb->Ept += object_end_time - object_start_time;
+	xqting_ocb->work += object_end_time - object_start_time;
+#endif SOM
+
+		switch_back ( sv_tell, object_context,
+			rcver, rcvtim, selector, txtlen, message );
+
+	}
+	else
+		_pprintf ( "You must call schedule() from within an object.\n" );
+	return(retVal);
+}  /* schedule */
+
+FUNCTION unschedule ( rcver, rcvtim, selector, txtlen, message )
+
+	Name * rcver;
+	VTime rcvtim;
+	Long selector;
+	int txtlen;
+	String * message;
+{
+}	/* unschedule */
+
+FUNCTION cancel(msgID)
+	msgRef		msgID;
+{
+}	/* cancel */
+
+FUNCTION guess(sndtime,rcvtime,rcvr,selector,txtlen,text)
+	VTime		sndtime;
+	VTime		rcvtime;
+	Name		*rcvr;
+	Long		selector;
+	Int			txtlen;
+	String		*text;
+{
+}	/* guess */
+
+FUNCTION unguess(sndtime,rcvtime,rcvr,selector,txtlen,text)
+	VTime		sndtime;
+	VTime		rcvtime;
+	Name		*rcvr;
+	Long		selector;
+	Int			txtlen;
+	String		*text;
+{
+}	/* unguess */
+
+numMsgs_cmd ()
+
+{
+	int msg_count;
+
+	if ( manual_mode )
+	{
+		msg_count = obj_numMsgs ();
+		_pprintf ( "MESSAGE COUNT = %d\n", msg_count );
+	}
+	else
+		_pprintf ( "numMsgs can only be called from manual mode\n" );
+}
+
+msg_cmd ( msgnum )
+
+	int *msgnum;
+{
+	char * msgbuf;
+
+	if ( manual_mode )
+	{
+		msgbuf = msgText ( *msgnum );
+		_pprintf ( "MESSAGE = %s\n", msgbuf );
+	}
+	else
+		_pprintf ( "msg can only be called from manual mode\n" );
+}
+
+FUNCTION tw_interrupt ()
+
+{
+	int sv_interrupt ();
+
+  Debug
+
+	objectCode = FALSE;		/* not executing object code now */
+
+	if ( object_context != NULL )
+	{
+		if ( prop_delay )
+			delay_object ();
+
+#if TIMING
+	stop_timing ();
+#endif
+
+#if MICROTIME
+		switch ( object_timing_mode )
+		{
+		case WALLOBJTIME:
+			MicroTime ();
+			object_end_time = node_cputime;
+			break;
+		case USEROBJTIME:
+			object_end_time = UserDeltaTime(); /* end clock */
+			/* object_start_time is still zero */
+			break;
+		case NOOBJTIME:
+		default:
+			/* no measure */
+			break;
+		}
+#else
+#if MARK3
+		mark3time ();
+#endif
+#if BBN
+		butterflytime ();
+#endif
+		object_end_time = node_cputime;
+#endif
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}  /* if hlog */
+
+		xqting_ocb->stats.cputime += object_end_time - object_start_time;
+		xqting_ocb->cycletime += object_end_time - object_start_time;
+		xqting_ocb->stats.comtime += object_end_time - object_start_time;
+		xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+
+		switch_back ( sv_interrupt, object_context);
+
+	}
+	else
+		_pprintf ( "You must call tw_interrupt() from within an object.\n" );
+}  /* tw_interrupt */
+@
+
+
+1.11
+log
+@Added timing code (PLR)
+@
+text
+@d7 3
+d44 1
+a44 1
+char objifc_id [] = "@@(#)objifc.c       $Revision: 1.10 $\t$Date: 91/11/01 09:56:00 $\tTIMEWARP";
+d609 4
+d689 4
+d899 1
+a899 3
+#if TIMING
+	start_timing ( SERVE_TIMING_MODE );
+#endif
+a902 3
+#if TIMING
+	stop_timing ();
+#endif
+a1032 3
+#if TIMING
+	start_timing ( SERVE_TIMING_MODE );
+#endif
+a1034 3
+#if TIMING
+	stop_timing ();
+#endif
+@
+
+
+1.10
+log
+@1.  Change ifdef's, version id.
+2.  Add speculative computing interface (SCR 172).
+3.  Change "NULL" error message.
+@
+text
+@d7 5
+d41 1
+a41 1
+char objifc_id [] = "@@(#)objifc.c       $Revision$\t$Date$\tTIMEWARP";
+d740 7
+d759 4
+d778 4
+d824 4
+@
+
+
+1.9
+log
+@New copyright notice.
+@
+text
+@d7 3
+d36 1
+a36 1
+char objifc_id [] = "@@(#)objifc.c       1.52\t10/2/89\t15:10:08\tTIMEWARP";
+d62 8
+d71 22
+a92 6
+		schedule(rcver,rcvtim,txtlen,message) - prepare to switch context for
+						a schedule message call
+				Parameters - Name * rcver, VTime rcvtim, long txtlen,
+						String * message
+				Return - Always returns zero
+		
+d102 1
+a102 1
+		
+d120 1
+a120 1
+#ifdef TIMING
+d131 1
+d155 1
+a155 1
+ 
+a161 1
+ 
+d163 1
+d187 1
+a187 1
+ 
+d240 1
+a240 1
+ 
+a246 1
+ 
+d248 1
+d279 1
+a279 1
+ 
+d353 1
+a353 1
+#ifdef TIMING
+d369 1
+d384 1
+a384 1
+#ifdef TIMING
+d433 1
+a433 1
+#ifdef TIMING
+d463 1
+a463 1
+#ifdef TIMING
+d478 1
+a478 1
+#ifdef TIMING
+d484 1
+a484 1
+#ifdef MICROTIME
+d501 1
+a501 1
+#ifdef MARK3
+d504 1
+a504 1
+#ifdef BBN
+d535 1
+a535 1
+#ifdef TIMING
+d541 1
+a541 1
+#ifdef MICROTIME
+d558 1
+a558 1
+#ifdef MARK3
+d561 1
+a561 1
+#ifdef BBN
+d582 1
+a582 1
+FUNCTION newObj ( rcver, rcvtim, objtype )
+d588 1
+d593 3
+d601 1
+a601 1
+#ifdef MICROTIME
+d618 1
+a618 1
+#ifdef MARK3
+d621 1
+a621 1
+#ifdef BBN
+d643 1
+a643 1
+#ifdef SOM
+d653 2
+a654 1
+		_pprintf ( "NULL\n" );
+d657 1
+a657 1
+FUNCTION delObj ( rcver, rcvtim )
+d662 2
+d668 4
+d677 1
+a677 1
+#ifdef MICROTIME
+d694 1
+a694 1
+#ifdef MARK3
+d697 1
+a697 1
+#ifdef BBN
+d719 1
+a719 1
+#ifdef SOM
+d729 2
+a730 1
+		_pprintf ( "NULL\n" );
+d765 1
+a765 1
+#ifdef MICROTIME
+d768 1
+a768 1
+#ifdef MARK3
+d771 1
+a771 1
+#ifdef BBN
+d784 1
+a784 1
+FUNCTION schedule ( rcver, rcvtim, selector, txtlen, message )
+d792 2
+d798 2
+d801 1
+a801 1
+		return(0);
+d805 2
+d812 1
+a812 1
+#ifdef TIMING
+d816 1
+a816 1
+#ifdef MICROTIME
+d833 1
+a833 1
+#ifdef MARK3
+d836 1
+a836 1
+#ifdef BBN
+d858 1
+a858 1
+#ifdef SOM
+d864 1
+a864 1
+#ifdef TIMING
+d870 1
+a870 1
+#ifdef TIMING
+d875 2
+a876 2
+		_pprintf ( "NULL\n" );
+	return(0);
+d879 35
+d950 2
+d957 1
+a957 1
+#ifdef TIMING
+d961 1
+a961 1
+#ifdef MICROTIME
+d978 1
+a978 1
+#ifdef MARK3
+d981 1
+a981 1
+#ifdef BBN
+d997 1
+a997 1
+			
+d1003 1
+a1003 1
+#ifdef TIMING
+d1008 1
+a1008 1
+#ifdef TIMING
+d1013 1
+a1013 1
+		_pprintf ( "NULL\n" );
+@
+
+
+1.8
+log
+@Added MicroTime and object_timing_mode support
+@
+text
+@d1 4
+d7 3
+a34 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.7
+log
+@Handle non CRT_ACK messages.
+@
+text
+@d3 3
+d333 2
+a334 2
+        while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+            msgproc ();
+d412 2
+a413 2
+        while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+            msgproc ();
+d451 17
+d475 1
+d508 17
+d532 1
+d564 17
+d588 1
+d633 17
+d657 1
+d720 3
+d729 1
+d765 17
+d789 1
+d873 17
+d897 1
+@
+
+
+1.6
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        objifc.c,v $
+d330 2
+d409 2
+d420 1
+a420 1
+			_pprintf ( "obcreate got a bad response\n" );
+@
+
+
+1.5
+log
+@Phase creation routines, plus support for Tapas Som's work.
+@
+text
+@d2 4
+a5 1
+ * $Log:	objifc.c,v $
+d20 1
+a20 1
+char objifc_id [] = "@@(#)objifc.c	1.52\t10/2/89\t15:10:08\tTIMEWARP";
+d22 3
+a24 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d30 5
+a34 5
+	objifc.c contains the object interface for Time Warp.  Objects
+	wishing to communicate with Time Warp typically go through this
+	code to get to the system.  Since many object actions can be faked
+	through the tester, much of this code is set up to permit manual
+	execution of the commands.
+d38 5
+a42 5
+	obcreate_b(rcver,rcvtim,objtype,node) - do the actual work of creating 
+			an object and informing all nodes of its creation
+		Parameters - Name * rcver, VTime rcvtim, Name * objtype, 
+			int node
+		Return - Always returns zero
+d44 5
+a48 5
+	obcreate(rcver,rcvtim,objtype,node) - prepare to switch context
+			for an object creation
+		Parameters - Name * rcver, VTime rcvtim, Name * objtype, 
+			int node
+		Return - Always returns zero
+d50 7
+a56 7
+	schedule(rcver,rcvtim,txtlen,message) - prepare to switch context for
+			a schedule message call
+		Parameters - Name * rcver, VTime rcvtim, long txtlen,
+			String * message
+		Return - Always returns zero
+	
+	tw_interrupt() - switch context to give Time Warp control
+d60 10
+a69 10
+	obcreate_b() provides a manual way to create an object,
+	by calling create_object() and create_inform() on the
+	parameters provided to it. obcreate() is the system version,
+	which basically just calls switch_back() with obcreate_b() as a 
+	parameter (thus causing execution to switch to that routine.)
+	
+	tw_interrupt was implemented in version 2.5.  It's sole purpose
+	is to allow objects which take large time slices to make dummy
+	calls to Time Warp in order to check for such things as incoming
+	messages and higher priority objects to execute.  
+d87 6
+a92 6
+extern int	hlog;
+extern VTime	hlogVTime;
+extern int	maxSlice;
+extern Ocb*	maxSliceObj;
+extern VTime	maxSliceTime;
+extern int	sliceTime;
+d96 3
+a98 3
+    Name * object;
+    Name * objtype;
+    int node;
+d100 8
+a107 8
+    char * snder;
+    VTime sndtim;
+    VTime rcvtim;
+    Int txtlen;
+    Msgh * tw_msg;
+    Crttext create_text;
+    int n;
+    Int home;
+d110 1
+a110 1
+    clear ( &create_text, sizeof ( Crttext ) );
+d112 1
+a112 1
+    strcpy ( create_text.tp, objtype );
+d114 1
+a114 1
+    n = node % tw_num_nodes;
+d116 1
+a116 1
+    create_text.node = n;
+d118 3
+a120 3
+    snder = "IH";
+    sndtim = rcvtim = neginf;
+    txtlen = sizeof ( Crttext );
+d122 2
+a123 2
+    create_text.phase_begin = neginf;
+    create_text.phase_end = posinfPlus1;
+d126 2
+a127 2
+    /* Find this object's home node and send a message to it notifying it of
+	the object's initial location. */
+d129 1
+a129 1
+    home = name_hash_function(object,HOME_NODE);
+d131 2
+a132 2
+    tw_msg = make_message ( HOMENOTIF, snder, sndtim, object,
+		newVTime ( 0.0, 0, 0 ), txtlen, &create_text);
+d134 1
+a134 1
+    tw_msg->flags |= SYSMSG;
+d137 1
+a137 1
+    sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, home );
+d139 2
+a140 2
+    /* If the local node is the home node, call msgproc() to handle the
+	home node notification right away. */
+d142 4
+a145 4
+    if (home == tw_node_num)
+    {
+	msgproc();
+    }
+d147 2
+a148 2
+    tw_msg = make_message ( (Byte) CREATESYS, snder, sndtim, object, 
+    		rcvtim, txtlen, &create_text );
+d150 1
+a150 1
+    tw_msg->flags |= SYSMSG ;
+d153 1
+a153 1
+    sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, n );
+d155 9
+a163 9
+    if ( n == tw_node_num )
+    {
+	msgproc ();
+    }
+    else /* Node 0 cheat for performance for schedules from config file */
+    {
+	CacheReplace ( object, neginf, posinfPlus1, n, 0,
+	    name_hash_function ( object, CACHE ) );
+    }
+d168 1
+a168 1
+	create message to the node hosting it. */
+d171 4
+a174 4
+	2.  Need to write code to handle create phase sys msg in mproc.c
+	3.  Need to write code to actually do phase creation
+	4.  Probably need some VTime utility routines to allow users to
+		specify positive and negative infinity
+d179 5
+a183 5
+    Name * object;
+    Name * objtype;
+    int node;
+    double begin;
+    double end;
+d185 8
+a192 8
+    char * snder;
+    VTime sndtim;
+    VTime rcvtim;
+    Int txtlen;
+    Msgh * tw_msg;
+    Crttext create_text;
+    int n;
+    Int home;
+d195 1
+a195 1
+    clear ( &create_text, sizeof ( Crttext ) );
+d197 1
+a197 1
+    strcpy ( create_text.tp, objtype );
+d199 1
+a199 1
+    n = node % tw_num_nodes;
+d201 1
+a201 1
+    create_text.node = n;
+d203 3
+a205 3
+    snder = "IH";
+    sndtim = rcvtim = neginf;
+    txtlen = sizeof ( Crttext );
+d207 2
+a208 2
+    create_text.phase_begin = newVTime ( begin, 0, 0 );
+    create_text.phase_end = newVTime ( end, 0, 0 );
+d211 2
+a212 2
+    /* Find this object's home node and send a message to it notifying it of
+	the object's initial location. */
+d214 1
+a214 1
+    home = name_hash_function(object,HOME_NODE);
+d217 1
+a217 1
+	to deal with in this message. */
+d219 2
+a220 2
+    tw_msg = make_message ( HOMENOTIF, snder, sndtim, object,
+		newVTime ( 0.0, 0, 0 ), txtlen, &create_text);
+d222 1
+a222 1
+    tw_msg->flags |= SYSMSG;
+d225 1
+a225 1
+    sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, home );
+d227 2
+a228 2
+    /* If the local node is the home node, call msgproc() to handle the
+	home node notification right away. */
+d230 4
+a233 4
+    if (home == tw_node_num)
+    {
+	msgproc();
+    }
+d236 1
+a236 1
+	type, and handles it correctly. */
+d239 2
+a240 2
+    tw_msg = make_message ( (Byte) PCREATESYS, snder, sndtim, object, 
+    		rcvtim, txtlen, &create_text );
+d242 1
+a242 1
+    tw_msg->flags |= SYSMSG ;
+d245 1
+a245 1
+    sndmsg ( tw_msg, sizeof ( Msgh ) + txtlen, n );
+d247 9
+a255 9
+    if ( n == tw_node_num )
+    {
+	msgproc ();
+    }
+    else /* Node 0 cheat for performance for tells from config file */
+    {
+	CacheReplace ( object, neginf, posinfPlus1, n, 0,
+	    name_hash_function ( object, CACHE ) );
+    }
+d261 1
+a261 1
+    VTime time;
+d263 7
+a269 7
+    if ( manual_mode )
+    {
+	time = obj_now ();
+	_pprintf ( "NOW = %f,%d,%d\n", time.simtime, time.sequence1, time.sequence2 );
+    }
+    else
+	_pprintf ( "now can only be called from manual mode\n" );
+d274 1
+a274 1
+    Name object_name;
+d276 7
+a282 7
+    if ( manual_mode )
+    {
+	obj_myName (object_name);
+	_pprintf ( "OBJECT NAME = %s\n", object_name );
+    }
+    else
+	_pprintf ( "myName can only be called from manual mode\n" );
+d287 3
+a289 3
+    Name * rcver;
+    Name * objtype;
+    int * node;
+d293 5
+a297 5
+    if ( strcmp ( rcver, "stdout" ) == 0 )
+    {
+	_pprintf ( "You don't need to create stdout any more\n" );
+	return;
+    }
+d299 4
+a302 4
+    if ( manual_mode )
+	obcreate ( rcver, objtype, *node );
+    else
+	obcreate_b ( rcver, objtype, * node );
+d307 3
+a309 3
+    Name * rcver;
+    Name * objtype;
+    int node;
+d311 1
+a311 1
+    int n;
+d316 1
+a316 1
+    start_timing ( TESTER_TIMING_MODE );
+d319 1
+a319 1
+    create_object ( rcver, objtype, node );
+d322 1
+a322 1
+    n = node % tw_num_nodes;
+d325 1
+a325 3
+    if ( n != 0 )
+    {
+	while ( rm_msg == NULL )
+d327 3
+a329 1
+	    read_the_mail ( 0 );	/* wait for CRT_ACK */
+d331 10
+a340 2
+	    while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+		msgproc ();
+a341 8
+	if ( rm_msg->mtype != CRT_ACK )
+	{
+	    _pprintf ( "obcreate got a bad response\n" );
+	    dumpmsg ( rm_msg );
+	    tw_exit (0);
+	}
+	acceptmsg ( NULL );
+    }
+d344 1
+a344 1
+    stop_timing ();
+d350 5
+a354 5
+    Name * rcver;
+    Name * objtype;
+    int * node;
+    STime * begin;
+    STime * end;
+d359 5
+a363 5
+    if ( strcmp ( rcver, "stdout" ) == 0 )
+    {
+	_pprintf ( "You don't need to create stdout any more\n" );
+	return;
+    }
+d365 4
+a368 4
+    if ( manual_mode )
+	phcreate ( rcver, objtype, *node, *begin, *end );
+    else
+	phcreate_b ( rcver, objtype, * node, *begin, *end );
+d372 7
+a378 7
+	type, node hosting it, phase begin time, and phase end time.  This
+	command will only create phases on simulation time boundaries, as
+	the begin and end do not accept full VTime structures.  Also, this
+	routine does no error checking to determine that the object has all
+	phases necessary to make up its full interval, nor that there are
+	no overlapping phases, nor that all phases are of the same type.
+	Therefore, this command is currently an "experts-only" command. */
+d382 5
+a386 5
+    Name * rcver;
+    Name * objtype;
+    int node;
+    double begin;
+    double end;
+d388 1
+a388 1
+    int n;
+d393 1
+a393 1
+    start_timing ( TESTER_TIMING_MODE );
+d396 1
+a396 1
+    create_phase ( rcver, objtype, node, begin, end );
+d399 1
+a399 1
+    n = node % tw_num_nodes;
+d402 1
+a402 3
+    if ( n != 0 )
+    {
+	while ( rm_msg == NULL )
+d404 3
+a406 1
+	    read_the_mail ( 0 );	/* wait for CRT_ACK */
+d408 10
+a417 2
+	    while ( rm_msg != NULL && rm_msg->mtype != CRT_ACK )
+		msgproc ();
+a418 8
+	if ( rm_msg->mtype != CRT_ACK )
+	{
+	    _pprintf ( "obcreate got a bad response\n" );
+	    dumpmsg ( rm_msg );
+	    tw_exit (0);
+	}
+	acceptmsg ( NULL );
+    }
+d421 1
+a421 1
+    stop_timing ();
+d427 3
+a429 3
+    Name * rcver;
+    Name * objtype;
+    int node;
+d433 2
+a434 2
+    if ( object_context != NULL )
+    {
+d436 1
+a436 1
+	stop_timing ();
+d438 2
+a439 2
+	if ( prop_delay )
+	    delay_object ();
+d442 1
+a442 1
+	mark3time ();
+d445 1
+a445 1
+	butterflytime ();
+d447 1
+a447 1
+	object_end_time = node_cputime;
+d449 1
+a449 1
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+d452 7
+a458 7
+	switch_back ( obcreate_b, object_context,
+	    rcver, objtype, node );
+    }
+    else
+    {
+	obcreate_b ( rcver, objtype, node );
+    }
+d464 5
+a468 5
+    Name * rcver;
+    Name * objtype;
+    int node;
+    double begin;
+    double end;
+d472 2
+a473 2
+    if ( object_context != NULL )
+    {  
+d475 1
+a475 1
+      stop_timing ();
+d477 2
+a478 2
+      if ( prop_delay )
+          delay_object ();
+d481 1
+a481 1
+      mark3time ();
+d484 1
+a484 1
+      butterflytime ();
+d486 1
+a486 1
+      object_end_time = node_cputime;
+d488 1
+a488 1
+      xqting_ocb->stats.cputime += object_end_time - object_start_time;
+d491 7
+a497 7
+      switch_back ( phcreate_b, object_context,
+          rcver, objtype, node, begin, end );
+    }  
+    else
+    {  
+      phcreate_b ( rcver, objtype, node, begin, end );
+    }  
+d505 3
+a507 3
+    Name *rcver;
+    VTime rcvtim;
+    Name *objtype;
+d509 1
+a509 1
+    int sv_create ();
+d513 4
+a516 4
+    if ( object_context != NULL )
+    {
+	if ( prop_delay )
+	    delay_object ();
+d519 1
+a519 1
+	mark3time ();
+d522 1
+a522 1
+	butterflytime ();
+d524 1
+a524 1
+	object_end_time = node_cputime;
+d526 10
+a535 10
+	if (hlog)
+	    {
+	    sliceTime = object_end_time - object_start_time;
+	    if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	{ /* this slice was bigger than max so far */
+	    	maxSlice = sliceTime;
+	    	maxSliceObj = xqting_ocb;
+	    	maxSliceTime = xqting_ocb->svt;
+	    	}
+	    }
+d537 4
+a540 4
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+        xqting_ocb->cycletime += object_end_time - object_start_time;
+        xqting_ocb->stats.comtime += object_end_time - object_start_time;
+        xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d543 1
+a543 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d545 2
+a546 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d549 4
+a552 4
+	switch_back ( sv_create, object_context, rcver, rcvtim, objtype );
+    }
+    else
+	_pprintf ( "NULL\n" );
+d557 2
+a558 2
+    Name *rcver;
+    VTime rcvtim;
+d560 1
+a560 1
+    int sv_destroy ();
+d564 4
+a567 4
+    if ( object_context != NULL )
+    {
+	if ( prop_delay )
+	    delay_object ();
+d570 1
+a570 1
+	mark3time ();
+d573 1
+a573 1
+	butterflytime ();
+d575 1
+a575 1
+	object_end_time = node_cputime;
+d577 10
+a586 10
+	if (hlog)
+	    {
+	    sliceTime = object_end_time - object_start_time;
+	    if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	{ /* this slice was bigger than max so far */
+	    	maxSlice = sliceTime;
+	   	maxSliceObj = xqting_ocb;
+	    	maxSliceTime = xqting_ocb->svt;
+	    	}
+	    }  /* if hlog */
+d588 4
+a591 4
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+        xqting_ocb->cycletime += object_end_time - object_start_time;
+        xqting_ocb->stats.comtime += object_end_time - object_start_time;
+        xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d594 1
+a594 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d596 2
+a597 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d600 4
+a603 4
+	switch_back ( sv_destroy, object_context, rcver, rcvtim );
+    }
+    else
+	_pprintf ( "NULL\n" );
+d610 4
+a613 4
+    Name * rcver;
+    STime * rcvtim;
+    Long * selector;
+    String * message;
+d615 2
+a616 2
+    register int txtlen = strlen ( message ) + 1;
+    extern int mlog, node_cputime;
+d620 7
+a626 7
+    if ( manual_mode )
+	schedule(rcver,newVTime ( *rcvtim, 0, 0 ), *selector, txtlen, message );
+    else
+    {
+	register Msgh * msg;
+	register char * snder;
+	VTime sndtim;
+d628 2
+a629 2
+	snder = "IH";
+	sndtim = neginf;
+d631 2
+a632 2
+	msg = make_message ( EMSG, snder, sndtim, rcver,
+			newVTime ( *rcvtim, 0, 0 ), txtlen, message );
+d634 1
+a634 1
+	msg->selector = *selector;
+d636 2
+a637 2
+	if ( mlog )
+	{
+d639 1
+a639 1
+	    mark3time ();
+d642 1
+a642 1
+	    butterflytime ();
+d644 2
+a645 2
+	    msg->cputime = node_cputime;
+        }
+d647 1
+a647 1
+	deliver ( msg );
+d649 2
+a650 2
+	config_eposfs++;
+    }
+d655 5
+a659 5
+    Name * rcver;
+    VTime rcvtim;
+    Long selector;
+    int txtlen;
+    String * message;
+d661 1
+a661 1
+    int sv_tell ();
+d663 1
+a663 1
+    extern STime cutoff_time;
+d665 2
+a666 2
+    if ( gtSTime ( rcvtim.simtime, cutoff_time ) )
+	return(0);
+d670 4
+a673 4
+    if ( object_context != NULL )
+    {
+	if ( prop_delay )
+	    delay_object ();
+d676 1
+a676 1
+    stop_timing ();
+d680 1
+a680 1
+	mark3time ();
+d683 1
+a683 1
+	butterflytime ();
+d685 1
+a685 1
+	object_end_time = node_cputime;
+d687 10
+a696 10
+	if (hlog)
+	    {
+	    sliceTime = object_end_time - object_start_time;
+	    if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	{ /* this slice was bigger than max so far */
+	   	 maxSlice = sliceTime;
+	    	maxSliceObj = xqting_ocb;
+	    	maxSliceTime = xqting_ocb->svt;
+	    	}
+	    }  /* if hlog */
+d698 4
+a701 4
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+        xqting_ocb->cycletime += object_end_time - object_start_time;
+        xqting_ocb->stats.comtime += object_end_time - object_start_time;
+        xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d704 1
+a704 1
+    /*  Calculate the ept for the state of the event just interrupted. */
+d706 2
+a707 2
+    xqting_ocb->sb->Ept += object_end_time - object_start_time;
+    xqting_ocb->work += object_end_time - object_start_time;
+d710 1
+a710 1
+    start_timing ( SERVE_TIMING_MODE );
+d712 2
+a713 2
+	switch_back ( sv_tell, object_context,
+	    rcver, rcvtim, selector, txtlen, message );
+d716 1
+a716 1
+    stop_timing ();
+d718 4
+a721 4
+    }
+    else
+	_pprintf ( "NULL\n" );
+    return(0);
+d727 1
+a727 1
+    int msg_count;
+d729 7
+a735 7
+    if ( manual_mode )
+    {
+	msg_count = obj_numMsgs ();
+	_pprintf ( "MESSAGE COUNT = %d\n", msg_count );
+    }
+    else
+	_pprintf ( "numMsgs can only be called from manual mode\n" );
+d740 1
+a740 1
+    int *msgnum;
+d742 1
+a742 1
+    char * msgbuf;
+d744 7
+a750 7
+    if ( manual_mode )
+    {
+	msgbuf = msgText ( *msgnum );
+	_pprintf ( "MESSAGE = %s\n", msgbuf );
+    }
+    else
+	_pprintf ( "msg can only be called from manual mode\n" );
+d756 1
+a756 1
+    int sv_interrupt ();
+d760 4
+a763 4
+    if ( object_context != NULL )
+    {
+	if ( prop_delay )
+	    delay_object ();
+d766 1
+a766 1
+    stop_timing ();
+d770 1
+a770 1
+	mark3time ();
+d773 1
+a773 1
+	butterflytime ();
+d775 1
+a775 1
+	object_end_time = node_cputime;
+d777 15
+a791 15
+	if (hlog)
+	    {
+	    sliceTime = object_end_time - object_start_time;
+	    if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+	    	{ /* this slice was bigger than max so far */
+	    	maxSlice = sliceTime;
+	    	maxSliceObj = xqting_ocb;
+	   	maxSliceTime = xqting_ocb->svt;
+	    	}
+	    }  /* if hlog */
+	    
+	xqting_ocb->stats.cputime += object_end_time - object_start_time;
+        xqting_ocb->cycletime += object_end_time - object_start_time;
+        xqting_ocb->stats.comtime += object_end_time - object_start_time;
+        xqting_ocb->sb->effectWork += object_end_time - object_start_time;
+d794 1
+a794 1
+    start_timing ( SERVE_TIMING_MODE );
+d796 1
+a796 1
+	switch_back ( sv_interrupt, object_context);
+d799 1
+a799 1
+    stop_timing ();
+d801 3
+a803 3
+    }
+    else
+	_pprintf ( "NULL\n" );
+@
+
+
+1.4
+log
+@Change hoglog implementation.
+@
+text
+@d3 3
+d164 91
+d345 77
+d459 41
+d539 7
+d590 7
+d700 6
+@
+
+
+1.3
+log
+@1.  Implement hoglog.
+2.  Change tell() to schedule().
+@
+text
+@d3 4
+d44 2
+a45 2
+	tell(rcver,rcvtim,txtlen,message) - prepare to switch context for
+			an tell message call
+d81 2
+a82 1
+#if HOGLOG
+a86 1
+#endif
+d153 1
+a153 1
+    else /* Node 0 cheat for performance for tells from config file */
+d311 9
+a319 7
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+a320 1
+#endif
+d355 10
+a364 9
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+	    }
+#endif
+d392 1
+a392 1
+	tell ( rcver, newVTime ( *rcvtim, 0, 0 ), *selector, txtlen, message );
+d424 1
+a424 1
+FUNCTION tell ( rcver, rcvtim, selector, txtlen, message )
+d437 1
+a437 1
+	return;
+d458 10
+a467 9
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+	    }
+#endif
+d486 2
+a487 1
+}	/* tell */
+d542 11
+a552 10
+#if HOGLOG
+	sliceTime = object_end_time - object_start_time;
+	if ((sliceTime > maxSlice) && (gvt.simtime >= (STime)0))
+	    { /* this slice was bigger than max so far */
+	    maxSlice = sliceTime;
+	    maxSliceObj = xqting_ocb;
+	    maxSliceTime = xqting_ocb->svt;
+	    }
+#endif
+
+@
+
+
+1.2
+log
+@Split cycle time from committed time.
+@
+text
+@d3 3
+d45 2
+d54 6
+a59 1
+	parameter (thus causing execution to switch to that routine.)  
+d77 7
+d282 1
+a282 1
+}
+d307 10
+d326 1
+a326 1
+}
+d350 10
+d369 1
+a369 1
+}
+d452 10
+d479 1
+a479 1
+}
+d509 52
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d291 2
+a292 1
+        xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+d324 2
+a325 1
+        xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+d416 2
+a417 1
+        xqting_ocb->stats.cycletime += object_end_time - object_start_time;
+@

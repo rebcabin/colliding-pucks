@@ -1,0 +1,3487 @@
+head     1.23;
+branch   ;
+access   ;
+symbols  TW2_7:1.22 TW2_6:1.20 TW2_5_1:1.17 TW2_5:1.12 TW2_4_2:1.5 TW2_4_1:1.3 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.23
+date     92.02.25.10.49.44;  author configtw;  state Dev;
+branches ;
+next     1.22;
+
+1.22
+date     91.12.31.08.28.02;  author configtw;  state Rel;
+branches ;
+next     1.21;
+
+1.21
+date     91.12.27.09.19.32;  author pls;  state Dev;
+branches ;
+next     1.20;
+
+1.20
+date     91.11.06.11.12.49;  author configtw;  state Rel;
+branches ;
+next     1.19;
+
+1.19
+date     91.11.01.13.56.31;  author reiher;  state Dev;
+branches ;
+next     1.18;
+
+1.18
+date     91.11.01.13.04.16;  author pls;  state Dev;
+branches ;
+next     1.17;
+
+1.17
+date     91.07.24.13.15.21;  author configtw;  state Rel;
+branches ;
+next     1.16;
+
+1.16
+date     91.07.22.13.17.50;  author configtw;  state Rel;
+branches ;
+next     1.15;
+
+1.15
+date     91.07.17.15.13.26;  author judy;  state Dev;
+branches ;
+next     1.14;
+
+1.14
+date     91.07.17.09.05.04;  author configtw;  state Dev;
+branches ;
+next     1.13;
+
+1.13
+date     91.07.09.16.16.53;  author steve;  state Dev;
+branches ;
+next     1.12;
+
+1.12
+date     91.06.04.11.09.52;  author configtw;  state Rel;
+branches ;
+next     1.11;
+
+1.11
+date     91.06.03.14.19.42;  author configtw;  state Dev;
+branches ;
+next     1.10;
+
+1.10
+date     91.06.03.12.27.08;  author configtw;  state Dev;
+branches ;
+next     1.9;
+
+1.9
+date     91.05.31.15.41.15;  author pls;  state Dev;
+branches ;
+next     1.8;
+
+1.8
+date     91.04.01.15.48.01;  author reiher;  state Dev;
+branches ;
+next     1.7;
+
+1.7
+date     91.03.28.09.58.39;  author configtw;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.03.26.09.50.59;  author pls;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     90.12.12.10.06.20;  author configtw;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     90.12.10.10.53.42;  author configtw;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     90.08.27.10.46.05;  author configtw;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.16.10.53.42;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.41.23;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@main event loop
+@
+
+
+1.23
+log
+@Changed to version 2.7.1
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	timewarp.c,v $
+ * Revision 1.22  91/12/31  08:28:02  configtw
+ * New version ID.
+ * 
+ * Revision 1.21  91/12/27  09:19:32  pls
+ * 1.  Fix up TIMING code.
+ * 2.  Make breakpoint code depend on DEBUG flag, not PARANOID.
+ * 
+ * Revision 1.20  91/11/06  11:12:49  configtw
+ * Change version ID.
+ * 
+ * Revision 1.19  91/11/01  13:56:31  reiher
+ * added timing code (PLR)
+ * 
+ * Revision 1.18  91/11/01  13:04:16  pls
+ * 1.  Change ifdef's and version id.
+ * 2.  Set objectCode flag when exceuting app code (SCR 164).
+ * 3.  Create statesMovedQ.
+ * 4.  Enlarge default memory usage (SCR 189).
+ * 5.  Change signal stack allocation.
+ * 
+ * Revision 1.17  91/07/24  13:15:21  configtw
+ * Allow for xqting_ocb = NULLOCB.
+ * 
+ * Revision 1.16  91/07/22  13:17:50  configtw
+ * Fix new bug in Mark3 code.
+ * 
+ * Revision 1.15  91/07/17  15:13:26  judy
+ * New copyright notice.
+ * 
+ * Revision 1.14  91/07/17  09:05:04  configtw
+ * Change version #.
+ * 
+ * Revision 1.13  91/07/09  16:16:53  steve
+ * 1. Support for multiple alarms with MicroTime
+ * 2. Signal driven socket support
+ * 3. object_timing_mode support
+ * 4. changed numbers to constats (ie 9 to TIME_SYNC)
+ * 
+ * Revision 1.12  91/06/04  11:09:52  configtw
+ * Fix Sun compile bugs.
+ *
+ * Revision 1.11  91/06/03  14:19:42  configtw
+ * Make network version exit correctly.
+ *
+ * Revision 1.10  91/06/03  12:27:08  configtw
+ * Tab conversion.
+ *
+ * Revision 1.9  91/05/31  15:41:15  pls
+ * 1.  Execute object even with messages to send, if necessary.
+ * 2.  Don't migrate out states if resendState flag is false.
+ *
+ * Revision 1.8  91/04/01  15:48:01  reiher
+ * Code to support Tapas Som's work, plus permitting any node to run
+ * check_alarm().  (Necessary for dynamic load management.)
+ * 
+ * Revision 1.7  91/03/28  09:58:39  configtw
+ * Change timeoff() to tw_timeoff()--conflict with Sun libraries.
+ * 
+ * Revision 1.6  91/03/26  09:50:59  pls
+ * Add Steve's RBC code.
+ * 
+ * Revision 1.5  90/12/12  10:06:20  configtw
+ * 1.  fix #if 0 bug
+ * 2.  change version number
+ * 
+ * Revision 1.4  90/12/10  10:53:42  configtw
+ * 1.  add PARANOID code to detect off node memory
+ * 2.  allow tester to break into looping node via signals
+ * 3.  add comment for future TC2000 memory default change
+ * 
+ * Revision 1.3  90/08/27  10:46:05  configtw
+ * Round objstksize to 8 byte boundary.
+ * 
+ * Revision 1.2  90/08/16  10:53:42  steve
+ * 1. fixed command line `number_of_buffers'.
+ * 2. increased default mem_size to 2 1/8M.
+ * 3. changed page touching to read text pages and to be correctly
+ *      aligned for the TC2000
+ * The Above Changes apply only to the BF_MACH code.
+ * 
+ * Revision 1.1  90/08/07  15:41:23  configtw
+ * Initial revision
+ * 
+*/
+char timewarp_id [] = "@@(#)timewarp.c   $Revision: 1.22 $\t$Date: 91/12/31 08:28:02 $\tTIMEWARP";
+
+
+/*
+
+Purpose:
+
+		This module contains the main loop of Time Warp.  This loop, contained
+		in main(), is the point at which decisions are made about what basic
+		operations to perform next: running a user object, trying to empty
+		low-level output queues, checking for input, etc.  The main()
+		function also contains substantial initialization code.  
+
+		timewarp.c also contains code related to timing, and a function
+		that allows a clean exit.
+
+Functions:
+
+		main(argc, argv) - the main loop of Time Warp
+				Parameters - int argc, char ** argv
+				Return - never returns
+
+		tw_exit() - exit Time Warp cleanly
+				Parameters - int
+				Return - Always returns zero
+
+		timeon() - turn the timer on and set an alarm
+				Parameters - none
+				Return - Always returns zero
+
+		tw_timeoff() - turn off the timer
+				Parameters - none
+				Return - Always returns zero
+
+		timeval(interval) - do nothing
+				Parameters - int * interval
+				Return - Always returns zero
+
+		timechg(interval_change_time) - do nothing
+				Parameters - STime * interval_change_time
+				Return - Always returns zero
+
+		timint() - increment the timer
+				Parameters - none
+				Return - Always returns zero
+
+		timer_interrupt() - call the function used when the timer expires
+				Parameters - none
+				Return - Always returns zero
+
+Implementation:
+
+		main() is the main loop of the Time Warp system.  It performs 
+		certain initialization tasks for the Time Warp system, such 
+		as starting the monitor, initializing queues, and creating 
+		special buffers.  (Most of the actual work of these tasks 
+		is performed in various subroutines.)  Next is the main loop, 
+		which loops indefinitely.  First, check if we are working 
+		from the monitor, and prompt for a command if we are.  Next, 
+		see if a message is stored in rm_msg.  If it's a system message, 
+		deal with it through command().  Otherwise, use msgproc() to 
+		handle it.  Then loop.
+
+		If there was no message in rm_msg, and there are either messages
+		or acks to be sent out, call send_from_q() to send them.  After
+		send_from_q() returns, check again for a message in rm_msg, 
+		going to the top of the loop if one is found.  
+
+		If there were no messages to be sent, and if there is an object 
+		to be run, call check_mercury_queue(), going to a spot further 
+		along in the loop if there is a message earlier than the one
+		being processed.  Test for breakpoints, and call switch_over()
+		to run the object.  If, when the object relinquishes control,
+		rm_msg has something in it, go to the top of the loop.  Otherwise,
+		read_the_mail().  This is the point gone to if the check of the
+		mercury queue showed an earlier message.  After the mail is read,
+		go to the top of the loop.
+
+		tw_exit() provides a clean exit, by sending a halt message to
+		the CP.
+
+		timeon(), tw_timeoff(), timeval(), and timechg() all have to
+		do with the timing code, in the ways their names imply, mostly.
+		So do timint() and timer_interrupt().  timint() handles a timer 
+		interrupt by incrementing a counter, and checking if sufficent 
+		ticks have gone by to call alarm().  timer_interrupt() calls a
+		pre-supplied function when the timer expires.
+
+*/
+
+#define TDATAMASTER 1
+
+#include <stdio.h>
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+#if BF_MACH
+#include <mach.h>
+/*-------------------------------------------------------
+   Shifts to get physical node numbers out of physical addresses
+   NMASK is node mask for the tc2000
+   NSHIFT is the node to memory shift and is different for the tc2000 and gp1000
+   data from D. Rich and from BBN
+   note that the below defaults to gp1000 unless TC2000 is defined
+*--------------------------------------------------------*/
+
+#if TC2000
+#define NMASK 0x1f800000
+#define NSHIFT 23
+#define node_of_addr(addr) ((((unsigned)(addr)) & NMASK) >> NSHIFT)
+#else
+#define NSHIFT 24
+#define node_of_addr(addr) ((( unsigned)(addr)) >> NSHIFT)
+#endif
+
+#endif
+
+Byte * object_context;
+Byte * object_data;
+
+int ctrlc();
+#if MICROTIME
+int timed_out;
+int object_timing_mode = WALLOBJTIME;
+#else
+int timint();
+#endif
+int ioint();
+
+#if DLM
+int dlmTimer = 0;
+int dlmInterval = 4;
+int dlmTimer_on = 0;
+int dlmtimint () ;
+#endif DLM
+
+extern VTime    oldgvt1;
+extern VTime    oldgvt2;
+extern int resendState;
+
+#if SOM
+
+/* This variable is set at the first time that an object is created on the
+	  node.  All subsequent creations use the first value as their initial
+	  Est, as any object could, in theory, have been run first. */
+
+long firstEst = 0;
+#endif SOM
+
+int timer = 0;
+int timer_on = 0;
+/*
+#include <us.h>
+*/
+
+#if MARK3
+#include <cube.h>
+struct cubenv env;
+#include <errno.h>
+int abortint();
+int cubeint();
+
+int time_sync();
+int time_sync_flag = 0;
+int rtc_tick ();
+int rtc_tick_cnt = 0;
+extern char host_wd[60];
+int delta = 1000;               /* 1 second */
+Msgh * inuse_messages;
+int mercury_msgs;
+#define MEM_SIZE        0x300000        /* 3M */
+char * mem;
+char * malloc ();
+int max_stdout_acks = 20;
+VTime stdout_sent_time = { NEGINF, 0, 0 };
+VTime stdout_ok_time = { NEGINF, 0, 0 };
+#endif
+
+#if BF_PLUS  
+
+#define MEM_SIZE        0x2c0000        /* 2.75M */
+char mem_array[MEM_SIZE + 4];
+char * mem = mem_array;
+int delta = 1;                  /* 1 second */
+int max_stdout_acks = 20;
+VTime stdout_sent_time = { NEGINF, 0, 0 };
+VTime stdout_ok_time = { NEGINF, 0, 0 };
+Msgh * rmq;
+#endif
+
+#if BF_MACH  
+
+#include <signal.h>
+
+#if 0
+
+#if TC2000
+#define MEM_SIZE        0x600000        /* Default  6M  */
+#else
+#define MEM_SIZE        0x220000        /* Default  2.125M */
+#endif TC2000
+
+#endif
+
+/* as long as the TC2000 only has 4 meg per node: */
+#define MEM_SIZE        0x244000        /* Default  2.265625M */
+
+extern int tester();
+struct sigvec testervec = { (int *)tester, 0, 1 };
+char * mem;
+char * malloc ();
+int delta = 1;                  /* 1 second */
+int max_stdout_acks = 20;
+VTime stdout_sent_time = { NEGINF, 0, 0 };
+VTime stdout_ok_time = { NEGINF, 0, 0 };
+Msgh * rmq;
+
+
+
+#endif
+
+#if SUN
+#if SUN4
+#define MEM_SIZE        0x400000        /* 4M */
+#else
+#define MEM_SIZE        0x200000        /* 2M */
+#endif
+char * mem;
+char * malloc ();
+int delta = 1;                  /* 1 second */
+char standalone;
+char * usage = "usage: program [ node ] configFile [ memsize ]\n";
+
+double sarea[1024];       /* signal stack area */
+struct sigstack ss = { (char *)&sarea[1023], 0 };
+#ifndef MICROTIME
+struct sigvec alarmvec = { (void *)timint, 0, 1 };
+#endif
+struct sigvec iovec = { (void *)ioint, 0, 1 };
+Msgh * rmq;
+int maybe_socket_io;
+extern int messages_received;
+extern int partial_send;
+#endif
+
+#if TRANSPUTER
+#define MEM_SIZE        0x080000        /* .5M */
+int  mem_array [ MEM_SIZE / 4 ];     /* div. by 4 since this is an int array. */
+char * mem = mem_array;
+#define ONE_SEC 15625
+int delta       = ONE_SEC;
+extern int host_input_waiting ;
+#else
+int host_input_waiting = 0;
+#endif
+
+int interval = 1;
+STime interval_change_time = POSINF;
+
+int mem_stats_enabled = FALSE;
+int no_gvtout = FALSE;
+int object_ended = TRUE;
+
+#ifndef BRDCST_ABLE
+char brdcst_flag[MAX_NODES];
+#endif
+
+#if SUN
+int max_acks = 20;
+#else
+int max_acks = 2;
+#endif
+#if BBN
+int max_neg_acks = 10;
+/*
+ *	note that recv_q_limit has replaced the use of max_neg_acks
+ *	to limit the receive queues length in the bbn (and sun) version.
+ */
+#else
+int max_neg_acks = MAX_ACKS;
+#endif
+
+int mem_size = MEM_SIZE;
+
+extern int states_to_send;
+
+Msgh * command_queue;
+STime command_queue_time = POSINF+1;
+
+char * config_file;
+
+FUNCTION init_args ( argc, argv )
+
+/* these args are passed by brun */
+
+	int argc;
+	char ** argv;
+{
+	double meg;
+	char * memarg;
+
+	pktlen = MAXPKTL;
+	msgdefsize = sizeof ( Msgh ) + pktlen;
+
+#if SUN
+
+	printf ( "%s\n", timewarp_id+4 );
+
+	if ( argc < 2 )
+	{
+		printf ( "%s", usage );
+		exit (0);
+	}
+
+	if ( *argv[1] >= '0' && *argv[1] <= '9' )
+	{
+		tw_node_num = atoi ( argv[1] );
+
+		if ( tw_node_num == 0 )
+		{
+			if ( argc < 3 || argc > 4 )
+			{
+				printf ( "%s", usage );
+				tw_exit (0);
+			}
+
+			config_file = argv[2];
+			memarg = argv[3];
+		}
+		else
+		{
+			if ( argc > 3 )
+			{
+				printf ( "%s", usage );
+				tw_exit (0);
+			}
+
+			memarg = argv[2];
+		}
+
+		init_node ( tw_node_num );
+
+		if ( tw_num_nodes > MAX_NODES )
+		{
+			printf ( "MAX_NODES is %d\n", MAX_NODES );
+			tw_exit ( 0 );
+		}
+	}
+	else
+	{
+		if ( argc < 2 || argc > 3 )
+		{
+			printf ( "%s", usage );
+			tw_exit (0);
+		}
+
+		config_file = argv[1];
+		memarg = argv[2];
+
+		standalone = 1;
+		tw_num_nodes = 1;
+		signal ( SIGINT, ctrlc );
+	}
+
+	if ( memarg )
+	{
+		if ( sscanf ( memarg, "%lf", &meg ) == 0 )
+		{
+			printf ( "%s", usage );
+			tw_exit (0);
+		}
+
+		mem_size = meg * 1024 * 1024;
+	}
+
+	mem = malloc ( mem_size );
+
+	if ( mem == 0 )
+	{
+		printf ( "can't allocate %d bytes\n", mem_size );
+		tw_exit (0);
+	}
+
+#if MONITOR
+	moninit ();
+#endif
+
+	sigstack ( &ss, 0 );
+	sigvec ( SIGIO, &iovec, 0 );
+	maybe_socket_io = 1;
+#if MICROTIME
+	SunMicroTimeInit (); /* must be done after sigstack(?) */
+#else
+	sigvec ( SIGALRM, &alarmvec, 0 );
+#endif
+	rmq = (Msgh *) l_hcreate ();
+	rm_buf = (char *) l_create ( msgdefsize );
+
+	objstksize = 6000;
+
+#endif SUN
+#if TRANSPUTER
+
+	kernel_main ( argc, argv );
+
+	tw_node_num  = get_node_num ();
+	tw_num_nodes = get_num_nodes ();
+
+	transputer_time_init ( 0 );
+
+	if ( tw_node_num == 0 )
+	{
+		_pprintf ( "%s\n", timewarp_id+4 );
+	}
+
+	rm_buf = l_create ( msgdefsize );
+	signal ( TPSIGALRM, timint );
+
+	objstksize = 2500;
+
+#endif TRANSPUTER
+
+#if MARK3
+
+	set_param ( SP_GET_Q_SIZ, 1024 );
+
+	async_comm ( INF );
+
+	now_async = 1;
+
+	printf ( "%s\n", timewarp_id+4 );
+
+	sscanf ( argv[3], "%lf", &meg );
+
+	if ( meg > 0 )
+		mem_size = meg * 1024 * 1024;
+
+	mem = malloc ( mem_size );
+
+	if ( mem == 0 )
+	{
+		printf ( "can't allocate %d bytes\n", mem_size );
+		tw_exit (0);
+	}
+
+#if MONITOR
+	moninit ();
+#endif
+
+	indep ();
+
+	config_file = argv[1];
+	stats_name = argv[2];
+	cparam ( &env );
+	tw_node_num = env.procnum;
+	tw_num_nodes = atoi ( argv[4] );
+
+	if ( argv[5] != 0 )
+		strcpy ( host_wd, argv[5] );
+
+	node_offset = 0;
+	node_limit = tw_num_nodes - 1;
+
+	sigglob ( 2, ctrlc );
+	sigglob ( 3, time_sync );
+	sigglob ( RTCGLOB, rtc_tick );
+
+	send.source = tw_node_num;
+	send.blen = recv.blen = 512;
+
+	LEDS ( 15 );
+
+	send_message ( 0, 0, CP, TIME_SYNC );       /* request time sync */
+
+	while ( time_sync_flag == 0 )
+		;
+
+	mark3time_init ();
+
+	stdout_q = (Msgh *) l_hcreate ();
+	inuse_messages = (Msgh *) l_hcreate ();
+
+	signal ( SIGMALRM, timint );
+	signal ( SIGMSG, ioint );
+	signal ( SIGABRT, abortint );
+	signal ( SIGCUBE, cubeint );
+
+	objstksize = 3000;
+
+#endif MARK3
+
+
+
+#if BF_PLUS
+	config_file = argv[1];
+	stats_name = argv[2];
+	tw_num_nodes = atoi ( argv[4] );
+	tw_node_num = atoi ( argv[5] );
+	if ( tw_node_num == 0 )
+	{
+		printf ( "%s nodes = %d\n", timewarp_id+4, tw_num_nodes );
+	}
+	sscanf ( argv[6] , "%x",  &goid );
+	butterfly_node_init ( goid );
+	n_initialize_net_files ();
+
+#if MONITOR
+	moninit ();
+#endif
+
+	if ( tw_node_num == 0 )
+	{
+		butterfly_sigalarm ( timint );
+#if DLM
+		butterfly_dlmAlarm ( dlmtimint );
+#endif DLM
+	}
+	butterfly_sigint (ctrlc);
+	stdout_q = l_hcreate ();
+	rmq = l_hcreate ();
+	rm_buf = (char *) l_create ( msgdefsize );
+
+	objstksize = 3000;
+
+#endif BF_PLUS
+}
+
+#if BF_MACH
+
+extern int number_of_buffers;
+
+BF_MACH_init_args()
+
+{
+
+	pktlen = MAXPKTL;
+	msgdefsize = sizeof ( Msgh ) + pktlen;
+
+	if ( tw_node_num == 0 )
+	{
+		printf (
+	"Time Warp 2.7.1  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+			tw_num_nodes,
+			( ((float) mem_size)/ (1024 * 1024) ),
+			number_of_buffers
+			 );
+
+		printf ( "%s\n", timewarp_id+4 ); 
+	}
+
+#if MONITOR
+	moninit ();
+#endif
+
+	if ( tw_node_num == 0 )
+	{
+		butterfly_sigalarm ( timint );
+#if DLM
+		butterfly_dlmAlarm ( dlmtimint );
+#endif DLM
+	}
+	signal ( SIGINT, tester);
+	butterfly_sigint (ctrlc);
+	stdout_q = l_hcreate ();
+	rmq = l_hcreate ();
+	rm_buf = (char *) l_create ( msgdefsize );
+	objstksize = 3000;
+}
+
+#endif BF_MACH
+
+int its_a_feature = 2;
+
+
+#if RBC
+extern int rbc_present;
+#endif
+
+#ifndef BF_MACH
+
+
+
+FUNCTION main ( argc, argv )
+
+	int argc;
+	char ** argv;
+{
+	int         execObj = FALSE;
+		/* handle arguments & init rm_buf & msgdefsize */
+	init_args ( argc, argv );
+#else
+
+extern Node_Arg_Str Node_Args;
+extern char etext,end;
+#ifdef MSGTIMER
+extern long msgstart, msgend;
+extern long msgtime ;
+extern long msgcount ;
+extern int mlog;
+extern int onNodeTime;
+#endif MSGTIMER
+
+FUNCTION  Main_Node_Execution_Loop (my_node_num)
+int my_node_num;
+
+{
+
+	int         execObj = FALSE;
+	int i;
+	char *p;
+	char temp;
+	char *mem_end;
+
+#if PARANOID
+	int MyNode;
+	char *q;
+	int t_on, t_off, d_on, d_off, m_on, m_off;
+#endif
+
+	tw_node_num = my_node_num;
+	config_file = Node_Args.config_path;
+	stats_name = Node_Args.stats_path; 
+
+	if ( Node_Args.meg != 0 )
+	{
+		mem_size = Node_Args.meg * 1024 * 1024;
+	}
+	else
+	{
+		mem_size = MEM_SIZE;
+	}
+	mem = malloc( mem_size );
+
+	if ( mem == 0 )
+	{
+		printf ( "can't allocate %d bytes\n", mem_size );
+		tw_exit (0);
+	}
+
+	mem_end = (char *)((unsigned long)mem + mem_size);
+
+	/* read and write back Time Warp's heap */
+	for ( p = mem; p < mem_end; p = (char *)((unsigned long)p + vm_page_size) )
+	{
+		temp = *p;
+		*p = temp;
+	}
+
+	/* read the text area */
+	for ( p = (char *) 0; p < &etext;
+		p = (char *)((unsigned long)  p + vm_page_size) )
+	{
+		temp = *p;
+	}
+
+	/* note that p >= &etext so it points to the data area now */
+
+	/* read and write back data area */
+	for ( ; p < &end; p = (char *)((unsigned long)p + vm_page_size) )
+	{
+		temp = *p;
+		*p = temp;
+	}
+
+	butterfly_node_init();
+
+#if PARANOID
+/*  This PARANOID code causes the system to crash.  It has been if'd out,
+		but left in in case someone wants to fix it up some day. PLR */
+
+#if 0
+	t_on = t_off = d_on = d_off = m_on = m_off = 0;
+	q = 0;
+	MyNode = node_of_addr(getphysaddr(0));
+	for ( p = (char *) 0; p <= &etext; p += vm_page_size )
+		(node_of_addr(getphysaddr ( p ))) == MyNode ? t_on++ : t_off++;
+	_pprintf("Node: %x text: %x\n",MyNode,getphysaddr(p-vm_page_size));
+
+	for ( p = &etext + vm_page_size - 1; p <= &end; p += vm_page_size )
+		(node_of_addr(getphysaddr ( p ))) == MyNode ? d_on++ : d_off++;
+	_pprintf("data: %x\n",getphysaddr(p-vm_page_size));
+
+	for ( p = mem; p < mem_end; p += vm_page_size )
+		{
+		(node_of_addr(getphysaddr ( p ))) == MyNode ? m_on++ : m_off++;
+		if (!q && m_off)
+			q = p;
+		}
+	_pprintf("mem: %x\n",getphysaddr(q));
+
+	if ( t_off || d_off || m_off )
+	{
+		_pprintf("Program is using OFF node memory!!!\n" );
+		_pprintf("text: %don %doff data: %don %doff malloc: %don %doff\n",        
+			t_on, t_off, d_on, d_off, m_on, m_off );
+	}
+#endif 
+#endif PARANOID
+
+	BF_MACH_init_args (  );
+
+#endif
+
+	objstksize = (objstksize + 7) & ~7; /* round to 8 byte boundary */
+	miparm.me = tw_node_num;            /* this node's # */
+	miparm.maxnprc = tw_num_nodes;      /* total number of nodes */
+
+	init_types ();      /* set up the object type table */
+
+	/* Initialize object location structures. */
+
+	CacheInit();        /* init object location cache */
+	HomeInit();         /* init node's home list */
+	PendingListInit();  /* init pending requests list */
+
+	sendOcbQ = (Ocb *) l_hcreate ();
+	sendStateQ = (State_Migr_Hdr *) l_hcreate ();
+    statesMovedQ = (State_Migr_Hdr *) l_hcreate ();
+
+	tw_startup ();      /* do some initialization (eg for stdout obj) */
+
+	command_queue = (Msgh *) l_hcreate ();      /* set up command queue */
+
+	pmq = (Msgh *) l_hcreate ();        /* set up node's output queue */
+
+	brdcst_buf = (Msgh *) l_create ( msgdefsize );
+
+#if RBC
+	if ( rbc_init_start() == SUCCESS )
+	{
+		rbc_present = TRUE;
+		rbc_init_done ();
+	}
+#endif
+#if SUN
+#if SELECT
+	init_select();
+#endif
+#endif
+
+	if ( tw_node_num == 0 )
+	{  /* read in & handle config commands */
+		init_command ( config_file );
+	}
+
+#if TIMING
+	timing_mode = 0;
+	start_time = clock ();
+#endif
+
+	for ( ;; )
+	{
+#if MARK3
+		register Msgh * msg;
+
+		msg = (Msgh *) l_next_macro ( inuse_messages );
+
+		if ( ! l_ishead_macro ( msg ) )
+		{
+			if ( *((int *)(&msg->low.type)) == DONE )
+			{
+				l_remove ( msg );
+				destroy_msg ( msg );
+			}
+			continue;
+		}
+#endif
+
+#if BBN
+#if STANDALONE
+		if ( ChannelHasInput ( stdin ) )
+		{   
+			char    buff[80];
+			gets ( buff );
+			host_input_waiting = TRUE;
+		}
+#endif
+		if ( host_input_waiting == 0 )
+		{  /* check for alarms & interrupts */
+			check_alarm();
+			check_for_events ();
+		}
+#endif
+
+		if ( host_input_waiting )
+		{
+			if ( manual_mode )
+				go ();
+			else
+			{  /* get commands manually */
+				command ( "Tester" );
+			}
+			continue;
+		}
+
+		if ( rm_msg != NULL )
+		{  /* message received by node */
+			if ( rm_msg->low.to_node == IH_NODE )
+			{  /* handle message from host */
+				ih_msgproc ( rm_msg );
+			}
+			else
+			if ( rm_msg->mtype == COMMAND )
+			{  /* prompt for commands */
+				command ( "COMMAND" );
+			}
+			else
+			{
+#if TIMING
+				start_timing ( TIMEWARP_TIMING_MODE );
+#endif
+				msgproc ();
+#if TIMING
+				stop_timing ();
+#endif
+			}
+
+			continue;
+		}
+
+		if ( ltSTime ( command_queue_time, gvt.simtime ) )
+		{
+			exec_commands_in_queue ();
+			continue;
+		}
+
+#if MICROTIME
+		if ( timed_out )
+			check_timeouts ();
+#else
+		if ( timer >= interval )
+		{
+			timer_interrupt ();
+			continue;
+		}
+#if DLM
+		if ( dlmTimer >= dlmInterval )
+		{
+			dlmTimer_interrupt ();
+			continue;
+		}
+#endif DLM
+#endif
+
+		if ( states_to_send && resendState)
+		{
+			send_state_from_q ();
+		}
+
+
+		if ( ( messages_to_send || acks_queued ) && !execObj)
+		{
+			if ( eqVTime ( gvt, oldgvt2 ) &&
+				xqting_ocb &&
+				eqVTime ( gvt, xqting_ocb->svt) &&
+				(oldgvt2.simtime != NEGINF)  &&
+				(nxtocb_macro(sendOcbQ) == NULL) )
+			{
+				execObj = TRUE; /* force object execution next time */
+			}
+			send_from_q ();
+
+			if ( rm_msg != NULL )
+				continue;
+		}
+#if SUN
+		else if ( partial_send )
+			resend_msg();
+#endif
+		else
+
+		if ( object_context != NULL )
+		{
+			execObj = FALSE;
+#if BBN
+			read_the_mail ( TRUE );     /* check_only */
+
+			if ( rm_msg != NULL )
+				continue;
+#endif
+#if MARK3
+			cnt_msgs ( &mercury_msgs );
+
+			if ( mercury_msgs )
+			{
+				check_mercury_queue ();
+
+				if ( rm_msg != NULL )
+					continue;
+			}
+
+			LEDS ( 4 );
+#endif
+#if DEBUG
+			watchpoint ();
+			if ( breakpoint () )
+				tester ();
+#endif
+#if TIMING
+			start_timing ( OBJECT_TIMING_MODE );
+#endif
+#if MICROTIME
+			switch ( object_timing_mode )
+			{
+			case WALLOBJTIME:
+				MicroTime ();
+				object_start_time = node_cputime;
+				break;
+			case USEROBJTIME:
+				UserDeltaTime(); /* start clock */
+				/* object_start_time is still zero */
+				break;
+			case NOOBJTIME:
+			default:
+				/* no measure */
+				break;
+			}
+#else
+#if MARK3
+			mark3time ();
+#endif
+#if BBN
+			butterflytime ();
+#endif
+			object_start_time = node_cputime;
+#endif
+#ifdef MSGTIMER
+/*  This version of MSGTIMER will time from send to start of the resulting
+	event.  */
+/*
+					msgend = clock();
+					if ( onNodeTime == TRUE )
+					{
+						if ( msgend - msgstart > 0  &&
+							msgend - msgstart < 1000 )
+						{
+							msgtime += msgend - msgstart;
+							msgcount++;
+						}
+					}
+					else
+						onNodeTime = TRUE;
+*/
+#endif MSGTIMER
+			objectCode = TRUE;	/* will execute object code */
+			switch_over ( object_context, object_data );
+/*	tobjend is called by switch_over upon return, & objectCode is reset there */
+
+			if ( rm_msg != NULL )
+				continue;
+		}
+
+#if MARK3
+		else
+		{
+			cnt_msgs ( &mercury_msgs );
+
+			if ( mercury_msgs == 0 )
+				idle ();
+		}
+#endif
+
+#if MARK3
+		cnt_msgs ( &mercury_msgs );
+
+		if ( mercury_msgs )
+		{
+#else
+#ifndef BBN
+#if SUN
+		if ( !standalone )
+#else
+		if ( tw_num_nodes > 1 )
+#endif
+#endif
+		{
+#endif
+			read_the_mail ( FALSE );
+		}
+#if SUN
+		/*start_idle*/
+		if ( ( object_context != NULL ) || (rm_msg != NULL)
+			|| messages_received || messages_to_send || states_to_send
+			|| acks_queued || partial_send )
+		{
+				continue;
+		}
+		else
+		{
+			sigblock ( sigmask(SIGIO) | sigmask(SIGALRM) );
+
+			if ( ( maybe_socket_io == 0 ) && ( timed_out == 0 ) )
+				sigpause(0);
+
+			sigsetmask(0);
+		}
+#endif
+
+	}  /* for ( ;; ) */
+}
+
+#if MICROTIME
+/* microTime is like mark3time, butterflytime it counts in machine ticks with
+each tick a handfull of micro-seconds. It returns the number of ticks since
+the last call. The global variable node_cputime keeps a running total count. */
+
+static void (*spare_routine) ();
+int spare_interval;
+
+static unsigned int next_timeout;
+static unsigned int gvt_time;
+static unsigned int dlm_time;
+static unsigned int spare_time;
+
+static time_counter;
+check_timeouts ()
+{
+	if ( ! next_timeout )
+		return;
+
+	MicroTime();
+
+	if ( next_timeout > node_cputime )
+	{
+		return;
+	}
+
+	timed_out = 0;
+
+	if ((gvt_time != 0) && (node_cputime >= gvt_time) )
+	{
+		gvt_time = 0;
+
+		gvtinterrupt ();
+	}
+
+	if ((dlm_time != 0) && (node_cputime >= dlm_time) )
+	{
+		dlm_time = 0;
+
+#if DLM
+		loadinterrupt ();
+#endif
+	}
+
+
+	if ((spare_time != 0) && (node_cputime >= spare_time) )
+	{
+		spare_time = 0;
+
+		if ( spare_routine )
+			(*spare_routine) ();
+		else
+		{
+			printf ( "spare_signal called with void signal handler\n" );
+			tester ();
+		}
+	}
+
+	schedule_time_out();
+}
+
+schedule_time_out()
+{
+	int min_time;
+	int delta_time;
+
+	if ( gvt_time )
+	{
+		min_time = gvt_time;
+		if ( dlm_time && (dlm_time < min_time) )
+			min_time = dlm_time;
+		if ( spare_time && (spare_time < min_time) )
+			min_time = spare_time;
+	}
+	else if ( dlm_time )
+	{
+		min_time = dlm_time;
+		if ( spare_time && (spare_time < min_time) )
+			min_time = spare_time;
+	}
+	else if ( spare_time )
+	{
+		min_time = spare_time;
+	}
+	else
+	{
+		min_time = 0;
+	}
+
+	next_timeout = min_time;
+
+	if ( min_time )
+	{
+		MicroTime();
+		delta_time = min_time - node_cputime;
+		delta_time /= TICKS_PER_MILLISECOND;
+
+		if ( delta_time > 0 )
+			SetMicroAlarm ( delta_time );
+		else 
+			timed_out = 1;
+	}
+}
+
+schedule_next_gvt()
+{
+	MicroTime();
+
+	gvt_time = node_cputime + TICKS_PER_SECOND * interval;
+									    /* interval = gvtInterval */
+
+	schedule_time_out();
+}
+#if DLM
+schedule_next_dlm()
+{
+	MicroTime();
+
+	dlm_time = node_cputime + TICKS_PER_SECOND * dlmInterval;
+
+	schedule_time_out();
+}
+#endif
+schedule_next_spare()
+{
+	MicroTime();
+
+	spare_time = node_cputime + TICKS_PER_SECOND * spare_interval;
+
+	schedule_time_out();
+}
+
+void (*spare_signal ( routine ))()
+void (*routine) ();
+{
+	void (*temp_fun) ();
+
+	temp_fun = spare_routine;
+
+	spare_routine = routine;
+
+	return temp_fun;
+}
+#endif MICROTIME
+
+#if MARK3
+idle ()
+{
+	LEDS ( 8 );
+
+#if TIMING
+	start_timing ( IDLE_TIMING_MODE );
+#endif
+	for ( ;; )
+	{
+		if ( host_input_waiting )
+			break;
+
+		if ( timer >= interval )
+			break;
+
+		cnt_msgs ( &mercury_msgs );
+
+		if ( mercury_msgs )
+			break;
+	}
+#if TIMING
+	stop_timing ();
+#endif
+}
+#endif
+
+/* here's where we exit from timewarp */
+#if SUN
+int triedToExitOnce;
+#endif
+
+tw_exit ( code )
+	int code;
+{
+#if MARK3
+	send_message ( 0, 0, CP, EXIT );       /* tell CP to exit */
+#endif
+
+#if BBN
+	if (mem != NULL )
+		free (mem);
+
+	butterfly_node_term();
+#endif
+
+#if SUN
+	if ( standalone || tw_node_num || triedToExitOnce )
+		exit(code);
+	else
+	{
+		if ( /* batch mode */ 1 )
+			send_message ( 0, 0, CP, EXIT );
+		triedToExitOnce = 1;
+	}
+#endif
+
+}
+
+/* put "msg" in the command_queue in order of rcvtim */
+enq_command ( msg )
+
+	Msgh * msg;
+{
+	Msgh * last;
+
+	for ( last = (Msgh *) l_prev_macro ( command_queue );
+			   ! l_ishead_macro ( last );
+		  last = (Msgh *) l_prev_macro ( last ) )
+	{  /* loop through command_queue */
+		if ( leVTime ( last->rcvtim, msg->rcvtim ) )
+			break;      /* found the insertion spot */
+	}
+
+	l_insert (  (List_hdr *) last, (List_hdr *) msg );  /* insert */
+
+	if ( ltSTime ( msg->rcvtim.simtime, command_queue_time ) )
+		command_queue_time = msg->rcvtim.simtime;       /* update c_q_time */
+}
+
+exec_commands_in_queue ()
+{
+	Msgh * command_msg;
+
+	for ( ;; )
+	{
+		command_msg = (Msgh *) l_next_macro ( command_queue );
+
+		if ( command_msg == command_queue )
+		{
+			command_queue_time = POSINF+1;
+			break;
+		}
+
+		if ( gtSTime ( command_msg->rcvtim.simtime, gvt.simtime ) )
+		{
+			command_queue_time = command_msg->rcvtim.simtime;
+			break;
+		}
+
+		l_remove ( (List_hdr *) command_msg );
+		rm_msg = command_msg;
+		command ( "QCOMMAND" );
+	}
+}
+
+FUNCTION timeon ()
+{
+  Debug
+
+	timer_on = 1;
+
+#if MARK3
+	malarm ( delta );
+#else
+	alarm ( delta );    /* set timer for 1 second interrupts */
+#endif
+
+}
+
+#if DLM
+#if SUN
+dlmAlarm()
+{
+	printf ("dlmAlarm called\n");
+	tester();
+}
+#endif
+FUNCTION timelon ()
+{
+  Debug
+
+	dlmTimer_on = 1;
+
+#if MARK3
+
+/* mdlmalarm ( ) hasn't been written yet; obviously, this stuff won't work 
+		on the MARK3 without it.  It should look pretty much like malarm (). */
+
+	mdlmalarm ( delta );
+#else
+	dlmAlarm ( delta );
+#endif
+
+}
+#endif DLM
+
+FUNCTION tw_timeoff ()
+{
+  Debug
+
+	timer_on = 0;
+
+	timer = 0;
+}
+
+#if DLM
+FUNCTION dlmTimeoff ()
+{
+  Debug
+
+	dlmTimer_on = 0;
+
+	dlmTimer = 0;
+}
+#endif
+
+
+timeval ( t )
+
+	int * t;
+{
+	interval = * t;
+}
+
+timechg ( t )
+
+	STime * t;
+{
+	interval_change_time = *t;
+}
+
+FUNCTION timint ()
+{
+  Debug
+
+	if ( timer_on )
+	{
+		timer++;
+
+		if ( timer < interval )
+		{
+#if MARK3
+			malarm ( delta );
+#else
+			alarm ( delta );
+#endif
+		}
+	}
+}
+
+#if DLM
+
+FUNCTION dlmtimint ()
+{
+  Debug
+
+	if ( dlmTimer_on )
+	{
+		dlmTimer++;
+
+		if ( dlmTimer < dlmInterval )
+		{
+#if MARK3
+			mdlmalarm ( delta );
+#else
+			dlmAlarm ( delta );
+#endif
+		}
+	}    
+}
+#endif DLM
+
+#if TIMING
+#define GVT_TIMING_MODE 11
+#endif
+
+FUNCTION timer_interrupt ()
+{
+	int ( *tempf ) ();
+
+  Debug
+
+	if ( timrproc != NULL )
+	{
+		tw_timeoff ();
+
+#if TIMING
+		start_timing ( GVT_TIMING_MODE );
+#endif
+		tempf = timrproc;
+		timrproc = NULL;
+		( * tempf ) ();
+
+#if TIMING
+		stop_timing ();
+#endif
+	}
+}
+
+#if DLM
+FUNCTION dlmTimer_interrupt ()
+{
+	int ( *dlmtempf ) ();
+
+  Debug
+
+	if ( timlproc != NULL )
+	{
+		dlmTimeoff ();
+
+#if TIMING
+/*
+		start_timing ( LOAD_TIMING_MODE );
+*/
+#endif
+		dlmtempf = timlproc;
+		timlproc = NULL;
+		( * dlmtempf ) ();
+
+#if TIMING
+/*
+		stop_timing ();
+*/
+#endif
+	}
+}
+#endif 
+
+#if MARK3
+time_sync ()
+{
+	time_sync_flag = 1;
+}
+
+rtc_tick ()
+{
+	rtc_tick_cnt++;
+}
+
+abortint ()
+{
+	_pprintf ( "abortint: errno = %d\n", errno );
+}
+
+cubeint ()
+{
+	_pprintf ( "cubeint: errno = %d\n", errno );
+}
+#endif
+
+@
+
+
+1.22
+log
+@New version ID.
+@
+text
+@d7 3
+d91 1
+a91 1
+char timewarp_id [] = "@@(#)timewarp.c   $Revision: 1.21 $\t$Date: 91/12/27 09:19:32 $\tTIMEWARP";
+d633 1
+a633 1
+	"Time Warp 2.7  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+@
+
+
+1.21
+log
+@1.  Fix up TIMING code.
+2.  Make breakpoint code depend on DEBUG flag, not PARANOID.
+@
+text
+@d7 4
+d88 1
+a88 1
+char timewarp_id [] = "@@(#)timewarp.c   $Revision: 1.20 $\t$Date: 91/11/06 11:12:49 $\tTIMEWARP";
+d630 1
+a630 1
+	"Time Warp 2.6  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+@
+
+
+1.20
+log
+@Change version ID.
+@
+text
+@d7 3
+d84 1
+a84 1
+char timewarp_id [] = "@@(#)timewarp.c   $Revision: 1.19 $\t$Date: 91/11/01 13:56:31 $\tTIMEWARP";
+d831 1
+d978 1
+a978 1
+#if PARANOID
+@
+
+
+1.19
+log
+@added timing code (PLR)
+@
+text
+@d7 3
+d81 1
+a81 1
+char timewarp_id [] = "@@(#)timewarp.c   $Revision: 1.18 $\t$Date: 91/11/01 13:04:16 $\tTIMEWARP";
+d623 1
+a623 1
+	"Time Warp 2.5.1  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+@
+
+
+1.18
+log
+@1.  Change ifdef's and version id.
+2.  Set objectCode flag when exceuting app code (SCR 164).
+3.  Create statesMovedQ.
+4.  Enlarge default memory usage (SCR 189).
+5.  Change signal stack allocation.
+@
+text
+@d7 7
+d78 1
+a78 1
+char timewarp_id [] = "@@(#)timewarp.c   $Revision$\t$Date$\tTIMEWARP";
+d673 7
+a680 1
+
+d1004 18
+@
+
+
+1.17
+log
+@Allow for xqting_ocb = NULLOCB.
+@
+text
+@d7 3
+d71 1
+a71 1
+char timewarp_id [] = "@@(#)timewarp.c   1.83\t9/26/89\t16:36:28\tTIMEWARP";
+d161 1
+a161 1
+#define TDATAMASTER
+d168 1
+a168 1
+#ifdef BF_MACH
+d178 1
+a178 1
+#ifdef TC2000
+a188 1
+
+d193 1
+a193 1
+#ifdef MICROTIME
+d201 1
+a201 1
+#ifdef DLM
+d212 1
+a212 1
+#ifdef SOM
+d227 1
+a227 1
+#ifdef MARK3
+d250 1
+a250 1
+#ifdef BF_PLUS  
+d262 1
+a262 1
+#ifdef BF_MACH  
+d268 1
+a268 1
+#ifdef TC2000
+d277 1
+a277 1
+#define MEM_SIZE        0x220000        /* Default  2.125M */
+d293 2
+a294 2
+#ifdef SUN
+#ifdef SUN4
+d306 1
+a306 1
+struct sigstack ss = { sarea + sizeof(sarea), 0 };
+d317 1
+a317 1
+#ifdef TRANSPUTER
+d339 1
+a339 1
+#ifdef SUN
+d344 1
+a344 1
+#ifdef BBN
+d376 1
+a376 1
+#ifdef SUN
+d455 1
+a455 1
+#ifdef MONITOR
+d462 1
+a462 1
+#ifdef MICROTIME
+d470 1
+a470 1
+	objstksize = 38500;
+d473 1
+a473 1
+#ifdef TRANSPUTER
+d494 1
+a494 1
+#ifdef MARK3
+d517 1
+a517 1
+#ifdef MONITOR
+d565 1
+a565 1
+#ifdef BF_PLUS
+d578 1
+a578 1
+#ifdef MONITOR
+d585 1
+a585 1
+#ifdef DLM
+d599 1
+a599 1
+#ifdef BF_MACH
+d622 1
+a622 1
+#ifdef MONITOR
+d629 1
+a629 1
+#ifdef DLM
+d646 1
+a646 1
+#ifdef RBC
+d679 1
+a679 1
+#ifdef PARANOID
+d731 3
+a733 3
+ 
+#ifdef PARANOID
+/*  This PARANOID code causes the system to crash.  It has been ifdefed out,
+d743 1
+a743 1
+ 
+d747 1
+a747 1
+ 
+d755 1
+a755 1
+ 
+d782 2
+a783 1
+	sendStateQ = (State *) l_hcreate ();
+d793 1
+a793 1
+#ifdef RBC
+d800 2
+a801 2
+#ifdef SUN
+#ifdef SELECT
+d811 1
+a811 1
+#ifdef TIMING
+d817 1
+a817 1
+#ifdef MARK3
+d833 2
+a834 2
+#ifdef BBN
+#ifdef STANDALONE
+d873 1
+a873 1
+#ifdef TIMING
+d877 1
+a877 1
+#ifdef TIMING
+d891 1
+a891 1
+#ifdef MICROTIME
+d900 1
+a900 1
+#ifdef DLM
+d930 1
+a930 1
+#ifdef SUN
+d939 1
+a939 1
+#ifdef BBN
+d945 1
+a945 1
+#ifdef MARK3
+d963 1
+a963 1
+#ifdef TIMING
+d966 1
+a966 1
+#ifdef MICROTIME
+d983 1
+a983 1
+#ifdef MARK3
+d986 1
+a986 1
+#ifdef BBN
+d991 1
+d993 1
+d999 1
+a999 1
+#ifdef MARK3
+d1009 1
+a1009 1
+#ifdef MARK3
+d1016 1
+a1016 1
+#ifdef SUN
+d1026 1
+a1026 1
+#ifdef SUN
+d1048 1
+a1048 1
+#ifdef MICROTIME
+d1087 1
+a1087 1
+#ifdef DLM
+d1161 1
+a1161 1
+#ifdef DLM
+d1193 1
+a1193 1
+#ifdef MARK3
+d1198 1
+a1198 1
+#ifdef TIMING
+d1214 1
+a1214 1
+#ifdef TIMING
+d1221 1
+a1221 1
+#ifdef SUN
+d1228 1
+a1228 1
+#ifdef MARK3
+d1232 1
+a1232 1
+#ifdef BBN
+d1239 1
+a1239 1
+#ifdef SUN
+d1305 1
+a1305 1
+#ifdef MARK3
+d1313 2
+a1314 2
+#ifdef DLM
+#ifdef SUN
+d1327 1
+a1327 1
+#ifdef MARK3
+d1349 1
+a1349 1
+#ifdef DLM
+d1385 1
+a1385 1
+#ifdef MARK3
+d1394 1
+a1394 1
+#ifdef DLM
+d1406 1
+a1406 1
+#ifdef MARK3
+d1416 1
+a1416 1
+#ifdef TIMING
+d1430 1
+a1430 1
+#ifdef TIMING
+d1437 1
+a1437 1
+#ifdef TIMING
+d1443 1
+a1443 1
+#ifdef DLM
+d1454 1
+a1454 1
+#ifdef TIMING
+d1463 1
+a1463 1
+#ifdef TIMING
+d1472 1
+a1472 1
+#ifdef MARK3
+@
+
+
+1.16
+log
+@Fix new bug in Mark3 code.
+@
+text
+@d7 3
+d914 2
+a915 2
+			if ( eqVTime ( gvt, oldgvt1 ) &&
+				eqVTime ( oldgvt1, oldgvt2 ) &&
+d918 1
+a918 1
+				(!sendOcbQ || (nxtocb_macro(sendOcbQ) == NULL)) )
+@
+
+
+1.15
+log
+@New copyright notice.
+@
+text
+@d7 3
+d818 1
+a818 1
+			if ( *((int *)(&msg->mistuff[4])) == DONE )
+@
+
+
+1.14
+log
+@Change version #.
+@
+text
+@d1 4
+d7 3
+a63 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.13
+log
+@1. Support for multiple alarms with MicroTime
+2. Signal driven socket support
+3. object_timing_mode support
+4. changed numbers to constats (ie 9 to TIME_SYNC)
+@
+text
+@d2 7
+a8 1
+ * $Log:        timewarp.c,v $
+d601 1
+a601 1
+	"Time Warp 2.5  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+@
+
+
+1.12
+log
+@Fix Sun compile bugs.
+@
+text
+@d2 4
+a5 1
+ * $Log:	timewarp.c,v $
+d8 1
+a8 1
+ * 
+d11 1
+a11 1
+ * 
+d15 1
+a15 1
+ * 
+d175 4
+d180 1
+d276 3
+d280 1
+d287 1
+a287 1
+char sarea[4096];       /* signal stack area */
+d289 1
+d291 1
+d293 4
+d321 5
+a326 1
+int max_acks = 2;
+d328 4
+a332 1
+int max_acks = 2;
+d365 1
+a365 1
+		tw_exit (0);
+d443 4
+d448 2
+d526 1
+a526 1
+	send_message ( 0, 0, CP, 9 );       /* request time sync */
+d625 3
+d781 5
+a797 10
+
+#ifdef BF_MACH
+/*PJH BAD IDEA
+		  preempt_flag = 1;
+		  preempt_time = ( PREEMPT_TIME * 4 );
+*/
+
+#endif
+
+
+d843 1
+a843 1
+			if ( rm_msg->mistuff[1] == 128 )
+d872 4
+d888 1
+d890 1
+a890 1
+		if ( states_to_send  && resendState)
+d895 2
+a896 1
+		if ( (messages_to_send | acks_queued ) && !execObj)
+d898 8
+a905 9
+	if ( 
+		eqVTime ( gvt, oldgvt1 ) &&
+		eqVTime ( oldgvt1, oldgvt2 ) &&
+		eqVTime ( gvt, xqting_ocb->svt) &&
+		(oldgvt2.simtime != NEGINF)  &&
+		(!sendOcbQ || (nxtocb_macro(sendOcbQ) == NULL)) )
+	{
+		execObj = TRUE; /* force object execution next time */
+	}
+d911 4
+a914 1
+
+d947 17
+d971 1
+d995 3
+d1000 1
+d1005 19
+d1027 145
+d1208 1
+a1208 1
+	send_message ( 0, 0, CP, 1 );       /* tell CP to exit */
+d1222 3
+d1226 1
+d1293 7
+@
+
+
+1.11
+log
+@Make network version exit correctly.
+@
+text
+@d3 3
+a179 1
+extern int resendState;
+d184 1
+d607 1
+@
+
+
+1.10
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        timewarp.c,v $
+d680 1
+a680 1
+#ifdef 0
+d973 3
+d992 4
+a995 1
+	exit(code);
+@
+
+
+1.9
+log
+@1.  Execute object even with messages to send, if necessary.
+2.  Don't migrate out states if resendState flag is false.
+@
+text
+@d2 5
+a6 1
+ * $Log:	timewarp.c,v $
+d33 1
+a33 1
+ * 	aligned for the TC2000
+d40 1
+a40 1
+char timewarp_id [] = "@@(#)timewarp.c	1.83\t9/26/89\t16:36:28\tTIMEWARP";
+d42 3
+a44 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d50 5
+a54 5
+	This module contains the main loop of Time Warp.  This loop, contained
+	in main(), is the point at which decisions are made about what basic
+	operations to perform next: running a user object, trying to empty
+	low-level output queues, checking for input, etc.  The main()
+	function also contains substantial initialization code.  
+d56 2
+a57 2
+	timewarp.c also contains code related to timing, and a function
+	that allows a clean exit.
+d61 3
+a63 3
+	main(argc, argv) - the main loop of Time Warp
+		Parameters - int argc, char ** argv
+		Return - never returns
+d65 3
+a67 3
+	tw_exit() - exit Time Warp cleanly
+		Parameters - int
+		Return - Always returns zero
+d69 3
+a71 3
+	timeon() - turn the timer on and set an alarm
+		Parameters - none
+		Return - Always returns zero
+d73 3
+a75 3
+	tw_timeoff() - turn off the timer
+		Parameters - none
+		Return - Always returns zero
+d77 3
+a79 3
+	timeval(interval) - do nothing
+		Parameters - int * interval
+		Return - Always returns zero
+d81 3
+a83 3
+	timechg(interval_change_time) - do nothing
+		Parameters - STime * interval_change_time
+		Return - Always returns zero
+d85 3
+a87 3
+	timint() - increment the timer
+		Parameters - none
+		Return - Always returns zero
+d89 3
+a91 3
+	timer_interrupt() - call the function used when the timer expires
+		Parameters - none
+		Return - Always returns zero
+d95 10
+a104 10
+	main() is the main loop of the Time Warp system.  It performs 
+	certain initialization tasks for the Time Warp system, such 
+	as starting the monitor, initializing queues, and creating 
+	special buffers.  (Most of the actual work of these tasks 
+	is performed in various subroutines.)  Next is the main loop, 
+	which loops indefinitely.  First, check if we are working 
+	from the monitor, and prompt for a command if we are.  Next, 
+	see if a message is stored in rm_msg.  If it's a system message, 
+	deal with it through command().  Otherwise, use msgproc() to 
+	handle it.  Then loop.
+d106 4
+a109 4
+	If there was no message in rm_msg, and there are either messages
+	or acks to be sent out, call send_from_q() to send them.  After
+	send_from_q() returns, check again for a message in rm_msg, 
+	going to the top of the loop if one is found.  
+d111 9
+a119 9
+	If there were no messages to be sent, and if there is an object 
+	to be run, call check_mercury_queue(), going to a spot further 
+	along in the loop if there is a message earlier than the one
+	being processed.  Test for breakpoints, and call switch_over()
+	to run the object.  If, when the object relinquishes control,
+	rm_msg has something in it, go to the top of the loop.  Otherwise,
+	read_the_mail().  This is the point gone to if the check of the
+	mercury queue showed an earlier message.  After the mail is read,
+	go to the top of the loop.
+d121 2
+a122 2
+	tw_exit() provides a clean exit, by sending a halt message to
+	the CP.
+d124 6
+a129 6
+	timeon(), tw_timeoff(), timeval(), and timechg() all have to
+	do with the timing code, in the ways their names imply, mostly.
+	So do timint() and timer_interrupt().  timint() handles a timer 
+	interrupt by incrementing a counter, and checking if sufficent 
+	ticks have gone by to call alarm().  timer_interrupt() calls a
+	pre-supplied function when the timer expires.
+d177 2
+a178 2
+extern VTime	oldgvt1;
+extern VTime	oldgvt2;
+d183 2
+a184 2
+      node.  All subsequent creations use the first value as their initial
+      Est, as any object could, in theory, have been run first. */
+d207 1
+a207 1
+int delta = 1000;		/* 1 second */
+d210 1
+a210 1
+#define MEM_SIZE	0x300000	/* 3M */
+d220 1
+a220 1
+#define MEM_SIZE	0x2c0000	/* 2.75M */
+d223 1
+a223 1
+int delta = 1;			/* 1 second */
+d237 1
+a237 1
+#define MEM_SIZE	0x600000	/* Default  6M	*/
+d239 1
+a239 1
+#define MEM_SIZE	0x220000	/* Default  2.125M */
+d245 1
+a245 1
+#define MEM_SIZE	0x220000	/* Default  2.125M */
+d251 1
+a251 1
+int delta = 1;			/* 1 second */
+d262 1
+a262 1
+#define MEM_SIZE	0x200000	/* 2M */
+d265 1
+a265 1
+int delta = 1;			/* 1 second */
+d269 1
+a269 1
+char sarea[4096];	/* signal stack area */
+d276 1
+a276 1
+#define MEM_SIZE	0x080000	/* .5M */
+d279 2
+a280 2
+#define	ONE_SEC	15625
+int delta	= ONE_SEC;
+d318 2
+a319 2
+    int argc;
+    char ** argv;
+d321 2
+a322 2
+    double meg;
+    char * memarg;
+d324 2
+a325 2
+    pktlen = MAXPKTL;
+    msgdefsize = sizeof ( Msgh ) + pktlen;
+d329 1
+a329 1
+    printf ( "%s\n", timewarp_id+4 );
+d331 1
+a331 11
+    if ( argc < 2 )
+    {
+	printf ( "%s", usage );
+	tw_exit (0);
+    }
+
+    if ( *argv[1] >= '0' && *argv[1] <= '9' )
+    {
+	tw_node_num = atoi ( argv[1] );
+
+	if ( tw_node_num == 0 )
+a332 2
+	    if ( argc < 3 || argc > 4 )
+	    {
+d335 1
+a335 1
+	    }
+d337 1
+a337 4
+	    config_file = argv[2];
+	    memarg = argv[3];
+	}
+	else
+d339 1
+a339 5
+	    if ( argc > 3 )
+	    {
+		printf ( "%s", usage );
+		tw_exit (0);
+	    }
+d341 7
+a347 2
+	    memarg = argv[2];
+	}
+d349 10
+a358 1
+	init_node ( tw_node_num );
+d360 10
+a369 4
+	if ( tw_num_nodes > MAX_NODES )
+	{
+	    printf ( "MAX_NODES is %d\n", MAX_NODES );
+	    tw_exit ( 0 );
+d371 1
+a371 4
+    }
+    else
+    {
+	if ( argc < 2 || argc > 3 )
+d373 5
+a377 3
+	    printf ( "%s", usage );
+	    tw_exit (0);
+	}
+d379 2
+a380 2
+	config_file = argv[1];
+	memarg = argv[2];
+d382 4
+a385 4
+	standalone = 1;
+	tw_num_nodes = 1;
+	signal ( SIGINT, ctrlc );
+    }
+d387 1
+a387 3
+    if ( memarg )
+    {
+	if ( sscanf ( memarg, "%lf", &meg ) == 0 )
+d389 7
+a395 2
+	    printf ( "%s", usage );
+	    tw_exit (0);
+d398 1
+a398 2
+	mem_size = meg * 1024 * 1024;
+    }
+d400 5
+a404 1
+    mem = malloc ( mem_size );
+a405 6
+    if ( mem == 0 )
+    {
+	printf ( "can't allocate %d bytes\n", mem_size );
+	tw_exit (0);
+    }
+
+d407 1
+a407 1
+    moninit ();
+d410 4
+a413 4
+    sigstack ( &ss, 0 );
+    sigvec ( SIGIO, &iovec, 0 );
+    sigvec ( SIGALRM, &alarmvec, 0 );
+    rm_buf = (char *) l_create ( msgdefsize );
+d415 1
+a415 1
+    objstksize = 38500;
+d420 1
+a420 1
+    kernel_main ( argc, argv );
+d422 2
+a423 2
+    tw_node_num  = get_node_num ();
+    tw_num_nodes = get_num_nodes ();
+d425 1
+a425 1
+    transputer_time_init ( 0 );
+d427 4
+a430 4
+    if ( tw_node_num == 0 )
+    {
+        _pprintf ( "%s\n", timewarp_id+4 );
+    }
+d432 2
+a433 2
+    rm_buf = l_create ( msgdefsize );
+    signal ( TPSIGALRM, timint );
+d435 1
+a435 1
+    objstksize = 2500;
+d441 1
+a441 1
+    set_param ( SP_GET_Q_SIZ, 1024 );
+d443 1
+a443 1
+    async_comm ( INF );
+d445 1
+a445 1
+    now_async = 1;
+d447 1
+a447 1
+    printf ( "%s\n", timewarp_id+4 );
+d449 1
+a449 1
+    sscanf ( argv[3], "%lf", &meg );
+d451 2
+a452 2
+    if ( meg > 0 )
+	mem_size = meg * 1024 * 1024;
+d454 1
+a454 1
+    mem = malloc ( mem_size );
+d456 5
+a460 5
+    if ( mem == 0 )
+    {
+	printf ( "can't allocate %d bytes\n", mem_size );
+	tw_exit (0);
+    }
+d463 1
+a463 1
+    moninit ();
+d466 1
+a466 1
+    indep ();
+d468 5
+a472 5
+    config_file = argv[1];
+    stats_name = argv[2];
+    cparam ( &env );
+    tw_node_num = env.procnum;
+    tw_num_nodes = atoi ( argv[4] );
+d474 2
+a475 2
+    if ( argv[5] != 0 )
+        strcpy ( host_wd, argv[5] );
+d477 2
+a478 2
+    node_offset = 0;
+    node_limit = tw_num_nodes - 1;
+d480 3
+a482 3
+    sigglob ( 2, ctrlc );
+    sigglob ( 3, time_sync );
+    sigglob ( RTCGLOB, rtc_tick );
+d484 2
+a485 2
+    send.source = tw_node_num;
+    send.blen = recv.blen = 512;
+d487 1
+a487 1
+    LEDS ( 15 );
+d489 1
+a489 1
+    send_message ( 0, 0, CP, 9 );	/* request time sync */
+d491 2
+a492 2
+    while ( time_sync_flag == 0 )
+	;
+d494 1
+a494 1
+    mark3time_init ();
+d496 2
+a497 2
+    stdout_q = (Msgh *) l_hcreate ();
+    inuse_messages = (Msgh *) l_hcreate ();
+d499 4
+a502 4
+    signal ( SIGMALRM, timint );
+    signal ( SIGMSG, ioint );
+    signal ( SIGABRT, abortint );
+    signal ( SIGCUBE, cubeint );
+d504 1
+a504 1
+    objstksize = 3000;
+d511 11
+a521 11
+    config_file = argv[1];
+    stats_name = argv[2];
+    tw_num_nodes = atoi ( argv[4] );
+    tw_node_num = atoi ( argv[5] );
+    if ( tw_node_num == 0 )
+    {
+        printf ( "%s nodes = %d\n", timewarp_id+4, tw_num_nodes );
+    }
+    sscanf ( argv[6] , "%x",  &goid );
+    butterfly_node_init ( goid );
+    n_initialize_net_files ();
+d524 1
+a524 1
+    moninit ();
+d527 3
+a529 3
+    if ( tw_node_num == 0 )
+    {
+	butterfly_sigalarm ( timint );
+d531 1
+a531 1
+	butterfly_dlmAlarm ( dlmtimint );
+d533 5
+a537 5
+    }
+    butterfly_sigint (ctrlc);
+    stdout_q = l_hcreate ();
+    rmq = l_hcreate ();
+    rm_buf = (char *) l_create ( msgdefsize );
+d539 1
+a539 1
+    objstksize = 3000;
+d552 2
+a553 2
+    pktlen = MAXPKTL;
+    msgdefsize = sizeof ( Msgh ) + pktlen;
+d555 8
+a562 8
+    if ( tw_node_num == 0 )
+    {
+	printf (
+    "Time Warp 2.4.2  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+	    tw_num_nodes,
+	    ( ((float) mem_size)/ (1024 * 1024) ),
+	    number_of_buffers
+	     );
+d564 2
+a565 2
+        printf ( "%s\n", timewarp_id+4 ); 
+    }
+d568 1
+a568 1
+    moninit ();
+d571 3
+a573 3
+    if ( tw_node_num == 0 )
+    {
+	butterfly_sigalarm ( timint );
+d575 1
+a575 1
+	butterfly_dlmAlarm ( dlmtimint );
+d577 7
+a583 7
+    }
+    signal ( SIGINT, tester);
+    butterfly_sigint (ctrlc);
+    stdout_q = l_hcreate ();
+    rmq = l_hcreate ();
+    rm_buf = (char *) l_create ( msgdefsize );
+    objstksize = 3000;
+d598 2
+a599 2
+    int argc;
+    char ** argv;
+d601 2
+a602 2
+	/* handle arguments & init rm_buf & msgdefsize */
+    init_args ( argc, argv );
+d614 5
+a618 5
+    int		execObj = FALSE;
+    int i;
+    char *p;
+    char temp;
+    char *mem_end;
+d621 3
+a623 3
+    int MyNode;
+    char *q;
+    int t_on, t_off, d_on, d_off, m_on, m_off;
+d626 3
+a628 3
+    tw_node_num = my_node_num;
+    config_file = Node_Args.config_path;
+    stats_name = Node_Args.stats_path; 
+d630 9
+a638 9
+    if ( Node_Args.meg != 0 )
+    {
+	mem_size = Node_Args.meg * 1024 * 1024;
+    }
+    else
+    {
+	mem_size = MEM_SIZE;
+    }
+    mem = malloc( mem_size );
+d640 5
+a644 5
+    if ( mem == 0 )
+    {
+	printf ( "can't allocate %d bytes\n", mem_size );
+	tw_exit (0);
+    }
+d646 1
+a646 1
+    mem_end = (char *)((unsigned long)mem + mem_size);
+d648 6
+a653 6
+    /* read and write back Time Warp's heap */
+    for ( p = mem; p < mem_end; p = (char *)((unsigned long)p + vm_page_size) )
+    {
+	temp = *p;
+	*p = temp;
+    }
+d655 6
+a660 6
+    /* read the text area */
+    for ( p = (char *) 0; p < &etext;
+	p = (char *)((unsigned long)  p + vm_page_size) )
+    {
+	temp = *p;
+    }
+d662 1
+a662 1
+    /* note that p >= &etext so it points to the data area now */
+d664 6
+a669 6
+    /* read and write back data area */
+    for ( ; p < &end; p = (char *)((unsigned long)p + vm_page_size) )
+    {
+	temp = *p;
+	*p = temp;
+    }
+d671 1
+a671 1
+    butterfly_node_init();
+d675 1
+a675 1
+	but left in in case someone wants to fix it up some day. PLR */
+d678 6
+a683 6
+    t_on = t_off = d_on = d_off = m_on = m_off = 0;
+    q = 0;
+    MyNode = node_of_addr(getphysaddr(0));
+    for ( p = (char *) 0; p <= &etext; p += vm_page_size )
+        (node_of_addr(getphysaddr ( p ))) == MyNode ? t_on++ : t_off++;
+    _pprintf("Node: %x text: %x\n",MyNode,getphysaddr(p-vm_page_size));
+d685 3
+a687 3
+    for ( p = &etext + vm_page_size - 1; p <= &end; p += vm_page_size )
+        (node_of_addr(getphysaddr ( p ))) == MyNode ? d_on++ : d_off++;
+    _pprintf("data: %x\n",getphysaddr(p-vm_page_size));
+d689 9
+a697 1
+    for ( p = mem; p < mem_end; p += vm_page_size )
+d699 3
+a701 3
+        (node_of_addr(getphysaddr ( p ))) == MyNode ? m_on++ : m_off++;
+	if (!q && m_off)
+	    q = p;
+a702 8
+    _pprintf("mem: %x\n",getphysaddr(q));
+ 
+    if ( t_off || d_off || m_off )
+    {
+        _pprintf("Program is using OFF node memory!!!\n" );
+        _pprintf("text: %don %doff data: %don %doff malloc: %don %doff\n",        
+            t_on, t_off, d_on, d_off, m_on, m_off );
+    }
+d706 1
+a706 1
+    BF_MACH_init_args (  );
+d710 3
+a712 3
+    objstksize = (objstksize + 7) & ~7;	/* round to 8 byte boundary */
+    miparm.me = tw_node_num;		/* this node's # */
+    miparm.maxnprc = tw_num_nodes;	/* total number of nodes */
+d714 1
+a714 1
+    init_types ();	/* set up the object type table */
+d716 1
+a716 1
+    /* Initialize object location structures. */
+d718 3
+a720 3
+    CacheInit();	/* init object location cache */
+    HomeInit();		/* init node's home list */
+    PendingListInit();	/* init pending requests list */
+d722 2
+a723 2
+    sendOcbQ = (Ocb *) l_hcreate ();
+    sendStateQ = (State *) l_hcreate ();
+d725 1
+a725 1
+    tw_startup ();	/* do some initialization (eg for stdout obj) */
+d727 1
+a727 1
+    command_queue = (Msgh *) l_hcreate ();	/* set up command queue */
+d729 1
+a729 1
+    pmq = (Msgh *) l_hcreate ();	/* set up node's output queue */
+d731 1
+a731 1
+    brdcst_buf = (Msgh *) l_create ( msgdefsize );
+d734 5
+a738 5
+    if ( rbc_init_start() == SUCCESS )
+    {
+	rbc_present = TRUE;
+        rbc_init_done ();
+    }
+d741 4
+a744 4
+    if ( tw_node_num == 0 )
+    {  /* read in & handle config commands */
+	init_command ( config_file );
+    }
+d747 1
+a747 1
+    start_time = clock ();
+d750 2
+a751 2
+    for ( ;; )
+    {
+d755 2
+a756 2
+          preempt_flag = 1;
+          preempt_time = ( PREEMPT_TIME * 4 );
+d763 1
+a763 1
+	register Msgh * msg;
+d765 1
+a765 1
+	msg = (Msgh *) l_next_macro ( inuse_messages );
+d767 9
+a775 9
+	if ( ! l_ishead_macro ( msg ) )
+	{
+	    if ( *((int *)(&msg->mistuff[4])) == DONE )
+	    {
+		l_remove ( msg );
+		destroy_msg ( msg );
+	    }
+	    continue;
+	}
+d780 6
+a785 6
+        if ( ChannelHasInput ( stdin ) )
+        {   
+            char    buff[80];
+            gets ( buff );
+            host_input_waiting = TRUE;
+        }
+d787 5
+a791 5
+        if ( host_input_waiting == 0 )
+        {  /* check for alarms & interrupts */
+	    check_alarm();
+            check_for_events ();
+        }
+d794 10
+a803 10
+	if ( host_input_waiting )
+	{
+	    if ( manual_mode )
+		go ();
+	    else
+	    {  /* get commands manually */
+		command ( "Tester" );
+	    }
+	    continue;
+	}
+d805 13
+a817 13
+	if ( rm_msg != NULL )
+	{  /* message received by node */
+	    if ( rm_msg->mistuff[1] == 128 )
+	    {  /* handle message from host */
+		ih_msgproc ( rm_msg );
+	    }
+	    else
+	    if ( rm_msg->mtype == COMMAND )
+	    {  /* prompt for commands */
+		command ( "COMMAND" );
+	    }
+	    else
+	    {
+d819 1
+a819 1
+		start_timing ( TIMEWARP_TIMING_MODE );
+d821 1
+a821 1
+		msgproc ();
+d823 1
+a823 1
+		stop_timing ();
+d825 1
+a825 1
+	    }
+d827 2
+a828 2
+	    continue;
+	}
+d830 5
+a834 5
+	if ( ltSTime ( command_queue_time, gvt.simtime ) )
+	{
+	    exec_commands_in_queue ();
+	    continue;
+	}
+d836 5
+a840 5
+	if ( timer >= interval )
+	{
+	    timer_interrupt ();
+	    continue;
+	}
+d842 5
+a846 5
+	if ( dlmTimer >= dlmInterval )
+	{
+	    dlmTimer_interrupt ();
+	    continue;
+	}
+d849 13
+a861 1
+	if ( states_to_send  && resendState)
+d863 1
+a863 1
+	    send_state_from_q ();
+d865 1
+d867 3
+a869 12
+	if ( (messages_to_send | acks_queued ) && !execObj)
+	{
+    if ( 
+        eqVTime ( gvt, oldgvt1 ) &&
+        eqVTime ( oldgvt1, oldgvt2 ) &&
+	eqVTime ( gvt, xqting_ocb->svt) &&
+        (oldgvt2.simtime != NEGINF)  &&
+	(!sendOcbQ || (nxtocb_macro(sendOcbQ) == NULL)) )
+    {
+	execObj = TRUE;	/* force object execution next time */
+    }
+	    send_from_q ();
+d871 1
+a871 3
+	    if ( rm_msg != NULL )
+		continue;
+	}
+d873 3
+a875 5
+	else
+
+	if ( object_context != NULL )
+	{
+	    execObj = FALSE;
+d877 1
+a877 1
+	    read_the_mail ( TRUE );	/* check_only */
+d879 2
+a880 2
+	    if ( rm_msg != NULL )
+		continue;
+d883 1
+a883 1
+	    cnt_msgs ( &mercury_msgs );
+d885 3
+a887 3
+	    if ( mercury_msgs )
+	    {
+		check_mercury_queue ();
+d889 3
+a891 3
+		if ( rm_msg != NULL )
+		    continue;
+	    }
+d893 1
+a893 1
+	    LEDS ( 4 );
+d896 3
+a898 3
+	    watchpoint ();
+	    if ( breakpoint () )
+		tester ();
+d901 1
+a901 1
+	    start_timing ( OBJECT_TIMING_MODE );
+d904 1
+a904 1
+	    mark3time ();
+d907 1
+a907 1
+	    butterflytime ();
+d909 2
+a910 2
+	    object_start_time = node_cputime;
+	    switch_over ( object_context, object_data );
+d912 3
+a914 3
+	    if ( rm_msg != NULL )
+		continue;
+	}
+d917 3
+a919 3
+	else
+	{
+	    cnt_msgs ( &mercury_msgs );
+d921 3
+a923 3
+	    if ( mercury_msgs == 0 )
+		idle ();
+	}
+d927 1
+a927 1
+	cnt_msgs ( &mercury_msgs );
+d929 2
+a930 2
+	if ( mercury_msgs )
+	{
+d933 1
+a933 1
+	if ( tw_num_nodes > 1 )
+d935 1
+a935 1
+	{
+d937 3
+a939 3
+	    read_the_mail ( FALSE );
+	}
+    }  /* for ( ;; ) */
+d945 1
+a945 1
+    LEDS ( 8 );
+d948 1
+a948 1
+    start_timing ( IDLE_TIMING_MODE );
+d950 4
+a953 4
+    for ( ;; )
+    {
+	if ( host_input_waiting )
+	    break;
+d955 2
+a956 2
+	if ( timer >= interval )
+	    break;
+d958 1
+a958 1
+	cnt_msgs ( &mercury_msgs );
+d960 3
+a962 3
+	if ( mercury_msgs )
+	    break;
+    }
+d964 1
+a964 1
+    stop_timing ();
+d972 1
+a972 1
+    int code;
+d975 1
+a975 1
+    send_message ( 0, 0, CP, 1 );	/* tell CP to exit */
+d979 2
+a980 2
+    if (mem != NULL )
+	free (mem);
+d982 1
+a982 1
+    butterfly_node_term();
+d986 1
+a986 1
+    exit(code);
+d994 1
+a994 1
+    Msgh * msg;
+d996 1
+a996 1
+    Msgh * last;
+d998 7
+a1004 7
+    for ( last = (Msgh *) l_prev_macro ( command_queue );
+	       ! l_ishead_macro ( last );
+	  last = (Msgh *) l_prev_macro ( last ) )
+    {  /* loop through command_queue */
+	if ( leVTime ( last->rcvtim, msg->rcvtim ) )
+	    break;	/* found the insertion spot */
+    }
+d1006 1
+a1006 1
+    l_insert (  (List_hdr *) last, (List_hdr *) msg );	/* insert */
+d1008 2
+a1009 2
+    if ( ltSTime ( msg->rcvtim.simtime, command_queue_time ) )
+	command_queue_time = msg->rcvtim.simtime;	/* update c_q_time */
+d1014 1
+a1014 1
+    Msgh * command_msg;
+d1016 1
+a1016 5
+    for ( ;; )
+    {
+	command_msg = (Msgh *) l_next_macro ( command_queue );
+
+	if ( command_msg == command_queue )
+d1018 1
+a1018 3
+	    command_queue_time = POSINF+1;
+	    break;
+	}
+d1020 15
+a1034 4
+	if ( gtSTime ( command_msg->rcvtim.simtime, gvt.simtime ) )
+	{
+	    command_queue_time = command_msg->rcvtim.simtime;
+	    break;
+a1035 5
+
+	l_remove ( (List_hdr *) command_msg );
+	rm_msg = command_msg;
+	command ( "QCOMMAND" );
+    }
+d1042 1
+a1042 1
+    timer_on = 1;
+d1045 1
+a1045 1
+    malarm ( delta );
+d1047 1
+a1047 1
+    alarm ( delta );	/* set timer for 1 second interrupts */
+d1057 1
+a1057 1
+    dlmTimer_on = 1;
+d1062 1
+a1062 1
+	on the MARK3 without it.  It should look pretty much like malarm (). */
+d1064 1
+a1064 1
+    mdlmalarm ( delta );
+d1066 1
+a1066 1
+    dlmAlarm ( delta );
+d1076 1
+a1076 1
+    timer_on = 0;
+d1078 1
+a1078 1
+    timer = 0;
+d1086 1
+a1086 1
+    dlmTimer_on = 0;
+d1088 1
+a1088 1
+    dlmTimer = 0;
+d1095 1
+a1095 1
+    int * t;
+d1097 1
+a1097 1
+    interval = * t;
+d1102 1
+a1102 1
+    STime * t;
+d1104 1
+a1104 1
+    interval_change_time = *t;
+d1111 3
+a1113 3
+    if ( timer_on )
+    {
+	timer++;
+d1115 2
+a1116 2
+	if ( timer < interval )
+	{
+d1118 1
+a1118 1
+	    malarm ( delta );
+d1120 1
+a1120 1
+	    alarm ( delta );
+d1122 2
+a1123 2
+        }
+    }
+d1132 3
+a1134 3
+    if ( dlmTimer_on )
+    {
+        dlmTimer++;
+d1136 2
+a1137 2
+        if ( dlmTimer < dlmInterval )
+        {
+d1139 1
+a1139 1
+            mdlmalarm ( delta );
+d1141 1
+a1141 1
+            dlmAlarm ( delta );
+d1143 2
+a1144 2
+        }
+    }    
+d1154 1
+a1154 1
+    int ( *tempf ) ();
+d1158 3
+a1160 3
+    if ( timrproc != NULL )
+    {
+	tw_timeoff ();
+d1163 1
+a1163 1
+	start_timing ( GVT_TIMING_MODE );
+d1165 3
+a1167 3
+	tempf = timrproc;
+	timrproc = NULL;
+	( * tempf ) ();
+d1170 1
+a1170 1
+	stop_timing ();
+d1172 1
+a1172 1
+    }
+d1178 1
+a1178 1
+    int ( *dlmtempf ) ();
+d1182 3
+a1184 3
+    if ( timlproc != NULL )
+    {
+        dlmTimeoff ();
+d1188 1
+a1188 1
+        start_timing ( LOAD_TIMING_MODE );
+d1191 3
+a1193 3
+        dlmtempf = timlproc;
+        timlproc = NULL;
+        ( * dlmtempf ) ();
+d1197 1
+a1197 1
+        stop_timing ();
+d1200 1
+a1200 1
+    }
+d1207 1
+a1207 1
+    time_sync_flag = 1;
+d1212 1
+a1212 1
+    rtc_tick_cnt++;
+d1217 1
+a1217 1
+    _pprintf ( "abortint: errno = %d\n", errno );
+d1222 1
+a1222 1
+    _pprintf ( "cubeint: errno = %d\n", errno );
+@
+
+
+1.8
+log
+@Code to support Tapas Som's work, plus permitting any node to run
+check_alarm().  (Necessary for dynamic load management.)
+@
+text
+@d3 4
+d170 1
+d173 3
+d610 1
+d845 1
+a845 1
+	if ( states_to_send )
+d850 1
+a850 1
+	if ( messages_to_send | acks_queued )
+d852 9
+d871 1
+d891 1
+a891 1
+#ifdef PARANOID
+@
+
+
+1.7
+log
+@Change timeoff() to tw_timeoff()--conflict with Sun libraries.
+@
+text
+@d3 3
+d168 9
+a262 3
+extern Ocb *sendOcbQ;
+extern State *sendStateQ;
+
+d661 4
+d690 1
+d776 1
+a776 2
+	    if ( tw_node_num ==0)
+	    	check_alarm();
+@
+
+
+1.6
+log
+@Add Steve's RBC code.
+@
+text
+@d3 3
+d62 1
+a62 1
+	timeoff() - turn off the timer
+d113 1
+a113 1
+	timeon(), timeoff(), timeval(), and timechg() all have to
+d1036 1
+a1036 1
+FUNCTION timeoff ()
+d1124 1
+a1124 1
+	timeoff ();
+@
+
+
+1.5
+log
+@1.  fix #if 0 bug
+2.  change version number
+@
+text
+@d3 4
+d564 3
+a567 2
+
+
+d703 8
+a718 1
+
+@
+
+
+1.4
+log
+@1.  add PARANOID code to detect off node memory
+2.  allow tester to break into looping node via signals
+3.  add comment for future TC2000 memory default change
+@
+text
+@d3 5
+d204 1
+a207 1
+#endif
+a208 1
+#if 0
+d210 1
+d212 4
+d530 1
+a530 1
+    "Time Warp 2.4.1  %d nodes, memory/node = %.3fMB, msg buffs/node = %d\n", 
+@
+
+
+1.3
+log
+@Round objstksize to 8 byte boundary.
+@
+text
+@d3 3
+d119 15
+d136 1
+d138 1
+d196 7
+d204 5
+d541 1
+d581 6
+d633 29
+d1165 1
+@
+
+
+1.2
+log
+@1. fixed command line `number_of_buffers'.
+2. increased default mem_size to 2 1/8M.
+3. changed page touching to read text pages and to be correctly
+	aligned for the TC2000
+The Above Changes apply only to the BF_MACH code.
+@
+text
+@d3 7
+d598 1
+d855 4
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+a108 1
+#include <us.h>
+d128 3
+d169 1
+a169 2
+#define PAGE_SIZE	8192
+#define MEM_SIZE	0x200000	/* Default  2M */
+d222 1
+a222 1
+int max_acks = 4;
+d470 1
+a470 1
+int	number_of_buffers;
+a471 1
+
+d481 8
+a488 6
+        printf ( "%s nodes = %d %.2f MB %d buffs\n", 
+	timewarp_id+4, 
+	tw_num_nodes,
+	( ((float) mem_size)/ (1024 * 1024) ),
+	number_of_buffers
+ 	 );
+d531 2
+a532 2
+FUNCTION  Main_Node_Execution_Loop (num_nodes)
+int num_nodes;
+d538 2
+d541 1
+a541 3
+
+    tw_num_nodes = num_nodes;
+    tw_node_num = UsProc_Node -1;
+a544 14
+    number_of_buffers = Node_Args.num_buffs;
+
+    if ( Node_Args.num_buffs == 0)
+    {
+	number_of_buffers = DEFAULT_NUM_BUFFS;
+    }
+
+    if ( Node_Args.num_buffs > MAX_NUM_BUFFS)
+    {
+        _pprintf ("No more than %d  buffers per node resetting to %d\n",
+		  MAX_NUM_BUFFS, DEFAULT_NUM_BUFFS);
+	number_of_buffers = DEFAULT_NUM_BUFFS;
+    }
+
+a553 2
+    if ( !OnNode (mem) )
+	_pprintf ("Allocated memory OFF NODE!!!\n");
+d560 5
+a564 1
+    for (i =0; i<mem_size; i +=PAGE_SIZE )
+d566 2
+a567 6
+	touch ( mem +i );
+    } 
+/* make data local to node (mach bug) */
+    for (p = &etext + PAGE_SIZE - 1; p < &end; p += PAGE_SIZE)
+    {	
+	touch(p);
+d570 16
+d622 1
+a661 1
+#ifdef BF_MACH
+a663 2
+#endif
+
+a842 1
+#ifdef BF_MACH
+a844 1
+#endif
+a846 4
+#endif
+
+#ifdef SUN
+    exit(code);
+@

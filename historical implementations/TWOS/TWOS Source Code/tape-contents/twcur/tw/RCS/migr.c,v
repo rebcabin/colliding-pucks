@@ -1,0 +1,7952 @@
+head     1.17;
+branch   ;
+access   ;
+symbols  TW2_7:1.16 TW2_6:1.13 TW2_5_1:1.11 TW2_5:1.9 TW2_4_2:1.2 TW2_4_1:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.17
+date     92.02.25.10.34.52;  author reiher;  state Dev;
+branches ;
+next     1.16;
+
+1.16
+date     92.01.03.09.05.42;  author configtw;  state Rel;
+branches ;
+next     1.15;
+
+1.15
+date     91.12.27.11.01.15;  author pls;  state Dev;
+branches ;
+next     1.14;
+
+1.14
+date     91.12.27.08.45.23;  author reiher;  state Dev;
+branches ;
+next     1.13;
+
+1.13
+date     91.11.06.11.11.46;  author configtw;  state Rel;
+branches ;
+next     1.12;
+
+1.12
+date     91.11.01.09.41.59;  author reiher;  state Dev;
+branches ;
+next     1.11;
+
+1.11
+date     91.07.17.15.10.09;  author judy;  state Rel;
+branches ;
+next     1.10;
+
+1.10
+date     91.07.09.14.26.09;  author steve;  state Dev;
+branches ;
+next     1.9;
+
+1.9
+date     91.06.04.11.29.21;  author configtw;  state Rel;
+branches ;
+next     1.8;
+
+1.8
+date     91.06.03.15.51.43;  author configtw;  state Dev;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.03.14.25.27;  author configtw;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.06.03.12.24.59;  author configtw;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     91.05.31.14.24.00;  author pls;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.04.16.09.36.17;  author pls;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.04.01.15.41.00;  author reiher;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.09.16.56.40;  author steve;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.13;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@object migration code
+@
+
+
+1.17
+log
+@Changed migration of dynamic memory table to precalculate size and
+allocate correct size initially.  Also, bug fix in send_state_copy()
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	migr.c,v $
+ * Revision 1.16  92/01/03  09:05:42  configtw
+ * Take out reordering optimization (bug fix).
+ * 
+ * Revision 1.15  91/12/27  11:01:15  pls
+ * 1.  Use l_size macro.
+ * 2.  Add support for variable length address tables.
+ * 3.  Carry libPointer over when migrating (bug 16).
+ * 
+ * Revision 1.14  91/12/27  08:45:23  reiher
+ * Added code for event and event time throttling, and critical path computation
+ * 
+ * Revision 1.13  91/11/06  11:11:46  configtw
+ * Fix DLM compile errors on Suns.
+ * 
+ * Revision 1.12  91/11/01  09:41:59  reiher
+ * multiple migration bug fixes, made sure acks/naks match with their migrating
+ * entity, more debugging routines (PLR)
+ * 
+ * Revision 1.11  91/07/17  15:10:09  judy
+ * New copyright notice.
+ * 
+ * Revision 1.10  91/07/09  14:26:09  steve
+ * Added MicroTime support. Removed mistuff.
+ * 
+ * Revision 1.9  91/06/04  11:29:21  configtw
+ * Fix Sun3 compile error.
+ * 
+ * Revision 1.8  91/06/03  15:51:43  configtw
+ * Take out preint state deletion in recv_state().
+ * 
+ * Revision 1.7  91/06/03  14:25:27  configtw
+ * Fix code for DLM off.
+ * 
+ * Revision 1.6  91/06/03  12:24:59  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.5  91/05/31  14:24:00  pls
+ * 1. Add parameter to FindObject() call.
+ * 2. Fix dlm bugs.
+ * 
+ * Revision 1.4  91/04/16  09:36:17  pls
+ * 1.  Take out diagnostic messages.
+ * 2.  Don't allow migration of ocb's in BLKPT mode (because of bug 4 fix).
+ * 
+ * Revision 1.3  91/04/01  15:41:00  reiher
+ * Wholesale changes in phase migration code, including pre-interval state
+ * optimizations and a number of important bug fixes.
+ * 
+ * Revision 1.2  90/08/09  16:56:40  steve
+ * Added msgloging to migrating states.
+ * Set state->ocb fields
+ * 1st draft of jump forward for phase migration
+ * 
+ * Revision 1.1  90/08/07  15:40:13  configtw
+ * Initial revision
+ * 
+*/
+char migr_id [56] = "@@(#)migr.c 1.31\t10/6/89\t14:25:23\tTIMEWARP";
+
+
+/*              migr.c - Object Migration Routines      */
+
+#include <stdio.h>
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+
+/*
+		There is a protocol involved in sending a state to another
+		node which may take a while to complete. Therefore, a
+		queue of states to send is used to hold onto any number
+		of states. Only the first state in the sendStateQ can be
+		in the process of sending to another node.
+*/
+
+int states_to_send;
+
+/*
+		There is a protocol involved in sending an object phase
+		to another node which may take a while to complete.
+		Therefore, a queue of ocb's to send is used to hold onto
+		any number of object phases. Only the first ocb in the
+		sendOcbQ can be in the process of sending to another node.
+*/
+
+int ocbs_to_send;
+Ocb * tempOcb;
+char tempName[20];
+
+extern Pending_entry * PendingListHeader;
+extern int loadCount;
+extern int migrGraph;
+extern int resendState;
+extern int aggressive;
+extern long critEnabled;
+int phaseNaksSent = 0;
+int phaseNaksRecv = 0;
+int stateNaksSent = 0;
+int stateNaksRecv = 0;
+
+
+/*      send_state_copy is called by go_forward in rollback.c
+		when an object is BLKINF and phase_end is < POSINF.
+
+		loadstatebuffer in state.c makes a copy of the object's
+		cs (current state) and leaves a pointer to the copy
+		in the object's sb (state buffer). For this to work
+		the cs must point to the state to copy and the sb
+		must be available (NULL). The sb should always be
+		NULL when the runstat is BLKINF.
+
+		Once a copy of the state is made, this routine should
+		release the object's stack, which was allocated by
+		loadstatebuffer, and clear the object's sb and stk.
+
+		The state copy is send to the next phase of the object
+		by calling send_state unless the next phase is on the
+		same node. In that case the state is put in the next
+		phase's state queue.
+*/
+
+Ocb * findInSendQueue();
+State * copystate ();
+
+FUNCTION send_state_copy ( state, ocb )
+
+	State * state;
+	Ocb * ocb;
+{
+	Objloc * location;
+	int finish_send_state_copy ();
+	State * new_state;
+	Ocb         *next;
+	State * last_sent = ocb->last_sent;
+	Ocb * inSendQueue;
+
+  Debug
+
+	/*  If the state in question is erroneous, let's not bother sending
+		it.  The migration code doesn't currently send it correctly,
+		anyway, and an erroneous state won't do any good on the destination
+		end, either. */
+
+	if ( state->serror != NOERR )
+	{
+
+#if 0
+		_pprintf("send_state_copy: not sending state for %s because of state error \n", ocb->name );
+#endif
+
+		return;
+	}
+
+	fstateout++;
+
+	ocb->last_sent = state;
+
+
+/* The limited jump forward optimization is within this ifdef.   last_sent
+		points to the last state sent.  If such a state exists, compare it
+		to the state about to be sent.  If they are the same, then if 
+		last_state is no longer saved in the state queue (because it was 
+		committed), destroy last_state.  Then clear the out_of_sq flag.
+		In either case, if the compare is the same, simply return.  If
+		the compare is not the same, check whether out_of_sq is set, which
+		means that a committed state must be destroyed.
+*/
+
+	if ( last_sent )
+	{
+		/* Coming soon */
+		if (  state_compare ( last_sent, state, ocb->pvz_len ) ==  0 )
+		{
+/*
+_pprintf("JF wins: Object %s, phase end %f\n",ocb->name, ocb->phase_end.simtime);
+*/
+			if ( ocb->out_of_sq )
+			{
+/*
+_pprintf("JF wins: destroying state for jump forward\n");
+*/
+				l_remove ( last_sent );
+				destroy_state ( last_sent );
+			}
+			ocb->out_of_sq = 0;
+			dupStateSend++;
+			return; /* jump forward for phase wins !!! */
+		}
+		else if ( ocb->out_of_sq )
+		{
+/*
+_pprintf("JF loses: destroying state for jump forward\n");
+*/
+			l_remove ( last_sent );
+			destroy_state ( last_sent );
+		}
+	}
+
+	ocb->out_of_sq = 0;
+
+	new_state = copystate ( state );
+
+	if ( new_state == NULL )
+	{
+		l_remove ( state );
+
+		new_state = state;
+
+		/* If we later commit the bundle associated with this state, remember
+				that the state should count as committed. */
+
+		ocb->loststate = 1;
+
+		ocb->last_sent = NULL;
+
+#if 0
+		_pprintf ( "send_state_copy: lost a state for %s\n", ocb->name );
+#endif
+
+		if ( ocb->runstat == READY )
+			ocb->runstat = GOFWD;
+	}
+	else
+	if ( new_state == (State *) -1 )
+	{
+
+		/* In this case, the node could not obtain enough memory to make
+				a copy of the state for shipping, and could not even obtain
+				enough memory to copy any deferred memory segments lying
+				around in earlier versions of the state.  Set the object
+				into STATESEND status, which will cause it to try again
+				later.  Also, change the svt to the phase's phase_end which
+				will reorder the scheduler queue, so that the retry will happen
+				at the appropriate priority.  Since there isn't a copy of a 
+				state to send, return immediately. */
+
+		ocb->runstat = STATESEND;
+		ocb->svt = ocb->phase_end;
+
+		/* By this time, we know that the limited jump forward optimization
+			won't work for this state.  In unusual cases, a rollback and
+			new attempt to send a different state might have profited from 
+			the limited jump forward optimization, but the chances are poor
+			and there are possible complications, so just set ocb->last_sent
+			to NULL, thereby bypassing the optimization on the next attempt
+			by this OCB to send a state. */
+
+		ocb->last_sent = NULL;
+		next = l_next_macro ( ocb );
+		l_remove ( ocb );               /* remove ocb from object list */
+		nqocb ( ocb, next );    /* reinsert ocb in new time order */
+
+		return;
+	}
+
+	if ( ocb->runstat == STATESEND )
+	{
+
+		/* If we got this far with this status, we have a copy of the state
+			to send.  Change the run status of this phase to BLKINF.   Also,
+			reorder the scheduler queue to put it in its proper place.  */
+
+		ocb->runstat = BLKINF;
+
+		ocb->svt = posinf;
+		next = l_next_macro ( ocb );
+		l_remove ( ocb );               /* remove ocb from object list */
+		nqocb ( ocb, next );    /* reinsert ocb in new time order */
+	}
+
+	new_state->ocb = (Byte *) ocb;
+	new_state->sflag |= STATEFORW;
+
+	/*  First check to see if the phase to receive the state is in the
+		queue of phases to be migrated.  If so, and if the phase hasn't
+		started migrating yet, the state copy will be 
+		put into the state queue of that phase locally, rather than being
+		shipped to the eventual destination node.  The process to do so is
+		moderately complex, as the phase getting the state must be rolled
+		back when it is in the sending queue, rather than the schedule
+		queue.  As a result, some of the normal rollback code cannot be used. */
+
+#if 0
+	inSendQueue = findInSendQueue ( ocb->name, ocb->phase_end );
+
+	if ( inSendQueue != NULL && !(inSendQueue->migrWait & WAITFORACK) &&
+				!(inSendQueue->migrWait & WAITFORDONE ) )
+	{
+		rollbackInMigrQ++;
+		putStateInSendQueue ( inSendQueue, new_state );
+		return;
+	}
+#endif 0
+
+	location = GetLocation ( ocb->name, ocb->phase_end );
+
+	if ( location && (location->node != tw_node_num || location->po != NULL) )
+	{
+		finish_send_state_copy ( new_state, location );
+	}
+	else
+	{
+
+		FindObject (
+						ocb->name,
+						ocb->phase_end,
+						new_state,
+						finish_send_state_copy,
+						NOTMSG
+				   );
+	}
+}
+
+FUNCTION finish_send_state_copy ( state, location )
+
+	State * state;
+	Objloc * location;
+{
+	Ocb * ocb;
+	int flags = 0;
+
+  Debug
+
+	ocb = (Ocb *) state->ocb;
+
+/* Potential Problem if a split command is issued between
+		send_state_copy() & finish_send_state_copy() */
+
+	ocb->next_node = location->node;
+
+	if ( ocb->next_node == tw_node_num )
+	{
+		put_state_in_sq ( location->po, state );
+		state->ocb = location->po;
+		/* This is a bug fix having nothing to do with my new code.  If
+				two adjacent phases of an object are on the same node,
+				TW2.4.1 wouldn't handle it properly.  When the earlier
+				phase forwarded a state to the later phase, the state 
+				would be queued, but the later phase wouldn't be rolled
+				back, so it might never execute.  Also, neither the object
+				statistics nor the node statistics took account of these
+				state receives on the receiving end, so stats wouldn't
+				balance.  */
+
+		rollback_state ( location->po, state->sndtim );
+
+		ocb->stats.stforw++;
+		fstatein++;
+	}
+	else
+	{
+		Ocb * migrating;
+
+		/*  Set the flags for send_state().  In this routine, the state
+				copy is always pre-interval.  If the destination phase has
+				not yet gotten to the destination node, also set the flags
+				to show that it must wait for the migration. */
+
+		flags |= PRE_INTERVAL;
+
+		migrating = findInSendQueue (ocb->name, ocb->phase_end);
+
+		if ( migrating != NULL )
+		{
+				flags |= WAIT_FOR_MIGRATE;
+		}
+
+		send_state ( state, ocb, flags );
+	}
+}
+
+
+/*      All control information for sending a state to another node
+		has been added to the state header (State and 
+		State_Migr_Hdr in twsys.h).
+
+		In version 2.5 all migration information will be in     
+		State_Migr_Hdr. For now however, the segment and packet
+		information will reside in State.
+
+		States are divided into segments and segments are divided
+		into packets. The global variable pktlen is used for the
+		packetizing. Segment 0 is the state header and data area.
+		Dynamically allocated blocks of memory are segments 1 thru
+		MaxAddresses. These segment numbers are the same as the
+		offsets into the address_table and are not necessarily
+		contiguous due to allocates and frees by the objects.
+*/
+
+FUNCTION send_state ( state, ocb, flags )
+
+	State * state;
+	Ocb * ocb;
+	int flags;
+{
+	Byte * segment;
+	int seglen;
+	register int i;
+	State_Migr_Hdr  * migr_hdr;
+
+  Debug
+
+/*PJH#1  Create A State migration header      */
+
+	/*  send_state() should never be handed a state in an error condition.
+		If this state is erroneous, trap to tester().  */
+
+	if ( state->serror != NOERR )
+	{
+		twerror ( "send_state: %s trying to send erroneous state %x\n",
+						ocb->name, state );
+		tester();
+	}
+
+/*  No split command in between send_statecopy() & send_state() */
+
+	migr_hdr = ( State_Migr_Hdr *) l_create ( sizeof ( State_Migr_Hdr ) );
+
+	if ( migr_hdr == NULL )
+	{
+		twerror("send_state: NULL migr_hdr for state %d, ocb %d\n",
+			state, ocb );
+		tester();
+	}
+
+	migr_hdr->time_to_deliver = ocb->phase_end; 
+	migr_hdr->to_node = ocb->next_node;       
+	migr_hdr->state = state;
+	migr_hdr->waiting_for_ack = FALSE;
+	migr_hdr->waiting_for_done = FALSE;
+	migr_hdr->acksExpected = 0;
+	migr_hdr->acksReceived = 0;
+	strcpy ( migr_hdr->name, ocb->name );
+
+	/* Set the migration header flags to indicate whether the state is
+		pre-interval, and whether it is being migrated or forwarded. */
+
+	migr_hdr->migr_flags = flags;
+
+
+	state->ocb = (Byte *) ocb;
+	state->segno = 0;
+	state->no_segs = 1;
+	segment = (Byte *) state;
+
+	/*  The state points to the type table entry for this state's type, which 
+		contains a field describing the size of the state.  This is a 
+		preferable method to examining the size of the memory block currently 
+		holding the state.   Once we're sure that this works, the paranoid 
+		test can be removed.  */
+
+	seglen =  state->otype->statesize + sizeof (State)+12 ;
+
+		/* the 12 bytes holds "state limit" */
+#ifdef PARANOID
+	if ( seglen != (((List_hdr *)segment)-1)->size )
+	{
+		twerror("send_state: type table length for a state doesn't match memory block size, state ptr %x\n", state);
+		_pprintf("      seglen = %d, list hdr length = %d\n",seglen,
+						(((List_hdr *)segment)-1)->size);
+		tester();
+	}
+#endif PARANOID
+	state->tot_pkts = ( seglen + pktlen - 1 ) / pktlen;
+	if ( state->address_table != NULL )
+	{
+		for ( i = 0; i < l_size(state->address_table) / sizeof(Address); i++ )
+		{
+			if ( state->address_table[i] != NULL )
+			{
+				state->no_segs++;
+				segment = (Byte *) state->address_table[i];
+				if ( segment == DEFERRED )
+					state->tot_pkts++;
+				else
+				{
+					seglen = l_size(segment);
+					state->tot_pkts += 
+						( seglen + pktlen - 1 ) / pktlen;
+				}
+			}
+		}
+	}
+
+	/* Set the addrTableSize field to indicate how big to make the table
+		at the destination end upon state reassembly. */
+
+	if ( state->address_table != NULL )
+		state->addrTableSize = l_size(state->address_table)/sizeof(Address);
+	else
+		state->addrTableSize = 0;
+
+	state->pktno = 0;
+	state->no_pkts = 0; /* depends on segno */
+
+/* Pre-Interval State optimization.     
+
+ 	If we are about to insert a pre-interval state in the sendStateQ here we 
+	should check for any other pre-interval states that are in the queue for 
+	this object & phase and remove and delete them.  However, if the state
+	we're trying to insert is a migrating pre-interval state, it should
+	not remove any existing states, as they represent later versions of the
+	pre-interval state.                                    */
+
+	if ( sendStateQ && ( migr_hdr->migr_flags & PRE_INTERVAL) &&
+			! ( migr_hdr->migr_flags & MIGRATING ) )
+	 {   
+		State_Migr_Hdr  * scan_hdr, * next_scan;
+		Ocb * ocb1, * ocb2;
+
+		scan_hdr = nxtmigrh_macro ( sendStateQ );
+		while ( scan_hdr != NULL )
+		 { 
+		   next_scan = nxtmigrh_macro ( scan_hdr );
+
+		   /* If the scan_hdr state is a pre-interval one, and it's not
+				migrating, and it's not in the middle of moving, and it is
+				going to the same node as the migr_hdr state, and the two 
+				states have the same time_to_deliver, and the name of the 
+				receiving object is the same, delete the scan_hdr state, as 
+				the migr_hdr state will replace it.  If this code causes
+				trouble, the first thing to try is to also check the
+				send times on the states.  It shouldn't be necessary, but
+				perhaps it is.*/
+
+		   if (  (scan_hdr->migr_flags & PRE_INTERVAL) &&
+				 !(scan_hdr->migr_flags & MIGRATING)   &&
+				 !(scan_hdr->migr_flags & STATE_MOVING) &&
+				 (scan_hdr->to_node == migr_hdr->to_node) &&
+				 eqVTime ( scan_hdr->time_to_deliver,
+						   migr_hdr->time_to_deliver)
+			  )
+			  {  
+				 ocb1 = (Ocb *) migr_hdr->state->ocb;
+				 ocb2 = (Ocb *) scan_hdr->state->ocb;
+
+				 if ( strcmp (ocb1->name, ocb2->name ) == 0)
+				  {
+#if 0
+		_pprintf ("about to delete pre-int state from migr queue\n");
+		dump_state_migr_hdr ( scan_hdr );
+		showstate ( scan_hdr->state );
+		dump_state_migr_hdr ( migr_hdr );
+		showstate ( migr_hdr->state );
+		tester();
+#endif
+
+					 ocb2->num_states--;
+					 states_to_send--;
+					 didNotSendState++;      
+					 destroy_state ( scan_hdr->state );
+					 l_remove ( scan_hdr );
+					 l_destroy ( scan_hdr );
+				  }   
+			   }
+		   scan_hdr = next_scan;
+		  }
+	  }          
+
+
+	l_insert ( l_prev_macro ( sendStateQ ),  migr_hdr );
+
+	states_to_send++;
+
+	send_state_from_q ();
+}
+
+
+/*      The protocol for sending a state to another node is as follows.
+		First, send packet 0 of segment 0 of the state. One packet
+		must be at least big enough for the state header because it
+		contains control information like the total number of packets
+		to be sent. Next, the sending waits for an acknowledgement
+		from the receiving node. No other state messages (STATEMSG)
+		can be sent while a state acknowledgement is pending. There
+		are three state acknowledgement messages: STATEACK, STATENAK
+		and STATEDONE. STATEACK means the receiving node has
+		allocated memory for the first segment, has stored packet 0
+		and is waiting for the rest of the state packets and segments.
+		STATENAK is sent any time the receiving node fails to allocate
+		memory for a state segment. In that case the entire protocol
+		starts over. STATEDONE means the last packets has arrived
+		and been stored. If there is only one packet altogether then
+		STATEDONE is sent instead of STATEACK. After receiving STATEACK,
+		the sending node is free to send all the rest of the packets.
+		There is no sensitivity to message arrival order after the
+		first packet. There is enough information in each packet to
+		put it in its place without reference to any other packet
+		except the first one. The receiver knows when it has the
+		entire state by keeping track of a total packet count in
+		the state header.
+*/
+
+/*  At some point, remove all use of the ocb ptr in the following function.
+		The ocb in question might possibly have been migrated by the time
+		we try to follow it, in which case we're in for a world of hurt.
+		This wouldn't happen often, but might occasionally.  To fix it, 
+		copy any info we need out of it into the migr_hdr at the time the
+		state is put into the migrating state queue.  This will require
+		putting more stuff into the migr_hdr. */
+
+FUNCTION send_state_from_q ()
+{
+	Msgh * statemsg;
+	State_Migr_Hdr * migr_hdr;
+	Byte * segment, * packet;
+	int seglen, lenpkt, offset;
+	register int i, k;
+	Ocb * ocb;
+	Ocb * migrating;
+
+  Debug
+
+
+	migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+
+	if ( migr_hdr == sendStateQ )
+		return;
+
+	if ( migr_hdr->waiting_for_ack )
+		return;
+
+	if ( migr_hdr->waiting_for_done )
+		return;
+
+
+	/*  Check to see if the destination phase for this state is still in
+		the phase migration queue.  If it is, don't send this state.
+		Instead, reorder the queue to bring up the next state not marked
+		as waiting for migration, and send that one, instead.  If no such
+		state is found, move this state to the end of the queue and return.
+		More complex manipulations than the latter are possible, but it
+		should do for now. */
+
+	ocb = (Ocb *) migr_hdr->state->ocb;
+
+	if ( migr_hdr->migr_flags & WAIT_FOR_MIGRATE )
+	{
+		Ocb * sendQueueHead;
+
+		/*  If the destination phase is still in the migration queue, and
+				it is not at the front (or, if at the front, has not yet
+				set up an ocb on the destination node), delay this migration
+				in favor of doing something else. */
+
+		migrating = findInSendQueue ( ocb->name, migr_hdr->time_to_deliver );
+		sendQueueHead = nxtocb_macro ( sendOcbQ );
+
+		if (  migrating != NULL && ( migrating != sendQueueHead  || 
+			 migrating->migrStatus == MIGRNOTSTARTED ||
+			 migrating->migrStatus == MIGRSTART ) )
+		{
+
+			while ( migr_hdr = l_next_macro ( migr_hdr ) )
+			{
+				/*  If there are no suitable states, return. */
+
+				if ( migr_hdr == sendStateQ )
+				{
+/*
+					send_ocb_from_q ();
+*/
+					return;
+				}
+
+				ocb = (Ocb *) migr_hdr->state->ocb;
+
+				/* If this migrating state is not waiting for a phase to
+						complete its migration, send this one. */
+
+				if ( !(migr_hdr->migr_flags & WAIT_FOR_MIGRATE) )
+						break;
+
+				/* If the state is waiting for a phase to move, check to
+						see if the phase has moved or is moving.   If so, send 
+						this state.  If not, keep looking for another state. */
+
+				migrating = findInSendQueue ( ocb->name, 
+								migr_hdr->time_to_deliver );
+
+				if ( migrating != NULL &&
+						migrating != sendQueueHead )
+					continue;
+				else
+				{
+					/* Indicate that this state can now be migrated. */
+
+					migr_hdr->migr_flags &= ~WAIT_FOR_MIGRATE;
+					break;
+				}
+			}
+
+			/* If we get here, we have a candidate for migration.  Reorder the 
+				state migration queue to put this state at its head.  Otherwise,
+				confusion will reign if the state must be sent in multiple 
+				pieces. */
+
+			l_remove ( migr_hdr );
+
+			l_insert (  sendStateQ ,  migr_hdr );
+
+		}
+		else 
+		{
+
+			/* Indicate that this state can now be migrated.  In this case,
+				we needn't reorder the state migration queue, as this state
+				is already at the head of it.  */
+
+			migr_hdr->migr_flags &= ~WAIT_FOR_MIGRATE;
+		}
+	}
+
+
+	statemsg = (Msgh *) l_create ( msgdefsize );
+
+	if ( statemsg == NULL )
+		return;
+
+	i = 0;
+
+	if ( migr_hdr->state->segno == 0 )
+	{
+		segment = (Byte *) migr_hdr->state;
+
+		if ( migr_hdr->state->pktno == 0 )
+{
+			migr_hdr->waiting_for_ack = TRUE;
+			migr_hdr->migr_flags |= STATE_MOVING;
+}
+
+	}
+	else
+	{
+		for ( k = migr_hdr->state->segno; ; i++ )
+		{
+			if ( migr_hdr->state->address_table[i] != NULL )
+				k--;
+
+			if ( k == 0 )
+				break;
+		}
+		segment = (Byte *) migr_hdr->state->address_table[i++];
+	}
+
+	if ( segment == DEFERRED )
+	{
+		seglen = (int)DEFERRED;
+
+		migr_hdr->state->no_pkts = 1;
+
+		packet = (Byte *) (&segment);
+
+		lenpkt = sizeof ( segment );
+	}
+	else
+	{
+		seglen = l_size(segment);
+
+		migr_hdr->state->no_pkts = ( seglen + pktlen - 1 ) / pktlen;
+
+		offset = pktlen * migr_hdr->state->pktno;
+
+		packet = segment + offset;
+
+		lenpkt = seglen - offset;
+
+		if ( lenpkt > pktlen )
+			lenpkt = pktlen;
+	}
+
+
+	make_static_msg ( 
+						statemsg, 
+						STATEMSG, 
+						ocb->name, 
+						migr_hdr->state->sndtim, 
+						ocb->name, 
+						migr_hdr->time_to_deliver, 
+						lenpkt, 
+						packet 
+					);
+
+	statemsg->pktno  = migr_hdr->state->pktno;
+	statemsg->no_pkts = migr_hdr->state->no_pkts;
+	statemsg->seglen = seglen;
+	statemsg->segno = i;
+	statemsg->flags |= SYSMSG;
+
+
+	/* Use the migration header's flags to determine if the state is migrating
+		or is a pre-interval state.  Who knows what may have happened to the
+		ocb runstat in the meantime? */
+
+	ocb->migrStatus |= (Byte) SENDSTATE;
+	if ( migr_hdr->migr_flags & MIGRATING )
+	{
+		statemsg->flags |= MOVING;
+		statemsg->rcvtim = ocb->phase_begin;
+	}
+
+	{
+		extern int mlog, node_cputime;
+
+		if ( mlog )
+		{
+#ifdef MICROTIME
+			MicroTime ();
+#else
+#ifdef MARK3
+			mark3time ();
+#endif
+#ifdef BBN
+			butterflytime ();
+#endif
+#endif
+			statemsg->cputime = node_cputime;
+		}
+	}
+
+	migr_hdr->acksExpected++;
+
+	sndmsg ( statemsg, sizeof(Msgh) + lenpkt, migr_hdr->to_node );
+
+	migr_hdr->state->pktno++;
+
+	if ( migr_hdr->state->pktno == migr_hdr->state->no_pkts )
+	{
+		migr_hdr->state->pktno = 0;
+
+		migr_hdr->state->segno++;
+
+		if ( migr_hdr->state->segno == migr_hdr->state->no_segs )
+		if ( migr_hdr->state->no_segs > 1 || migr_hdr->state->no_pkts > 1 )
+		{
+			if ( migr_hdr->state->tot_pkts != migr_hdr->acksExpected )
+			{
+				_pprintf("send_state_from_q: tot_pkts %d != acksExpected %d for state %x\n",migr_hdr->state->tot_pkts, migr_hdr->acksExpected, migr_hdr->state );
+				tester();
+			}
+
+			migr_hdr->waiting_for_done = TRUE;
+		}
+	}
+}  /* send_state_from_q */
+
+typedef struct
+{
+	Name name;
+	VTime svt;
+	int AckSndNode;
+	int AckRcvNode;
+
+}  MigrAckInfo;
+
+FUNCTION recv_state_done ( msg )
+	Msgh * msg;
+{
+	State_Migr_Hdr * migr_hdr;
+	Ocb * o;
+	MigrAckInfo *Ackmsg;
+
+  Debug
+
+	migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	if ( l_ishead_macro ( migr_hdr ) )
+	{
+		twerror ( "recv_state_done: no states in migration queue\n");
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester();
+	}
+
+	/*  It's OK to get a state done message only if the state is 
+		waiting_for_done or it consists of only one segment of only one
+		packet. */
+
+	if ( migr_hdr->waiting_for_done != TRUE  &&
+		 ( migr_hdr->state->no_segs >1 || migr_hdr->state->no_pkts >1) )
+	{
+		twerror("recv_state_done: premature done signal\n");
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester ();
+	}
+
+	o = (Ocb *) migr_hdr->state->ocb;
+
+	/* The moving state can make a gvt contribution if it is a pre-interval
+		non-migrating state, since it will cause a rollback at the 
+		destination end.  It will roll back the destination phase to its
+		delivery time, which is the same as the sending phase's phase end,
+		so that time is the gvt contribution that should be made. */
+
+	if ( ( migr_hdr->migr_flags & PRE_INTERVAL ) &&
+		 !( migr_hdr->migr_flags & MIGRATING ) &&
+		 ltVTime ( migr_hdr->time_to_deliver, min_msg_time ) )
+	{
+		min_msg_time = migr_hdr->time_to_deliver;
+	}
+
+	if ( ltVTime ( min_msg_time, gvt ) )
+	{
+		twerror("recv_state_done: min_msg time %f set before gvt %f\n",
+					min_msg_time.simtime, gvt.simtime);
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester();
+	}
+
+	o->migrStatus &= (Byte) ~SENDSTATE;
+	l_remove ( migr_hdr );
+
+	migr_hdr->acksReceived++;
+
+	/* If we've gotten all the acks by the time the done message comes
+		in, destroy the migration header.  Otherwise, move it into a
+		queue of migration headers for completed moves with outstanding
+		acks. */
+
+	if ( migr_hdr->acksReceived < migr_hdr->acksExpected )
+	{
+		char buff[MINPKTL];
+
+_pprintf("putting migr header %x into statesMovedQ\n",migr_hdr);
+
+		sprintf ( buff, "	State to MovedQ, node %d object %s time %f, %d, %d  Ack Exp %d Ack Rcv %d\n",
+			tw_node_num, o->name, migr_hdr->state->sndtim.simtime,
+			migr_hdr->state->sndtim.sequence1,migr_hdr->state->sndtim.sequence2,
+			migr_hdr->acksExpected, migr_hdr->acksReceived );
+
+		send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+
+		migr_hdr->time_to_deliver = migr_hdr->state->sndtim;
+		destroy_state ( migr_hdr->state );
+		l_insert ( statesMovedQ, migr_hdr );
+	}
+	else
+	{
+		destroy_state ( migr_hdr->state );
+		l_destroy ( migr_hdr );
+	}
+
+
+	states_to_send--;   /* done sending state */
+
+	send_ocb_from_q ();
+}
+
+FUNCTION recv_state_ack ( msg )
+	Msgh * msg;
+{
+	State_Migr_Hdr * migr_hdr;
+	MigrAckInfo * Ackmsg;
+
+  Debug
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+
+	/* If there isn't a migration header, or the migration header at the
+		front of the queue isn't for this phase, look in the statesMovedQ
+		for this header. */
+
+	if ( l_ishead_macro ( migr_hdr ) || 
+		 strcmp ( Ackmsg->name, migr_hdr->name) != 0 || 
+		 neVTime (migr_hdr->state->sndtim, Ackmsg->svt)  ) 
+	{
+
+		/* If findInMovedQ() is zero, then the state in question isn't
+			in the statesMovedQ, either. */
+
+_pprintf("calling findInMovedQ, name %s, svt %f\n", Ackmsg->name, Ackmsg->svt.simtime);
+		if ( findInMovedQ ( msg ) == 0 )
+		{
+			twerror("recv_state_ack: no states in migration queue\n");
+			printf("	object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+					Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+			printf("	msg %x\n", msg );
+			tester();
+		}
+		else
+			return;
+	}
+
+	migr_hdr->waiting_for_ack = FALSE;
+	migr_hdr->acksReceived++;
+
+	send_state_from_q ();       /* send the rest */
+}
+
+FUNCTION recv_state_nak ( msg )
+	Msgh * msg;
+{
+	State_Migr_Hdr * migr_hdr;
+	MigrAckInfo *Ackmsg;
+
+  Debug
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	stateNaksRecv++;
+
+	migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+
+	if ( l_ishead_macro ( migr_hdr ) )
+	{
+
+		twerror("recv_state_nak: no states in migration queue\n");
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester();
+	}
+
+	migr_hdr->waiting_for_ack = FALSE;
+	migr_hdr->waiting_for_done = FALSE;
+
+	migr_hdr->state->segno = 0;
+	migr_hdr->state->pktno = 0;
+	migr_hdr->acksExpected = 0;
+	migr_hdr->acksReceived = 0;
+
+#ifdef DLM
+	resendState = FALSE;        /* don't resend til next GVT click */
+#endif
+
+#if 0
+	_pprintf("Backing off state send for %s\n",migr_hdr->state->ocb->name);
+#endif
+
+#if 0
+	/*  Now check to see if we want to reorder the state queue.  This queue
+		is not ordered when states are put into it, because the state at the
+		front might be in the middle of being moved.  States already being
+		moved must remain at the front of the queue until they are completely
+		moved.  At this point, however, the receival of a nak indicates that
+		the state at the head of the queue is not in the midddle of a move,
+		so it can be shuffled.  The ordering is done by characteristic virtual
+		time. */
+
+	/*	If'd out because this routine may improperly misorder pre-interval
+		states in the send queue. The problem only occurs when a state
+		movement is nak'd, there are 2 pre-interval states going to the
+		same phase, and the later generated one would be ordered before
+		the earlier generated one.*/
+
+	reorderStateMigrQ ();
+#endif
+
+#if 0
+	/*  This causes a node to restart a state send immediately upon receipt
+		of a nak.  It is probably better to let the node go off and do
+		something else before trying again, as the most likely reason for
+		the nak was that insufficient memory was available to receive the
+		state.  The main loop of TWOS will eventually call send_state_from_q
+		again.  */
+
+	send_state_from_q ();       /* try again */
+#endif
+}
+
+FUNCTION recv_state ( msg )
+
+	Msgh * msg;
+{
+	Objloc * location;
+	Ocb * ocb;
+	State * state;
+	Byte * segment;
+	Byte * addr;
+	int offset, i, j;
+
+  Debug
+
+	location = GetLocation ( msg->rcver, msg->rcvtim );
+
+	if ( location == NULL )
+	{
+/*  The state has beaten the initial migration message.  The code is set up
+		to avoid this condition, in most cases, but odd timing can still
+		cause it to happen, at least in theory.  Sending a nak and having
+		a retransmission later should fix the problem. */
+
+		twerror ( "recv_state F can't find %s at %f", msg->rcver, msg->rcvtim.simtime );
+		send_state_nak ( msg, NULLOCB );
+		return;
+	}
+
+	if ( location->node != tw_node_num )
+	{
+
+/* Bug fix to deal with pending list having brought in a stale cache entry. */
+
+		RemoveFromCache(msg->rcver,msg->rcvtim);
+
+		location = GetLocation ( msg->rcver, msg->rcvtim );
+
+
+		/*  A NULL location means it hasn't shown up yet, so nak and return. */
+
+		if ( location == NULL )
+		{
+_pprintf("Sending a state nak because location is null\n");
+			send_state_nak ( msg, NULLOCB );
+			return;
+		}
+		else
+
+		/*  But if the local object location info thinks the phase is on
+				another node, there's a serious problem. */
+
+		if ( location->node != tw_node_num )
+		{
+
+			twerror ( "recv_state F bad location for %s at %f\n", msg->rcver, 
+						msg->rcvtim.simtime );
+			tester ();
+			return;
+		}
+	}
+
+	ocb = location->po;
+
+	state = ocb->rstate;
+
+	if ( msg->segno == 0 )
+	{
+		segment = (Byte *) state;
+	}
+	else
+	{
+		i = msg->segno - 1;
+
+		/*  If rstate is NULL at this point, we have naked a state while a
+				packet is still in transit.  The state will be completely
+				resent.  This packet should merely be ignored. */
+
+		if ( state == NULL )
+		{
+#if 0
+			_pprintf("recv_state: %s NULL state for segment other than 0\n", 
+						ocb->name );
+#endif
+			return;
+		}
+
+#ifdef PARANOID
+		if ( state->address_table == NULL )
+		{
+				twerror("recv_state: Address table not set up in time for %s, state %x\n",
+						ocb->name, state);
+				tester();
+		}
+
+		if (ocb->rstate == NULL)
+			{
+			_pprintf("recv_state: rstate is NULL, object %s, i = %d, msg = %x\n",ocb->name,i,msg);
+			tester();
+			}
+#endif PARANOID
+
+		segment = (Byte *) state->address_table[i];
+	}
+
+	if ( segment == NULL )
+	{
+		if ( msg->seglen == (int)DEFERRED )
+		{
+			segment = DEFERRED;
+		}
+		else
+		{
+			segment = m_create ( msg->seglen, msg->rcvtim, NONCRITICAL );
+
+#if 0
+			if ( segment == NULL )
+			{
+				State * preInt;
+
+				/*  Bummer.  We don't have, and can't make, enough memory
+						to handle the incoming segment.  In the special case
+						that the segment is a non-migrating pre-interval
+						state, perhaps something can be done.  We can try
+						freeing our existing pre-interval state immediately,
+						in the hopes that it will release a large enough
+						chunk of memory. */
+
+				preInt = fststate_macro ( ocb );
+
+				/* If we're moving a pre-interval state, and we have enough
+						of it here to examine its time, and we already have
+						some other state in the ocb's state queue, and that
+						state is a pre-interval state . . . */
+
+				if ( state != NULLSTATE &&
+					 ltVTime ( state->sndtim, ocb->phase_begin ) &&
+					 preInt != NULL && 
+					 ltVTime ( preInt->sndtim, ocb->phase_begin ) ) 
+				{
+
+#if 0
+_pprintf("recv_state: destroying %s's preinterval state to make room\n",
+				ocb->name );
+#endif
+
+					l_remove ( preInt );        /* take state out of list */
+
+					if ( preInt == ocb->cs )
+						ocb->cs = NULL;
+
+					destroy_state ( preInt );   /* release all its memory */
+
+					/*  Now try again. */
+
+					segment = m_create ( msg->seglen, msg->rcvtim, NONCRITICAL);
+				}
+			}
+#endif
+
+			/* If emergency measures haven't helped, undo any state migration
+				already done and send a nak.  The state will be resent later. 
+				*/
+
+			if ( segment == NULL )
+			{
+				if ( ocb->rstate != NULL )
+				{
+					destroy_state ( ocb->rstate );
+					ocb->rstate = NULL;
+#if 0
+  _pprintf("recv_state: out of memory-- %s seg %d pkt %d\n",ocb->name,msg->segno,msg->pktno);
+#endif
+				}
+
+				send_state_nak ( msg, ocb );
+
+				return;
+			}
+		}
+
+		if ( msg->segno == 0 )
+		{
+			state = (State *) (msg + 1);
+
+			if ( state->address_table != NULL )
+			{
+
+				state->address_table = (Address *)
+					m_create ( state->addrTableSize * sizeof(Address),
+					msg->rcvtim, NONCRITICAL );
+
+				if ( state->address_table == NULL )
+				{
+					l_destroy ( segment );
+					send_state_nak ( msg, ocb );
+					return;
+				}
+
+				clear ( state->address_table,
+					l_size(state->address_table) );
+			}
+
+#if 0
+		_pprintf("address_table %s %x\n",ocb->name,state->address_table);
+#endif
+
+			state = (State *) segment;
+
+			ocb->rstate = state;        /* state under construction */
+			ocb->migrStatus |= (Byte) RECVSTATE;
+		}
+		else
+		{
+			state->address_table[i] = (Address) segment;
+		}
+	}
+
+	if ( segment != DEFERRED )
+	{
+		offset = pktlen * msg->pktno;
+
+		entcpy ( segment+offset, msg+1, msg->txtlen );
+	}
+
+	if ( state->tot_pkts > 1 )
+	{
+		send_state_ack ( msg, ocb );
+	}
+
+	state->tot_pkts--;
+
+/*  The state has been totally received. */
+
+	if ( state->tot_pkts == 0 )
+	{
+		ocb->rstate = NULL;
+
+		ocb->migrStatus &= (Byte) ~RECVSTATE;
+		send_state_done ( msg, ocb );
+
+#if PARANOID
+		validState(state);
+#endif
+
+		if ( msg->flags & MOVING )
+		{
+			State * s = fststate_macro ( ocb );
+
+/*  If the send time of this incoming state is at or after svt, then the
+		phase is going to discard it, anyway, when it re-executes at svt.
+		Get rid of it now.  */
+
+			if ( geVTime ( state->sndtim, ocb->svt ) )
+			{
+/*
+_pprintf("migrating state at or after svt for %s\n", ocb->name);
+_pprintf("migrating state is %x, sndtim = %f, svt = %f\n",state, state->sndtim.simtime, ocb->svt.simtime );
+*/
+				destroy_state ( state );
+			}
+			else
+			if ( ltVTime ( state->sndtim, ocb->phase_begin )
+			&& ( s != NULL && ltVTime ( s->sndtim, ocb->phase_begin ) )  )
+			{
+#if 0
+_pprintf("pre-interval state beats migrating pre-interval state for %s\n",
+				ocb->name);
+_pprintf("migrating state is %x, sndtim = %f\n",state, state->sndtim );
+				tester();
+#endif
+			}
+			else
+			{
+				put_state_in_sq ( ocb, state );
+				state->ocb = ocb;
+			}
+									            /* Don't replace the state
+									            /* before phase_begin with
+									            /* a moving state because
+									            /* it is the oldest one. */
+			ocb->num_states--;
+
+			if ( ( ocb->num_states + ocb->num_imsgs + ocb->num_omsgs ) == 0 )
+			{
+				rollback_phase ( ocb, msg );
+			}
+		}
+		else
+		{
+			ocb->stats.stforw++;
+			fstatein++;
+
+/*
+			if (ltVTime(state->sndtim,gvt))
+			{
+				_pprintf("forwarded state to %s at time %2f, less than gvt %2f\n",
+						ocb->name, state->sndtim.simtime, gvt.simtime);
+			}
+*/
+
+			put_state_in_sq ( ocb, state );
+			state->ocb = ocb;
+			rollback_state ( ocb, state->sndtim );
+		}
+	}
+}  /* recv_state */
+
+FUNCTION rollback_phase ( ocb, msg )
+
+	Ocb * ocb;
+	Msgh * msg;
+{
+  Debug
+
+	if ( ocb->runstat == BLKINF || ocb->runstat == BLKSTATE )
+	{   /* if blocked, restart at current time */
+		rollback ( ocb, ocb->svt );
+	}
+
+/*  Should this happen before the call to rollback()? */
+
+	ocb->phase_limit = ocb->next_limit;
+
+	if ( ltVTime ( ocb->phase_limit, ocb->phase_end ) )
+	{
+		ocb->migrStatus &= (Byte) ~RECVVTIME;
+		send_vtime_done ( msg, ocb );
+	}
+	else
+	{
+		ocb->migrStatus = (Byte) MIGRDONE;
+		send_phase_done ( msg, ocb );
+	}
+}
+
+FUNCTION rollback_state ( ocb, statetime )
+
+	Ocb * ocb;
+	VTime statetime;
+{
+	register Msgh * msg;
+
+  Debug
+
+	msg = fstimsg_macro ( ocb );
+
+	if ( msg )
+	{
+		rollback ( ocb, msg->rcvtim );
+	}
+	else
+		if ( neVTime ( ocb->phase_end, ocb->phase_limit ) )
+		{
+			VTime rollbackTime;
+
+			/* The next vtime is being migrated at this moment, and any of
+				its input messages haven't arrived yet.  We must set the
+				phase's svt so that when the vtime has been fully migrated
+				the phase will re-execute it. */
+
+			if ( ltVTime ( ocb->phase_limit, ocb->phase_begin ) )
+				rollbackTime = ocb->phase_begin;
+			else
+				rollbackTime = ocb->phase_limit;
+
+			rollback ( ocb, rollbackTime );
+		}
+		else
+			if ( neVTime ( ocb->phase_end, posinfPlus1) )
+			{
+				State * s;
+
+				/*  This is a phase with no work to do and another later phase it
+						must feed.  Having just received a pre-interval state,
+						this phase must now send it to the next phase, since it
+						has no local events to process. */
+
+				s = fststate_macro ( ocb );
+
+				if ( s != lststate_macro ( ocb ) )
+				{
+					twerror ( "rollback_state: empty input queue, but last state not equal first state for %s\n",ocb->name);
+					tester ();
+				}
+
+				if ( s == NULLSTATE )
+				{
+					twerror ( "rollback_state: trying to forward null state for %s\n",
+								ocb->name );
+					tester();
+				}
+
+				send_state_copy ( s, ocb );
+			}
+
+}
+
+FUNCTION put_state_in_sq ( ocb, state )
+
+	Ocb * ocb;
+	State * state;
+{
+	State * s, * n;
+
+  Debug
+
+/* Pre-Interval State...        */
+
+	if ( ltVTime ( state->sndtim, ocb->phase_begin ) )
+	{
+		s = fststate_macro ( ocb );
+
+		if ( s != NULL && ltVTime ( s->sndtim, ocb->phase_begin ) )
+		{
+			l_remove ( s );
+			destroy_state ( s );
+			if ( ocb->cs == s )
+				ocb->cs = NULL;
+		}
+
+		/*  This phase may be part of a dynamically created object, and
+				the earlier phase may have rolled back the creation or
+				processed a dynamic destroy.  In such cases, this incoming
+				preinterval state carries in its type field the information
+				that the object should be of type NULL at this phase's
+				phase_begin.  Therefore, when putting a pre-interval state
+				in the state queue, check to see if its type matches the
+				existing type field in the phase's ocb, and change the ocb
+				type field if necessary.  The printf code is temporary,
+				to ensure that the code is working.  The rest of the code
+				is permanent. */
+
+		if ( state->otype != ocb->typepointer )
+		{
+
+#if 0
+			_pprintf("phase %s changing type from %s to %s because of arriving pre-interval state\n",
+
+				ocb->name, ocb->typepointer->type, state->otype->type );
+#endif
+		}
+
+		ocb->typepointer = state->otype;
+	}
+
+	s = ocb->sqh;
+
+	/*  Find the correct position in the state queue for the incoming
+		state.  Starting at the beginning, cycle through the states
+		until you either find a state with a greater time, you find a 
+		state with the same time but a greater state type (e.g., EVENT
+		is greater than CREATE, and less than DESTROY), or reach the end
+		of the queue. */
+
+	for ( n = nxtstate_macro ( s ); n; n = nxtstate_macro ( s ) )
+	{
+		if ( gtVTime ( n->sndtim, state->sndtim ) ||
+			 ( eqVTime ( n->sndtim, state->sndtim) && 
+				n->stype > state->stype ) )
+			break;
+
+		if ( eqVTime ( n->sndtim, state->sndtim )  &&
+			n->stype == state->stype )
+		{
+			_pprintf("Trying to insert duplicate state (%x) into %s at %f\n",
+								state,ocb->name,state->sndtim.simtime);
+			tester();
+		}
+
+		s = n;
+	}
+
+	l_insert ( s, state );
+}
+
+
+FUNCTION send_state_ack ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+	MigrAckInfo	* Ackmsg;
+
+  Debug
+
+	p = sysbuf ();
+
+	Ackmsg = (MigrAckInfo *) ( p + 1 );
+
+	strcpy( Ackmsg->name, ocb->name );
+	Ackmsg->svt = ocb->rstate->sndtim;
+    Ackmsg->AckSndNode = tw_node_num;
+
+	Ackmsg->AckRcvNode = ocb->prev_node;
+
+	sysmsg ( STATEACK, p, sizeof(MigrAckInfo), ocb->prev_node );
+}
+
+FUNCTION send_state_nak ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+	MigrAckInfo	* Ackmsg;
+	int prev_node;
+
+  Debug
+	stateNaksSent++;
+
+	p = sysbuf ();
+
+	Ackmsg = (MigrAckInfo *) ( p + 1 );
+
+	strcpy( Ackmsg->name, msg->rcver );
+	Ackmsg->svt = msg->rcvtim;
+    Ackmsg->AckSndNode = tw_node_num;
+
+	if ( ocb == NULLOCB)
+		prev_node = msg->low.from_node;
+	else
+		prev_node = ocb->prev_node;
+
+	Ackmsg->AckRcvNode = prev_node; 
+
+	sysmsg ( STATENAK, p, sizeof(MigrAckInfo), prev_node );
+}
+
+FUNCTION send_state_done ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+	MigrAckInfo	* Ackmsg;
+
+  Debug
+
+	p = sysbuf ();
+
+	Ackmsg = (MigrAckInfo *) ( p + 1 );
+
+	strcpy( Ackmsg->name, ocb->name );
+	Ackmsg->svt = ocb->phase_limit;
+    Ackmsg->AckSndNode = tw_node_num;
+
+	Ackmsg->AckRcvNode = ocb->prev_node; 
+
+	sysmsg ( STATEDONE, p, sizeof(MigrAckInfo), ocb->prev_node );
+}
+
+FUNCTION split_object_cmd ( name, stime )
+
+	char * name;
+	STime * stime;
+{
+	Objloc * location;
+	Ocb * ocb;
+	VTime vtime;
+
+  Debug
+
+	vtime = newVTime ( *stime, 0, 0 );
+
+	location = GetLocation ( name, vtime );
+
+	if ( location == NULL )
+	{
+		twerror ( "split_object_cmd E can't locate object %s with time %f",
+				name, *stime );
+		return;
+	}
+
+	if ( location->node != tw_node_num )
+	{
+		twerror ( "split_object_cmd E object %s with time %f is on node %d",
+				name, *stime, location->node );
+		return;
+	}
+
+	ocb = location->po;
+
+	split_object ( ocb, vtime );
+}
+
+FUNCTION Ocb * split_object ( ocb, vtime )
+
+	Ocb * ocb;
+	VTime vtime;
+{
+	Ocb * ocb2;
+	State * s, * preInt, * stateCopy;
+	Msgh * m;
+	Int HomeNode;
+	char        oldStartVts[20];
+	char        oldEndVts[20];
+	char        newStartVts[20];
+	char        newEndVts[20];
+
+  Debug
+
+	if ( eqVTime ( ocb->phase_begin, vtime )
+	||   eqVTime ( ocb->phase_end, vtime ) )
+	{
+		twerror ( "split_object E invalid to split object %s from time %f to time %f at time %f", ocb->name, ocb->phase_begin.simtime, ocb->phase_end.simtime, vtime.simtime );
+		tester();
+		return ( NULL );
+	}
+
+
+	/* This test ensures that we do not split an object that is still 
+		migrating into the node hosting it.  */
+
+	if ( neVTime ( ocb->phase_end, ocb->phase_limit ) )
+	{
+
+		twerror ( "split_object E trying to split object %s at time %f before phase limit %f reaches phase end %f\n", ocb->name, vtime.simtime, ocb->phase_limit.simtime, ocb->phase_end.simtime);
+		twerror ( "     phase limit -   %f      %d      %d\n",
+						ocb->phase_limit.simtime, ocb->phase_limit.sequence1,
+						ocb->phase_limit.sequence2);
+		twerror ( "     phase end -     %f      %d      %d\n",
+						ocb->phase_end.simtime, ocb->phase_end.sequence1,
+						ocb->phase_end.sequence2);
+		tester();
+		return ( NULL );
+	}
+
+	/*  This test ensures that we do not try to split a null object. */
+
+	if ( ocb->typepointer == &type_table[1] )
+	{
+/*
+		twerror ( "split_object: trying to split null object %s at time %f\n",
+				ocb->name, vtime.simtime );
+*/
+		return ( NULL );
+	}
+
+	if ( ocb->runstat == BLKPKT )
+	{
+		/* Don't try to split an object trying to send a message.  The code
+				probably works, but might not, especially in the case of
+				dynamic creation and destruction.  So just back off, instead.
+		*/
+
+		return ( NULL );
+	}
+
+
+	/*  Don't try to split ocbs that currently have an erroneous state.
+		There is a string associated with that erroneous state and the
+		state migration code is not prepared to handle moving that string.  
+		Moreover, unless the error state gets rolled back, the ocb won't
+		do any work on its new node, anyway. */
+
+	for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+	{
+		if ( s->serror != NOERR )
+		{
+
+#if 0
+			_pprintf("split_phase: Aborting split of %s because of error state in state queue \n", ocb->name );
+#endif
+
+			return ( NULL );
+		}
+	}
+
+	/* Now make a copy of the state to be used as a pre-interval state
+		for the new phase.  Do it here because this attempt can fail.
+		If it does, we need to abort the migration, and it will be a lot
+		easier to do that before we've done a lot of other stuff. */
+
+	for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+	{
+		if ( geVTime ( s->sndtim, vtime ) )
+			break;
+	}
+
+	/*  If s is NULLSTATE, there are no states to be split off, except, 
+		perhaps, a pre-interval state.  So choose the last state of the
+		ocb's state queue as the pre-interval state, in this case.  On the
+		other hand, if s points to a state, that state is the first one 
+		in the queue to go to the later phase, so the previous state (if
+		any) is a pre-interval state that should be copied. */
+
+	if ( s == NULLSTATE )
+		preInt = lststate_macro ( ocb );
+	else
+		preInt = prvstate_macro ( s );
+
+	if ( preInt != NULLSTATE )
+	{
+		stateCopy = copystate ( preInt );
+
+		if ( stateCopy == ( State * ) -1 )
+		{
+
+			/* In this case, not only could we not make a state copy, but
+				we couldn't even make the original copy of the pre-interval
+				state a whole copy, with physical copies of all segments.
+				Nothing can be done to complete this split, so just abort
+				it. */
+
+#if 0
+			_pprintf( "split_object: split of %s aborted because of too little memory\n", 
+				ocb->name );
+#endif
+
+			return ( NULL );
+		}
+	}
+
+#ifdef DLM
+	if ( migrGraph )
+	{
+		ttoc1 (oldStartVts, ocb->phase_begin );
+		ttoc1 (oldEndVts, ocb->phase_end );
+		ttoc1 (newStartVts, vtime );
+		ttoc1 (newEndVts, ocb->phase_end );
+	}
+#endif
+
+	ocb2 = mkocb ();
+
+	/* mkocb() will return NULL if it couldn't lay hands on enough memory
+		to make an ocb data structure.  In that case, just back off this
+		split.  If we've already allocated a state, deallocate it. */
+
+	if ( ocb2 == ( Ocb * ) NULL )
+	{
+		if ( stateCopy != NULL )
+		{
+			destroy_state ( stateCopy );
+		}
+
+		return ( NULL );
+	}
+
+	strcpy ( ocb2->name, ocb->name );
+	ocb2->typepointer = ocb->typepointer;
+	ocb2->libPointer = ocb->libPointer;
+	ocb2->oid = ocb->oid;
+	ocb2->phase_begin = vtime;
+	ocb2->phase_end = ocb->phase_end;
+	ocb2->crcount = 1;
+	ocb2->generation = 0;
+#ifdef SOM
+	/* This code will not be correct if we do not use the NEAR_FUTURE
+		form of splitting. */
+
+	/* The new phase inherits the causally connected Ept from the earlier
+		phase.  But the new phase has not yet done any work (under NEAR_FUTURE
+		splitting), so all its work fields get set to 0. */
+
+	ocb2->Ept = ocb->Ept;
+	ocb2->comEpt = ocb->comEpt;
+	ocb2->lastComEpt = ocb->lastComEpt;
+	ocb2->work = 0;
+	ocb2->comWork = 0;
+	ocb2->lastComWork = 0;
+#endif SOM
+
+	/* Bug fix necessary to let two adjacent phases of same object operate
+		on one node.  Until the later phase starts migrating, it should
+		not be held up by phase_limit, a field intended to make sure
+		it doesn't execute past the time currently being migrated. */
+
+	ocb2->phase_limit = ocb2->phase_end;
+
+	if ( ltVTime ( ocb->svt, vtime ) )
+	{
+		ocb2->svt = posinf;
+		ocb2->control = EDGE;
+		ocb2->runstat = BLKINF;
+
+		l_insert ( l_prev_macro ( _prqhd ), ocb2 );
+	}
+	else
+	{
+		ocb2->svt = ocb->svt;
+if ( ltVTime ( ocb2->svt, gvt ))
+{
+	twerror ( "split_object: ocb %s svt %f set to earlier than gvt %f\n",
+				ocb2->name, ocb2->svt.simtime, gvt.simtime);
+	tester();
+}
+		ocb2->control = ocb->control;
+		ocb2->runstat = ocb->runstat;
+		ocb2->cs = ocb->cs;
+		ocb2->ci = ocb->ci;
+		ocb2->co = ocb->co;
+		ocb2->sb = ocb->sb;
+		ocb2->stk = ocb->stk;
+		ocb2->msgv = ocb->msgv;
+		ocb2->centry = ocb->centry;
+		ocb2->ecount = ocb->ecount;
+		ocb2->pvz_len = ocb->pvz_len;
+		ocb2->argblock = ocb->argblock;
+		ocb2->eventTimePermitted = ocb->eventTimePermitted;
+		ocb2->eventsPermitted = ocb->eventsPermitted;
+
+		l_insert ( ocb, ocb2 );
+
+		ocb->svt = posinf;
+		ocb->control = EDGE;
+		ocb->runstat = BLKINF;
+		ocb->cs = NULL;
+		ocb->ci = ocb->co = NULL;
+		ocb->sb = NULL;
+		ocb->stk = NULL;
+		ocb->msgv = NULL;
+
+		l_remove ( ocb );
+		l_insert ( l_prev_macro ( _prqhd ), ocb );
+
+		if ( xqting_ocb == ocb )
+			xqting_ocb = ocb2;
+	}
+
+	/* Remove the object's entry from the local cache.  Do not change the
+		home list.  Despite the object's being split, the old home list entry
+		will still correctly direct messages, since both parts are still on
+		the same node.  The entry will be changed if either phase is migrated.
+	*/
+
+	RemoveFromCache(ocb->name,vtime);
+
+	ocb->phase_end = vtime;
+	ocb->next_node = tw_node_num;
+
+	/* s was set earlier in this routine, but the copystate() routine
+		could have invoked message sendback, which could free
+		the state s points to.  s does not change, but what it points to
+		could be on the free list, or reallocated somewhere else.  So we
+		have to set s again.  This duplication of effort could have been
+		avoided had we not made the state copy until right after the split,
+		but then we would need to be able to back out of the split if the
+		state copy failed.  That's lots of code, though it's not very
+		complicated, so we'll live with the duplication, for the moment. */
+
+	for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+	{
+		if ( geVTime ( s->sndtim, vtime ) )
+			break;
+	}
+
+	if ( s != NULL )
+	{
+		split_list ( ocb->sqh, ocb2->sqh, s );
+	}
+	else
+	{
+/*
+		_pprintf("no state queue to split for %s, time %f\n", ocb->name, vtime.simtime);
+*/
+	}
+
+	/* The critical path algorithm can put truncated states into a special
+		queue.  If that algorithm is being used, that queue must be split
+		between the two phases. */
+
+	if ( critEnabled )
+	{
+		truncState *t;
+
+		for ( t = l_next_macro ( ocb->tsqh ); ! l_ishead_macro ( t );
+				t = l_next_macro ( t ) )
+		{
+			if ( geVTime ( t->sndtim, vtime ) )
+				break;
+		}
+
+		if ( t != NULL )
+		{
+			split_list ( ocb->tsqh, ocb2->tsqh, t );
+
+		}
+	}
+
+	/*  If there is a pre-interval state for the later phase, we made a
+		copy of it earlier in this routine.  Now put the copy in the 
+		state queue of the new phase. */
+
+	if ( preInt != ( State * ) NULL )
+	{
+		/*  The type of the earlier phase should be the same as the type
+				of the last state of that phase.  This might be important
+				if the split point moves dynamic create or destroy messages
+				into the later phase. */
+
+		ocb->typepointer = preInt->otype;
+
+		if ( stateCopy == NULL )
+		{
+			l_remove ( preInt );
+
+			stateCopy = preInt;
+
+			ocb->loststate = 1;
+
+#if 0
+			_pprintf ( "split_object: lost a state for %s\n", ocb->name );
+#endif
+
+			if ( ocb->runstat == READY )
+				ocb->runstat = GOFWD;
+		}
+		else
+		{
+			ocb->last_sent = preInt;
+			ocb->out_of_sq = 0; /* should be OK -- JUMP FORWARD stuff */
+		}
+
+
+		stateCopy->ocb = (Byte *) ocb2;
+
+		l_insert ( ocb2->sqh, stateCopy );
+
+	}
+
+	for ( m = fstimsg_macro ( ocb ); m; m = nxtimsg_macro ( m ) )
+	{
+		if ( geVTime ( m->rcvtim, vtime ) )
+			break;
+	}
+
+	if ( m != NULL )
+	{
+		split_list ( ocb->iqh, ocb2->iqh, m );
+	}
+
+	for ( m = fstomsg_macro ( ocb ); m; m = nxtomsg_macro ( m ) )
+	{
+		if ( geVTime ( m->sndtim, vtime ) )
+			break;
+	}
+
+	if ( m != NULL )
+	{
+		split_list ( ocb->oqh, ocb2->oqh, m );
+	}
+
+#ifdef DLM
+	if ( migrGraph )
+	{
+		int icount, ocount, scount;
+		char buff[MINPKTL];
+
+		icount = ocount = scount = 0;
+
+		for (s = fststate_macro (ocb2); s; s = nxtstate_macro (s))
+		{
+			scount++;
+		}
+
+		for (m = fstimsg_macro (ocb2); m; m = nxtimsg_macro (m))
+		{
+			icount++;
+		}
+
+		for (m = fstomsg_macro (ocb2); m; m = nxtomsg_macro (m))
+		{
+			ocount++;
+		}
+
+		sprintf ( buff, "Split %s %s %s %s %s %d %d %d %d\n", ocb->name, 
+				oldStartVts, oldEndVts, newStartVts, newEndVts, tw_node_num, 
+				icount, ocount, scount );
+
+		send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+	}
+#endif
+
+	return ( ocb2 );
+}
+
+split_list ( q1, q2, elem )
+
+	List_hdr * q1;
+	List_hdr * q2;
+	List_hdr * elem;
+{
+	q1--;       /* point to list headers */
+	q2--;
+	elem--;
+
+	q2->prev = q1->prev;
+	q2->next = elem;
+
+	q1->prev = elem->prev;
+	q1->prev->next = q1;
+
+	elem->prev = q2;
+	q2->prev->next = q2;
+}
+
+
+/*      The protocol for moving a phase to another node is as follows.
+		First take the ocb for the phase to be moved out of the main
+		ocb list and add it to the sendOcbQ. Next update the next_node
+		field of the immediately preceding phase (assuming for now
+		that we're only moving the second phase of an object that has
+		just been split). We will have to change the way states are
+		forwarded from the end of one phase to the beginning of the
+		next phase to use object location instead of next_node in the
+		ocb. Next notify the home node (for the first time) about the
+		existence of the new object phase. This will also have to
+		change when object location can handle object migration. Then
+		send a MOVEPHASE message to the destination node and wait for
+		a PHASEACK message in reply. There is no PHASENAK yet but it
+		will probably be necessary. When the PHASEACK message arrives,
+		the object's states, input messages and output messages can
+		all be sent. There is no sensitivity to the order of arrival
+		of these messages because the receiving node has control
+		information in the ocb: num_states, num_imsgs and num_omsgs.
+		When all of the messages have arrived the receiving node
+		sends a PHASEDONE message to the sender. On receipt of the
+		PHASEDONE message, the sender can remove the ocb from the
+		sendOcbQ and destroy it.
+*/
+
+FUNCTION move_phase_cmd ( name, stime, node )
+
+	char * name;
+	STime * stime;
+	int * node;
+{
+	Objloc * location;
+	VTime vtime;
+	Ocb * ocb;
+
+  Debug
+
+	*node = *node % tw_num_nodes;
+
+	if ( *node == tw_node_num )
+	{
+		return;
+	}
+
+	vtime = newVTime ( *stime, 0, 0 );
+
+	location = GetLocation ( name, vtime );
+
+	if ( location == NULL )
+	{
+		twerror ( "move_phase_cmd E can't locate object %s with time %f",
+				name, *stime );
+		return;
+	}
+
+	if ( location->node != tw_node_num )
+	{
+		twerror ( "move_phase_cmd E object %s with time %f is on node %d",
+				name, *stime, location->node );
+		return;
+	}
+
+	ocb = location->po;
+
+	move_phase ( ocb, *node );
+}
+
+FUNCTION move_phase ( ocb, node )
+
+	Ocb * ocb;
+	int node;
+{
+	State * s;
+	Msgh * m;
+	Int  HomeNode;
+
+  Debug
+
+
+	/* Don't permit migration of phases during initialization or termination
+		times. */
+
+	if ( node == tw_node_num )
+	{
+		_pprintf ( "move_phase: trying to move phase %s, %f to its current node\n",
+					ocb->name, ocb->phase_begin.simtime );
+		tester();
+	}
+
+	if ( leVTime ( gvt, neginfPlus1 ) )
+	{
+		_pprintf ( "move_phase: trying to migrate %s during initialization\n",
+				ocb->name );
+		tester();
+	}
+
+	if ( geVTime ( gvt, posinf ) )
+	{
+		_pprintf ( "move_phase: trying to migrate %s during termination\n",
+				ocb->name );
+		tester();
+	}
+
+	if ( ocb->runstat == BLKPHASE )
+	{
+		_pprintf ( "move_phase: ocb %x is BLKPHASE\n", ocb );
+		tester ();
+	}
+
+   if ( ocb->runstat == BLKPKT )
+   {
+		/* Safest not to try this migration, as we're not sure the code
+				would work correctly in all cases, particularly dynamic
+				creation and destruction. */
+
+		return ( NULL) ;
+	}
+
+	/*  Don't try to move ocb's that currently have an erroneous state.
+		There is a string associated with that erroneous state and the
+		state migration code is not prepared to handle moving that string.  
+		Moreover, unless the error state gets rolled back, the ocb won't
+		do any work on its new node, anyway. */
+
+	for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+	{
+		if ( s->serror != NOERR )
+		{
+
+#if 0
+			_pprintf("move_phase: Aborting migration of %s because of error state in state queue \n", ocb->name );
+#endif
+
+			return ( NULL );
+		}
+	}
+
+	l_remove ( ocb );
+
+	if ( ocb == xqting_ocb )
+	{
+		xqting_ocb = NULL;
+		setnull ();
+	}
+
+	ocb->runstat = BLKPHASE;
+
+	if ( ocb->sb != NULL )
+	{
+		adjustEffectWork ( ocb, ocb->sb );
+		destroy_state ( ocb->sb );
+		ocb->eventsPermitted++;
+		ocb->sb = NULL;
+		l_destroy ( ocb->stk );
+		ocb->stk = NULL;
+		destroy_message_vector ( ocb );
+
+		/*  If we are running in aggressive cancellation mode, make sure
+				that any messages sent for the event we are running get
+				cancelled.   The test for control == NONEDGE is probably
+				superfluous, as a non-null state buffer implies nonedge
+				control, but it's cheap and extra safety.  Moreover,
+				the nonedge status is what really should trigger the 
+				cancellation, not the presence of a state in the state buffer.  
+		*/
+
+		if ( aggressive  && ocb->control == NONEDGE )
+			cancel_all_output ( ocb, ocb->svt );
+	}
+
+	l_insert ( l_prev_macro ( sendOcbQ ), ocb );
+
+	ocb->migrStatus = MIGRNOTSTARTED;
+	ocbs_to_send++;
+
+	migrout++;
+
+	ocb->next_node = node;
+
+	for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+	{
+		ocb->num_states++;
+	}
+
+	for ( m = fstimsg_macro ( ocb ); m; m = nxtimsg_macro ( m ) )
+	{
+		ocb->num_imsgs++;
+	}
+
+	for ( m = fstomsg_macro ( ocb ); m; m = nxtomsg_macro ( m ) )
+	{
+		ocb->num_omsgs++;
+	}
+
+/*
+	_pprintf (
+		"Migrating %d states, %d imsgs, %d omsgs for object %s to node %d\n",
+		ocb->num_states,ocb->num_imsgs,ocb->num_omsgs,ocb->name,node );
+*/
+
+	if ( migrGraph )
+	{
+		char startVts[20];
+		char endVts [20];
+		char buff[MINPKTL];
+
+		ttoc1 (startVts, ocb->phase_begin );
+		ttoc1 (endVts, ocb->phase_end );
+
+		sprintf( buff, "Move %s %s %s %d %d %d %d\n", ocb->name, 
+				startVts, endVts, node, ocb->num_imsgs, ocb->num_omsgs,
+				ocb->num_states );
+
+		send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+	}
+
+	/* Notify the home node that the phase has moved, and remove the 
+		entry for the phase from the local cache. */
+
+	HomeNode = name_hash_function ( ocb->name, HOME_NODE );
+
+	if ( HomeNode == tw_node_num )
+	{
+		ChangeHLEntry ( ocb->name, ocb->phase_begin, node, ++(ocb->generation));
+	}
+	else
+	{
+		RemoteChangeHListEntry ( ocb->name, ocb->phase_begin, HomeNode, node,
+				++(ocb->generation) );
+		RemoveFromCache ( ocb->name, ocb->phase_begin );
+	}
+
+	SendCacheInvalidate ( ocb->name,ocb->phase_begin, node );
+
+	if ( ocbs_to_send == 1 )
+		send_ocb_from_q ();
+
+#define PHASE_MOVED 1
+
+	return ( PHASE_MOVED );
+}
+
+
+typedef struct
+{
+	int oid;
+	int num_states;
+	int num_imsgs;
+	int num_omsgs;
+	VTime svt;
+	Pointer libPointer;
+	int generation;
+	int crcount;
+	char type[TOBJLEN];
+#ifdef SOM
+	long    Ept;
+	long    comEpt;
+	long    lastComEpt;
+	long    work;
+	long    comWork;
+	long    lastComWork;
+#endif SOM
+}
+	PhaseInfo;
+
+
+FUNCTION send_phase ( ocb )
+
+	Ocb * ocb;
+{
+	PhaseInfo * phase;
+	Msgh * p;
+	char buff[MINPKTL];
+
+  Debug
+#ifdef PARANOID
+	/* Check to make sure that send_phase() has not already been run for this 
+		phase. */
+
+	if ( ocb->migrWait & WAITFORACK )
+	{
+		_pprintf ( "send_phase: send_phase called twice for %s (%f), addr %x\n",
+				ocb->name, ocb->phase_begin.simtime, ocb );
+		tester();
+	}
+#endif PARANOID
+
+	p = sysbuf ();
+
+	phase = (PhaseInfo *) ( p + 1 );
+
+	phase->oid = ocb->oid;
+	phase->num_states = ocb->num_states;
+	phase->num_imsgs = ocb->num_imsgs;
+	phase->num_omsgs = ocb->num_omsgs;
+
+	phase->svt = ocb->svt;
+if ( ltVTime (phase->svt,gvt))
+{
+	twerror("send_phase: svt %f set below gvt %f for %s\n",phase->svt.simtime,
+		gvt.simtime, ocb->name);
+	tester();
+}
+
+	phase->libPointer = ocb->libPointer;
+	phase->generation = ocb->generation;
+	phase->crcount = ocb->crcount;
+#ifdef SOM
+	phase->Ept = ocb->Ept;
+	phase->comEpt = ocb->comEpt;
+	phase->lastComEpt = ocb->lastComEpt;
+	phase->work = ocb->work;
+	phase->comWork = ocb->comWork;
+	phase->lastComWork = ocb->lastComWork;
+#endif SOM
+
+	entcpy ( phase + 1, &ocb->stats, sizeof (ocb->stats) );
+
+	strcpy ( p->snder, ocb->name );
+	strncpy ( phase->type, ocb->typepointer->type, TOBJLEN );
+	strcpy ( p->rcver, ocb->name );
+	p->sndtim = ocb->phase_begin;
+	p->rcvtim = ocb->phase_end;
+
+	sysmsg (MOVEPHASE, p, sizeof(PhaseInfo)+sizeof(ocb->stats), ocb->next_node);
+
+	ocb->migrWait |= (Byte) WAITFORACK;
+
+#ifdef MICROTIME
+	MicroTime ();
+#else
+#ifdef MARK3
+	mark3time ();
+#endif
+#ifdef BBN
+	butterflytime ();
+#endif
+#endif
+#ifdef DLM
+	sprintf ( buff, "%d %d %d %s %f %d %f %d %d %d %f\n",
+		tw_node_num, node_cputime, loadCount, ocb->name, 
+		ocb->phase_begin.simtime, ocb->next_node, ocb->svt.simtime,
+		ocb->num_states, ocb->num_imsgs, ocb->num_omsgs, gvt.simtime );
+#else
+	sprintf ( buff, "%d %d %s %f %d %f %d %d %d\n",
+		tw_node_num, node_cputime, ocb->name, ocb->phase_begin.simtime,
+		ocb->next_node, ocb->svt.simtime,
+		ocb->num_states, ocb->num_imsgs, ocb->num_omsgs );
+#endif DLM
+
+#ifdef DLM
+	if ( !migrGraph )
+	{
+		send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+	}
+#endif
+}
+
+FUNCTION recv_phase_ack ( msg )
+	Msgh * msg;
+{
+	Ocb * ocb;
+	MigrAckInfo *Ackmsg;
+
+  Debug
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	ocb = (Ocb *) l_next_macro ( sendOcbQ );
+
+	if ( l_ishead_macro ( ocb ) )
+	{
+
+		twerror("recv_phase_ack: no phases in migration queue\n");
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester();
+	}
+
+	ocb->migrWait &= (Byte) ~WAITFORACK;
+	ocb->migrStatus = OCBSETUP;
+
+	send_vtime ( ocb );
+}
+
+FUNCTION recv_phase_nak ( msg )
+	Msgh * msg;
+{
+	Ocb * ocb;
+	MigrAckInfo *Ackmsg;
+
+  Debug
+
+	phaseNaksRecv++;
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	ocb = (Ocb *) l_next_macro ( sendOcbQ );
+
+	if ( l_ishead_macro ( ocb ) )
+	{
+
+		twerror("recv_phase_nak: no phases in migration queue\n");
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester();
+	}
+
+	ocb->migrWait &= (Byte) ~WAITFORACK;
+
+#if 0
+	_pprintf("recv_phase_nak: send of %s nak'ed\n",ocb->name );
+#endif
+
+	send_ocb_from_q ();
+}
+
+#ifdef DLM
+extern VTime oldgvt1 ;
+extern VTime oldgvt2 ;
+#endif DLM
+
+FUNCTION VTime migr_min ()
+{
+	State_Migr_Hdr * migr_hdr;
+	Msgh * msg;
+	Ocb * ocb;
+	VTime min;
+
+  Debug
+
+	min = posinfPlus1;
+
+/*  Non-migrating pre-interval state make a gvt contribution,
+		since they can cause rollbacks. */
+
+	if ( sendStateQ )
+	for ( migr_hdr = nxtstate_macro ( sendStateQ ); migr_hdr != NULL;
+		  migr_hdr = nxtstate_macro ( migr_hdr ) )
+	{  /* loop through states of migrating objects */
+		ocb = (Ocb *) migr_hdr->state->ocb;
+		if ( !( migr_hdr->migr_flags & MIGRATING)  && 
+				gtVTime ( min, migr_hdr->time_to_deliver ) )
+		{  /* find minimum time */
+			min = migr_hdr->time_to_deliver;
+		}
+	}
+
+/*  For objects in the migration queue, their gvt contribution is their
+		svt. */
+
+	if ( sendOcbQ )
+	for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL;
+		  ocb = nxtocb_macro ( ocb ) )
+	{  /* loop through migrating objects */
+		if ( gtVTime ( min, ocb->svt ) )
+			min = ocb->svt;     /* calculate minimum time */
+	}
+
+	if ( ltVTime ( min, gvt ) )
+	{
+		twerror("migr_min: min %f less than gvt %f\n",min.simtime,gvt.simtime);
+		tester();
+	}
+
+#ifdef DLM
+	if ( oldgvt2.simtime != NEGINF  && 
+		eqVTime ( min, oldgvt1 ) && 
+		eqVTime ( oldgvt1, oldgvt2 ) )
+	{
+		_pprintf ( "GVT %f repeats three times, in migr_min() \n",
+						min.simtime);
+	}
+#endif DLM
+
+	return ( min );
+}
+
+typedef struct
+{
+	VTime vt;
+	VTime limit;
+	int num_states;
+	int num_imsgs;
+	int num_omsgs;
+	char type[TOBJLEN];
+}
+	VTimeInfo;
+
+FUNCTION send_ocb_from_q ()
+{
+	Ocb * ocb;
+
+  Debug
+
+	ocb = (Ocb *) l_next_macro ( sendOcbQ );
+
+	if ( ocb == sendOcbQ )
+		return;
+
+	if ( ocb->migrWait & WAITFORACK )
+		return;
+
+	if ( ocb->migrWait & WAITFORDONE )
+		return;
+
+	ocb->migrStatus = (Byte) MIGRSTART;
+
+	send_phase ( ocb );
+}
+
+FUNCTION send_vtime ( ocb )
+
+	Ocb * ocb;
+{
+	State * s;
+	Msgh * m, * n;
+	VTimeInfo * vtime;
+	Msgh * p;
+	char buff[MINPKTL];
+
+  Debug
+
+	p = sysbuf ();
+
+	vtime = (VTimeInfo *) ( p + 1 );
+
+	vtime->vt = vtime->limit = ocb->phase_end;
+
+	vtime->num_states = 0;
+	vtime->num_imsgs = 0;
+	vtime->num_omsgs = 0;
+
+	s = fststate_macro ( ocb );
+	m = fstimsg_macro ( ocb );
+	n = fstomsg_macro ( ocb );
+
+	if ( s != NULL )
+		vtime->vt = s->sndtim;
+
+	if ( m != NULL && ltVTime ( m->rcvtim, vtime->vt ) )
+		vtime->vt = m->rcvtim;
+
+	if ( n != NULL && ltVTime ( n->sndtim, vtime->vt ) )
+		vtime->vt = n->sndtim;
+
+	if ( s != NULL && eqVTime ( s->sndtim, vtime->vt ) )
+		vtime->num_states++;
+
+	if ( s != NULL )
+	{
+		s = nxtstate_macro ( s );
+
+		if ( s != NULL )
+			vtime->limit = s->sndtim;
+	}
+
+	while ( m != NULL && eqVTime ( m->rcvtim, vtime->vt ) )
+	{
+		vtime->num_imsgs++;
+		m = nxtimsg_macro ( m );
+	}
+
+	if ( m != NULL && ltVTime ( m->rcvtim, vtime->limit ) )
+		vtime->limit = m->rcvtim;
+
+	while ( n != NULL && eqVTime ( n->sndtim, vtime->vt ) )
+	{
+		vtime->num_omsgs++;
+		n = nxtomsg_macro ( n );
+	}
+
+	if ( n != NULL && ltVTime ( n->sndtim, vtime->limit ) )
+		vtime->limit = n->sndtim;
+
+	strncpy ( p->snder, ocb->name, NOBJLEN );
+	strncpy ( vtime->type, ocb->typepointer->type, TOBJLEN );
+	strncpy ( p->rcver, ocb->name, NOBJLEN );
+	p->sndtim = vtime->vt;
+	p->rcvtim = ocb->phase_begin;
+
+	sysmsg ( MOVEVTIME, p, sizeof(VTimeInfo), ocb->next_node );
+
+	ocb->migrStatus = (Byte) SENDVTIME;
+	ocb->migrWait |= (Byte) WAITFORACK;
+
+	ocb->phase_limit = vtime->vt;
+
+	if ( gtVTime ( ocb->phase_limit, ocb->svt ) )
+	{
+		if ( ltVTime ( ocb->svt, min_msg_time ) )
+		{
+			min_msg_time = ocb->svt;
+		}
+		if ( ltVTime ( min_msg_time, gvt ) )
+			{
+			twerror("recv_vtime_done: min_msg time %f set before gvt %f\n",
+				min_msg_time.simtime, gvt.simtime);
+			tester();
+			}
+		ocb->svt = ocb->phase_limit;
+	}
+#ifdef PARANOID
+if ( ltVTime ( ocb->svt, gvt ) )
+{
+	twerror ( "send_vtime: svt %f set before gvt %f\n", ocb->svt.simtime,
+				gvt.simtime);
+	tester ();
+}
+#endif PARANOID
+}
+
+FUNCTION recv_vtime_ack ( msg )
+
+	Msgh * msg;
+{
+	Ocb * ocb;
+	State * s;
+	Msgh * m;
+	VTimeInfo * vtime;
+	int  flags = 0;
+
+  Debug
+
+	ocb = (Ocb *) l_next_macro ( sendOcbQ );
+
+	ocb->migrWait &= (Byte) ~WAITFORACK;
+	ocb->migrWait |= (Byte) WAITFORDONE;
+	ocb->migrStatus = SENDINGVTIME;
+
+	vtime = (VTimeInfo *) ( msg + 1 );
+
+
+	m = fstomsg_macro ( ocb );
+
+	while ( vtime->num_omsgs-- )
+	{
+
+/* Trivial bug fix - changed nxtimsg_macro to nxtomsg_macro.  Only cosmetic,
+		since both macros are identical. PLRBUG */
+
+		register Msgh * n = nxtomsg_macro ( m );
+
+		l_remove ( m );
+
+		set_reverse_macro ( m );
+
+		if ( neVTime ( m->sndtim, vtime->vt ) )
+		{
+			_pprintf("trying to send output message with vtime %f, ne this vtime %f\n",
+				m->sndtim.simtime, vtime->vt.simtime);
+
+			_pprintf("msg pointer %x\n",m);
+			tester();
+		}
+
+		m->flags |= MOVING;
+
+		{
+			extern int mlog, node_cputime;
+
+			if ( mlog )
+			{
+#ifdef MICROTIME
+				MicroTime ();
+#else
+#ifdef MARK3
+				mark3time ();
+#endif
+#ifdef BBN
+				butterflytime ();
+#endif
+#endif
+				m->cputime = node_cputime;
+			}
+		}
+
+		sndmsg ( m, m->txtlen + sizeof (Msgh), ocb->next_node );
+
+		m = n;
+	}
+
+	for ( m = fstimsg_macro ( stdout_ocb ); m; )
+	{
+		register Msgh * n = nxtimsg_macro ( m );
+
+		if ( geVTime ( m->rcvtim, ocb->phase_end ) ) break;
+
+		if ( gtVTime ( m->sndtim, vtime->vt ) ) break;
+
+		if ( geVTime ( m->sndtim, ocb->phase_begin )
+		&&   namecmp ( m->snder, ocb->name ) == 0 )
+		{
+			l_remove ( m );
+
+			m->flags |= MOVING;
+
+		{
+			extern int mlog, node_cputime;
+
+			if ( mlog )
+			{
+#ifdef MICROTIME
+				MicroTime ();
+#else
+#ifdef MARK3
+				mark3time ();
+#endif
+#ifdef BBN
+				butterflytime ();
+#endif
+#endif
+				m->cputime = node_cputime;
+			}
+		}
+
+			sndmsg ( m, m->txtlen + sizeof (Msgh), ocb->next_node );
+		}
+
+		m = n;
+	}
+
+	m = fstimsg_macro ( ocb );
+
+	while ( vtime->num_imsgs-- )
+	{
+		register Msgh * n = nxtimsg_macro ( m );
+
+		l_remove ( m );
+
+		m->flags |= MOVING;
+
+		{
+			extern int mlog, node_cputime;
+
+			if ( mlog )
+			{
+#ifdef MICROTIME
+				MicroTime ();
+#else
+#ifdef MARK3
+				mark3time ();
+#endif
+#ifdef BBN
+				butterflytime ();
+#endif
+#endif
+				m->cputime = node_cputime;
+			}
+		}
+
+		sndmsg ( m, m->txtlen + sizeof (Msgh), ocb->next_node );
+
+		m = n;
+	}
+
+/*PJH There is a problem here??? */
+
+	if ( vtime->num_states )
+	{
+		s = fststate_macro ( ocb );
+
+		l_remove ( s );
+
+		/*  Set the flags to be given to send_state().  This state is
+				definitely migrating, and might be pre-interval. */
+
+		flags |= MIGRATING;
+
+		if ( ltVTime ( s->sndtim, ocb->phase_begin ) )
+			flags |= PRE_INTERVAL;
+
+		send_state ( s, ocb, flags );
+
+		return; /* wait for send_state_done */
+	}
+}
+
+FUNCTION recv_vtime_nak ()
+{
+  Debug
+
+	tester ();
+}
+
+FUNCTION recv_vtime_done ()
+{
+	Ocb * ocb;
+	char buff[MINPKTL];
+
+  Debug
+
+	ocb = (Ocb *) l_next_macro ( sendOcbQ );
+
+	if ( ocb == sendOcbQ)
+	{
+		twerror ("recv_vtime_done: no ocb in sendOcbQ\n");
+		tester();
+	}
+
+	ocb->migrStatus = (Byte) SENDNEXTVTIME;
+	ocb->migrWait &= (Byte) ~WAITFORDONE;
+
+	if ( gtVTime ( ocb->phase_limit, ocb->svt ) )
+	{
+	_pprintf("recv_vtime_done: Illegal condition\n");
+	tester();
+
+#if 0
+		if ( ltVTime ( ocb->svt, min_msg_time ) )
+		{
+			min_msg_time = ocb->svt;
+		}
+if ( ltVTime ( min_msg_time, gvt ) )
+{
+	twerror("recv_vtime_done: min_msg time %f set before gvt %f\n",
+				min_msg_time.simtime, gvt.simtime);
+	tester();
+}
+/*
+		ocb->svt = ocb->phase_limit;
+if ( ltVTime ( ocb->svt, gvt ) )
+{
+	twerror ( "recv_vtime_done: svt %f set before gvt %f\n", ocb->svt.simtime,
+				gvt.simtime);
+	tester ();
+}
+*/
+#endif
+
+	}
+
+	send_vtime ( ocb );
+}
+
+FUNCTION recv_phase_done ( msg )
+	Msgh * msg;
+{
+	Ocb * ocb;
+	char buff[MINPKTL];
+	MigrAckInfo *Ackmsg;
+
+  Debug
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	ocb = (Ocb *) l_next_macro ( sendOcbQ );
+
+	if ( ocb == sendOcbQ )
+	{
+		twerror("recv_phase_done: no phases in migration queue\n");
+		printf("object %s, Vtime %f, acking node %d\n",Ackmsg->name,
+				Ackmsg->svt.simtime, Ackmsg->AckSndNode );
+		tester();
+	}
+
+	ocb->migrStatus = (Byte) MIGRDONE;
+
+	if ( ltVTime ( ocb->svt, min_msg_time ) )
+		min_msg_time = ocb->svt;
+if ( ltVTime ( min_msg_time, gvt ) )
+{
+	twerror("recv_phase_done: min_msg time %f set before gvt %f\n",
+				min_msg_time.simtime, gvt.simtime);
+	tester();
+}
+
+	l_remove ( ocb );
+
+#ifdef MICROTIME
+	MicroTime ();
+#else
+#ifdef MARK3
+	mark3time ();
+#endif
+#ifdef BBN
+	butterflytime ();
+#endif
+#endif
+
+
+	/*  Don't put a message in the migration log if we are creating it for
+		graphical purposes. */
+
+	if ( !migrGraph )
+	{
+		sprintf ( buff, "%d %d %s %f %d %f\n",
+			tw_node_num, node_cputime, ocb->name, ocb->phase_begin.simtime,
+			ocb->next_node, gvt.simtime );
+
+		send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+	}
+
+	nukocb ( ocb );
+
+	ocbs_to_send--;
+
+	if ( ocbs_to_send )
+		send_ocb_from_q ();
+#ifdef PARANOID
+	else
+		if ( l_next_macro ( sendOcbQ) != sendOcbQ )
+		{
+				twerror("stopped migrating phases before queue was empty\n");
+				tester();
+		}
+#endif PARANOID
+}
+
+FUNCTION recv_vtime ( msg )
+
+	Msgh * msg;
+{
+	Ocb * ocb;
+	VTimeInfo * vtime;
+	Objloc * location;
+
+  Debug
+
+	location = GetLocation ( msg->rcver, msg->rcvtim );
+
+	if ( location == NULL )
+	{
+		twerror ( "recv_vtime F can't find %s at %f", msg->rcver, msg->rcvtim.simtime );
+		tester ();
+		return;
+	}
+
+	if ( location->node != tw_node_num )
+	{
+
+/* Bug fix to deal with pending list having brought in a stale cache entry. */
+
+		RemoveFromCache(msg->rcver,msg->rcvtim);
+
+		location = GetLocation ( msg->rcver, msg->rcvtim );
+
+
+		/*  A NULL location means it hasn't shown up yet, so nak and return. */
+
+		if ( location == NULL )
+		{
+		_pprintf("Sending a state nak because location is null\n");
+			send_state_nak ( msg, NULLOCB );
+			return;
+		}
+		else
+
+		/*  But if the local object location info thinks the phase is on
+				another node, there's a serious problem. */
+
+		if ( location->node != tw_node_num )
+		{
+
+			twerror ( "recv_vtime F bad location for %s at %f\n", msg->rcver, 
+						msg->rcvtim.simtime );
+			tester ();
+			return;
+		}
+	}
+
+	ocb = location->po;
+
+	vtime = (VTimeInfo *) ( msg + 1 );
+
+	ocb->num_imsgs = vtime->num_imsgs;
+	ocb->num_omsgs = vtime->num_omsgs;
+	ocb->num_states = vtime->num_states;
+
+	ocb->stats.numimmigr += ocb->num_imsgs;
+	ocb->stats.numommigr += ocb->num_omsgs;
+	ocb->stats.numstmigr += ocb->num_states;
+
+	ocb->phase_limit = vtime->vt;
+	ocb->next_limit = vtime->limit;
+	ocb->migrStatus = (Byte) RECVVTIME;
+
+	send_vtime_ack ( msg, ocb );
+}
+
+FUNCTION send_vtime_ack ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+
+  Debug
+
+	p = sysbuf ();
+
+	*((VTimeInfo *) ( p + 1 )) = *((VTimeInfo *) ( msg + 1 ));
+
+	sysmsg ( VTIMEACK, p, sizeof(VTimeInfo), ocb->prev_node );
+}
+
+FUNCTION send_vtime_done ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+
+  Debug
+
+	p = sysbuf ();
+
+	*((VTimeInfo *) ( p + 1 )) = *((VTimeInfo *) ( msg + 1 ));
+
+	sysmsg ( VTIMEDONE, p, sizeof(VTimeInfo), ocb->prev_node );
+}
+
+
+FUNCTION recv_phase ( msg )
+
+	Msgh * msg;
+{
+	Ocb * ocb;
+	PhaseInfo * phase;
+	Pending_entry * request, * next;
+	Objloc * location;
+
+  Debug
+
+	ocb = mkocb ();
+	if ( ocb == NULL )
+	{
+		/*  We might want to change this from an error, if it occurs.
+			In theory, the protocol should be able to handle getting a nak.
+			At the moment, though, attempting to migrate to a node that
+			is actually out of memory and cannot allocate an ocb would
+			cause an infinite loop of migrations and naks.
+		*/
+
+		_pprintf("recv_phase: no room for ocb of migrating phase\n");
+		send_phase_nak( msg, NULLOCB );
+		return;
+	}
+
+	migrin++;
+
+	phase = (PhaseInfo *) ( msg + 1 );
+
+	ocb->oid = phase->oid;
+	ocb->num_states = phase->num_states;
+	ocb->num_imsgs = phase->num_imsgs;
+	ocb->num_omsgs = phase->num_omsgs;
+#ifdef SOM
+	ocb->Ept = phase->Ept;
+	ocb->comEpt = phase->comEpt;
+	ocb->lastComEpt = phase->lastComEpt;
+	ocb->work = phase->work;
+	ocb->comWork = phase->comWork;
+	ocb->lastComWork = phase->lastComWork;
+#endif SOM
+
+	ocb->svt = phase->svt;
+if (ltVTime (ocb->svt,gvt))
+{
+	twerror("recv_phase: svt %f set below gvt %f for %s\n",ocb->svt.simtime,
+				gvt.simtime, ocb->name);
+	tester();
+}
+	ocb->libPointer = phase->libPointer;
+	ocb->generation = phase->generation;
+	ocb->crcount = phase->crcount;
+
+	entcpy ( &ocb->stats, phase + 1, sizeof(ocb->stats) );
+
+	ocb->stats.nummigr++;
+
+	strcpy ( ocb->name, msg->rcver );
+	ocb->typepointer = find_object_type ( phase->type );
+	ocb->control = EDGE;
+	ocb->runstat = BLKINF;
+	ocb->phase_begin = msg->sndtim;
+	ocb->phase_end = msg->rcvtim;
+	ocb->phase_limit = ocb->phase_begin;
+	ocb->crcount = 1;
+	ocb->migrStatus = (Byte) MIGRSTART;
+	/* prev_node contains the node number of the node migrating the
+		phase to this node. */
+	ocb->prev_node = msg->low.from_node;
+
+	nqocb ( ocb, _prqhd );
+
+	if ( ltVTime ( ocb->svt, gvt ) )
+	{
+		twerror ( "recv_phase: object %s svt %f less than gvt %f\n",
+			ocb->name, ocb->svt.simtime, gvt.simtime );
+		tester ();
+	}
+
+	RemoveFromCache ( ocb->name, ocb->phase_begin );
+
+	location = GetLocation ( ocb->name, ocb->phase_begin );
+
+	if (location == (Objloc *) NULL || location->po == (Ocb *) NULL)
+	{
+		twerror("Can't find object %s, %2f in recv_phase\n",
+				ocb->name, ocb->phase_begin.simtime);
+		tester();
+	}
+
+	/* If the object is being migrated to its home node, that node may have
+		gotten requests for it between the time the home list entry changed
+		and the ocb was set up.  Any such requests are sitting in the pending
+		list.  Look for them and finish their work. */
+
+	if (location != NULL && location->node == tw_node_num )
+	{
+		request = FindInPendingList(ocb->name,ocb->phase_begin,ocb->phase_end,
+				(Pending_entry *) l_next_macro(PendingListHeader));
+
+		while ( request != NULL )
+		{
+/*
+				_pprintf("Fixing up timing problem between home list change and migration start, object %s\n",ocb->name);
+*/
+				/*Remove this entry from the pending list. */
+				next = (Pending_entry *) l_next_macro(request);
+				RemoveFromPendingList(request,location);
+
+				request = FindInPendingList(ocb->name,ocb->phase_begin,
+								ocb->phase_end,next);
+		}
+	}
+
+	if ( ocb->num_states + ocb->num_imsgs + ocb->num_omsgs )
+	{
+		send_phase_ack ( msg, ocb );
+	}
+	else
+	{
+		ocb->migrStatus = (Byte) MIGRDONE;
+		send_phase_done ( msg, ocb );
+	}
+}
+
+FUNCTION send_phase_ack ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+	MigrAckInfo	* Ackmsg;
+
+  Debug
+
+	p = sysbuf ();
+
+	Ackmsg = (MigrAckInfo *) ( p + 1 );
+
+	strcpy( Ackmsg->name, msg->rcver );
+	Ackmsg->svt = msg->rcvtim;
+    Ackmsg->AckSndNode = tw_node_num;
+	Ackmsg->AckRcvNode = ocb->prev_node; 
+
+	sysmsg ( PHASEACK, p, sizeof(MigrAckInfo), ocb->prev_node );
+}
+
+FUNCTION send_phase_nak ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+	MigrAckInfo	* Ackmsg;
+	int	prev_node;
+
+  Debug
+	phaseNaksSent++;
+
+	p = sysbuf ();
+
+	Ackmsg = (MigrAckInfo *) ( p + 1 );
+
+	strcpy( Ackmsg->name, msg->rcver );
+	Ackmsg->svt = msg->rcvtim;
+    Ackmsg->AckSndNode = tw_node_num;
+
+	if ( ocb == NULLOCB )
+		prev_node = msg->low.from_node;
+	else
+		prev_node = ocb->prev_node;
+
+	Ackmsg->AckRcvNode = prev_node; 
+
+	sysmsg ( PHASENAK, p, sizeof(MigrAckInfo), prev_node );
+}
+
+FUNCTION send_phase_done ( msg, ocb )
+
+	Msgh * msg;
+	Ocb * ocb;
+{
+	Msgh * p;
+	MigrAckInfo	* Ackmsg;
+
+  Debug
+
+	p = sysbuf ();
+
+	Ackmsg = (MigrAckInfo *) ( p + 1 );
+
+	strcpy( Ackmsg->name, msg->rcver );
+	Ackmsg->svt = msg->rcvtim;
+    Ackmsg->AckSndNode = tw_node_num;
+	Ackmsg->AckRcvNode = ocb->prev_node; 
+
+	sysmsg ( PHASEDONE, p, sizeof(MigrAckInfo), ocb->prev_node );
+}
+
+PrintsendStateQ()
+{
+	State_Migr_Hdr * migr_hdr;
+
+#ifdef DLM
+	dprintf ( "%d", tw_node_num );
+#endif DLM
+	showstate_head ();
+
+	if ( sendStateQ )
+	for ( migr_hdr = nxtmigrh_macro ( sendStateQ ); migr_hdr != NULL;
+		  migr_hdr = nxtmigrh_macro ( migr_hdr ) )
+
+	{
+
+		dump_state_migr_hdr ( migr_hdr );
+		showstate ( migr_hdr->state );
+		dprintf("       segno = %d, no_segs = %d, pktno = %d, no_pkts = %d, tot_pkts = %d\n", 
+				migr_hdr->state->segno, migr_hdr->state->no_segs, 
+				migr_hdr->state->pktno, migr_hdr->state->no_pkts,
+				migr_hdr->state->tot_pkts);
+	}
+}
+
+PrintsendOcbQ()
+{
+	Ocb *ocb;
+
+	dprintf ( "%d", tw_node_num );
+
+	showocb_head ();
+
+	if ( sendOcbQ )
+	for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL;
+		  ocb = nxtocb_macro ( ocb ) )
+	{
+		/* Print an asterisk in front of any object currently migrating. */
+
+		if ( ocb->migrWait & WAITFORACK || ocb->migrWait & WAITFORDONE )
+			dprintf("* ");
+		else
+			dprintf("  ");
+		showocb ( ocb );
+	}
+}
+
+/* Count the number of phases currently being migrated by this node. */
+
+numMigrating ()
+
+{
+	int count = 0;
+	Ocb *ocb;
+
+	if ( sendOcbQ )
+	for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL;
+		  ocb = nxtocb_macro ( ocb ) )
+			count++;
+
+	return ( count );
+
+}
+
+
+/*  Search the queue of phases to be sent for a particular phase.  Return
+		NULL if it isn't found, a pointer to it otherwise. */
+
+FUNCTION Ocb * findInSendQueue ( name, time )
+	Name name;
+	VTime time;
+{
+	Ocb * ocb;
+
+	if ( sendOcbQ )
+		for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL; 
+				ocb = nxtocb_macro ( ocb ) )
+		{
+			if ( strcmp ( name, ocb->name ) == 0 && 
+				geVTime ( time, ocb->phase_begin ) &&
+				ltVTime ( time, ocb->phase_end ) )
+			return ocb;
+		}
+
+	return ( NULL );
+}
+
+FUNCTION verifySendOcbQ ()
+{
+	Ocb * ocb;
+
+	if ( sendOcbQ )
+		for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL; 
+				ocb = nxtocb_macro ( ocb ) )
+				_pprintf("%s    ",ocb->name);
+	_pprintf("sendOcbQ verified\n");
+
+}
+
+/* Insert a state into the state queue of a phase currently in the migration
+		queue.  We must then check for rollback of the phase, which cannot
+		use ordinary rollback code. */
+
+/*  This function is probably incorrect because it doesn't adjust the
+	number of states, input messages, and output messages to be sent.
+	If those change without changing the count in the ocb, the entire 
+	migration will hang expected more input, or some other equally terrible
+	thing will happen.  Probably, resetting those ocb values after all
+	rollback activity ceases will fix the problem. */
+
+FUNCTION putStateInSendQueue ( ocb, state )
+
+	Ocb * ocb;
+	State * state;
+{
+	State *firstState;
+	Msgh *firstIMsg, *firstOMsg;
+
+	/* Find the first state of the migrating phase. */
+
+	firstState = fststate_macro ( ocb );
+
+	/* If this first state has a sndtime less than phase_begin, it
+		must be discarded.  Otherwise, the state copy can be
+		inserted at the front of the queue. */
+
+	if ( firstState != NULL && 
+		ltVTime ( firstState->sndtim, ocb->phase_begin ) )
+	{
+
+		l_remove ( firstState );
+		destroy_state ( firstState );
+		if ( ocb->cs == firstState )
+			ocb->cs = NULL;
+	}
+
+	/*  This is a pre-interval state, so it should always be first in
+		the state queue.  PARANOID code checks to see that it isn't
+		misordered. */
+
+	l_insert ( ocb->sqh, state );
+
+#ifdef PARANOID
+	{
+		State * newState, * nextState ;
+
+		newState = nxtstate_macro ( ocb->sqh );
+		nextState = nxtstate_macro ( newState );
+
+		if ( nextState != ocb->sqh &&
+			geVTime ( newState->sndtim, nextState->sndtim ) )
+		{
+			_pprintf("state misorder in send queue, object %s, ocb ptr %x, first state %x, second state %x\n", 
+			ocb->name, ocb, newState, nextState);
+			tester();
+		}
+	}
+#endif PARANOID
+
+	/*  Now perform a half-assed rollback of the phase.  Its svt may
+		need to be reset, states may need to be discarded, output
+		messages may need to be cancelled.  It's a pity we can't use
+		the code from rollback() for this purpose, but messing with
+		it to handle an unusual dlm case is dangerous, and it would
+		add code to the main line of TWOS to handle a very infrequent
+		occurrence. */
+
+	firstIMsg = fstimsg_macro ( ocb );
+
+	/*  If there are no input messages being sent, then there is no need for
+		further rollback activity.  Otherwise, if the first input message is 
+		already the one to be run next, as it usually will be, no further work 
+		is needed.  We're just rolling back to the same place we were already 
+		at, simply with a different initial state. */
+
+	if ( firstIMsg == NULL || leVTime ( ocb->svt, firstIMsg->rcvtim ) )
+	{
+		return;
+	}
+
+	/*  Must do a real rollback.  Adjust the svt, cancel any states at later
+		times, and, depending on whether lazy or aggressive cancellation is
+		being used, either unmark or cancel all output messages at later
+		times.  */
+
+	ocb->svt = firstIMsg->rcvtim;
+
+if ( ltVTime (ocb->svt, gvt))
+{
+	twerror("putStateInSendQ: svt %f set before gvt %f for %s\n",
+				ocb->svt.simtime, gvt.simtime,ocb->name);
+	tester();
+}
+	cancel_states ( ocb, ocb->svt );
+
+	if ( aggressive )
+		cancel_all_output ( ocb, ocb->svt );
+	else
+		unmark_all_output ( ocb, ocb->svt );
+}
+
+/*  This function reorders the state migration queue by characteristic 
+		virtual time.  The queue is probably short, so a simple (even
+		stupid) method can be used - bubble sort.  Should this method
+		cause problems, a better sort can be added.  */
+
+FUNCTION reorderStateMigrQ ()
+{
+	State_Migr_Hdr *migrHdr, *nxtMigrHdr;
+
+	for ( migrHdr = nxtstate_macro ( sendStateQ ); migrHdr != NULL; 
+			migrHdr = nxtstate_macro ( migrHdr ) )
+	{
+
+		nxtMigrHdr = nxtstate_macro ( migrHdr );
+
+		if ( nxtMigrHdr != NULL &&
+			 ltVTime ( nxtMigrHdr->time_to_deliver, migrHdr->time_to_deliver) )
+		{
+			l_remove ( migrHdr );
+			l_insert ( nxtMigrHdr, migrHdr );
+			migrHdr = nxtstate_macro ( sendStateQ ) ;
+			continue;
+		}
+	}
+}
+
+/* findInMovedQ() looks through a queue of states that have received
+	their done message, but not all of their acks.  If found, it increments
+	the acknowledgement received field.  If that field equals the 
+	acknowledgements sent, remove the entry from the queue. */
+
+FUNCTION findInMovedQ ( msg )
+	Msgh * msg;
+{
+	State_Migr_Hdr *migrHdr;
+	MigrAckInfo * Ackmsg;
+
+	Ackmsg = ( MigrAckInfo * ) ( msg + 1 );
+
+	for ( migrHdr = l_next_macro ( statesMovedQ ); migrHdr != statesMovedQ;
+			migrHdr = l_next_macro ( migrHdr ) )
+	{
+		/* Skip over entries that don't match.  If a matching entry is
+			found, increment its acksReceived field and check if all
+			expected acks have come in. */
+
+		if ( strcmp ( migrHdr->name, Ackmsg->name) == 0 &&
+			eqVTime ( migrHdr->time_to_deliver, Ackmsg->svt ) )
+		{
+			migrHdr->acksReceived++;
+
+			/* Check to see if all acks for this state have been received 
+				yet. */
+
+			if ( migrHdr->acksReceived == migrHdr->acksExpected )
+			{
+				l_remove ( migrHdr );
+				l_destroy ( migrHdr );
+			}
+
+			return ( 1 );
+		}
+	}
+
+	/* If we get here, we didn't find a match for this ackmsg. Return 0. */ 
+
+	return ( 0 );
+
+}
+
+/* showStatesMovedQ() displays the queue of states for which a state
+	done message is received before all state acks have been received. */
+
+FUNCTION showStatesMovedQ	 ()
+{
+	State_Migr_Hdr *migrHdr;
+
+	dprintf ( "%d: statesMovedQ\n", tw_node_num );
+	dprintf("	Name		Vtime	Acks Expected	Acks Received\n");
+
+	for ( migrHdr = l_next_macro ( statesMovedQ ); migrHdr != statesMovedQ;
+			migrHdr = l_next_macro ( migrHdr ) )
+	{
+		dprintf("	%s		%f		%d		%d\n",migrHdr->name, 
+					migrHdr->time_to_deliver.simtime, migrHdr->acksExpected, 
+					migrHdr->acksReceived );
+	}
+}
+@
+
+
+1.16
+log
+@Take out reordering optimization (bug fix).
+@
+text
+@d7 3
+d246 10
+d491 9
+a1172 21
+		if (l_size(state->address_table) < (i + 1) * sizeof(Address))
+			{	/* need to expand segment address table */
+			j = (i / SEG_TABLE_INCREMENT + 1) * 
+				SEG_TABLE_INCREMENT * sizeof(Address);
+			addr = m_create(j, msg->rcvtim, NONCRITICAL);
+
+			if (addr == NULL)
+				{	/* out of memory--nak and clean up */
+				destroy_state(ocb->rstate);	/* dump partial state */
+				ocb->rstate = NULL;
+				send_state_nak(msg,ocb);
+				return;
+				}
+
+			/* ok--we found memory;  now expand table */
+			clear (addr, j);	/* clear out new table area */
+			entcpy (addr, state->address_table, 
+				l_size (state->address_table)); /* copy old contents */
+			l_destroy (state->address_table);	/* dump old table */
+			state->address_table = (Address *) addr;
+			}
+d1258 1
+d1260 1
+a1260 1
+					m_create ( SEG_TABLE_INCREMENT * sizeof(Address),
+d1742 1
+a1742 1
+		for the new phase.  Do it hear because this attempt can fail.
+d1923 6
+@
+
+
+1.15
+log
+@1.  Use l_size macro.
+2.  Add support for variable length address tables.
+3.  Carry libPointer over when migrating (bug 16).
+@
+text
+@d7 5
+d1020 1
+d1030 6
+d1037 1
+@
+
+
+1.14
+log
+@Added code for event and event time throttling, and critical path computation
+@
+text
+@d7 3
+d456 1
+a456 1
+		for ( i = 0; i < Max_Addresses; i++ )
+d466 1
+a466 1
+					seglen = (((List_hdr *)segment)-1)->size;
+d645 1
+a645 1
+		
+a692 1
+		
+d694 1
+d738 1
+a738 1
+		seglen = (((List_hdr *)segment)-1)->size;
+d893 1
+a893 1
+	
+d1046 2
+a1047 1
+	int offset, i;
+d1122 1
+a1122 1
+				
+d1138 21
+d1197 1
+a1197 1
+					
+d1245 1
+a1245 1
+					m_create ( Max_Addresses * sizeof(Address),
+d1255 2
+a1256 1
+				clear ( state->address_table, Max_Addresses*sizeof(Address) );
+d1416 1
+a1416 1
+			
+d1421 1
+a1421 1
+	
+d1451 1
+a1451 1
+		
+d1673 1
+a1673 1
+		
+d1799 1
+d2299 1
+d2353 1
+d3112 1
+d3378 1
+a3378 1
+ 
+d3382 1
+a3382 1
+		
+d3390 1
+a3390 1
+			
+d3409 1
+a3409 1
+			
+d3440 1
+a3440 1
+		
+d3474 1
+a3474 1
+		
+d3476 1
+a3476 1
+		
+d3512 1
+a3512 1
+			
+d3521 1
+a3521 1
+	
+@
+
+
+1.13
+log
+@Fix DLM compile errors on Suns.
+@
+text
+@d7 3
+d91 1
+d1830 2
+d1883 22
+d2173 1
+@
+
+
+1.12
+log
+@multiple migration bug fixes, made sure acks/naks match with their migrating
+entity, more debugging routines (PLR)
+@
+text
+@d7 4
+a83 1
+#ifdef DLM
+a86 1
+#endif DLM
+d265 1
+a265 1
+#ifdef 0
+@
+
+
+1.11
+log
+@New copyright notice.
+@
+text
+@d7 3
+d132 1
+a132 1
+		end, anyway. */
+d252 1
+d263 1
+a263 1
+/*
+d273 1
+a273 1
+*/
+d277 1
+a277 1
+	if ( location && (location->node != miparm.me || location->po != NULL) )
+d398 8
+d411 3
+d467 1
+a467 5
+/* Pre-Interval State optimization.     */
+/* If we are about to insert a pre-interval state in the      */ 
+/* sendStateQ here we should check for any other pre-interval */
+/* states that are in the queue for this object & phase and   */
+/* remove and delete them.                                    */
+d469 9
+a477 1
+	if ( sendStateQ && ( migr_hdr->migr_flags & PRE_INTERVAL) )
+d665 3
+a667 2
+				state migration queue to put this state at its head.  Otherwise,                confusion will perhaps reign if the state must be sent in 
+				multiple pieces. */
+d792 2
+d807 6
+d818 1
+a818 1
+FUNCTION recv_state_done ()
+d820 10
+d832 1
+d838 2
+d843 2
+d856 3
+a858 1
+		tester();
+d876 9
+a884 6
+if ( ltVTime ( min_msg_time, gvt ) )
+{
+	twerror("recv_state_done: min_msg time %f set before gvt %f\n",
+				min_msg_time.simtime, gvt.simtime);
+	tester();
+}
+a885 1
+	destroy_state ( migr_hdr->state );
+a886 1
+	l_destroy ( migr_hdr );
+d888 31
+d924 2
+a925 1
+FUNCTION recv_state_ack ()
+d928 1
+d932 2
+d936 7
+a942 1
+	if ( l_ishead_macro ( migr_hdr ) )
+d944 15
+a958 2
+		twerror("recv_state_ack: no states in migration queue\n");
+		tester();
+d962 1
+d967 2
+a968 1
+FUNCTION recv_state_nak ()
+d971 1
+d975 2
+d978 1
+d981 9
+d995 2
+d1051 1
+a1051 1
+		send_state_nak ( msg );
+d1070 1
+a1070 1
+			send_state_nak ( msg );
+d1201 1
+a1201 1
+				send_state_nak ( msg );
+d1220 1
+a1220 1
+					send_state_nak ( msg );
+d1251 1
+a1251 1
+		send_state_ack ( msg );
+d1263 1
+a1263 1
+		send_state_done ( msg );
+d1351 1
+a1351 1
+		send_vtime_done ( msg );
+d1356 1
+a1356 1
+		send_phase_done ( msg );
+d1376 3
+a1378 3
+	if ( neVTime ( ocb->phase_end, posinfPlus1) )
+	{
+		State * s;
+d1380 16
+a1395 4
+		/*  This is a phase with no work to do and another later phase it
+				must feed.  Having just received a pre-interval state,
+				this phase must now send it to the next phase, since it
+				has no local events to process. */
+d1397 4
+a1400 1
+		s = fststate_macro ( ocb );
+d1402 1
+a1402 5
+		if ( s != lststate_macro ( ocb ) )
+		{
+			twerror ( "rollback_state: empty input queue, but last state not equal first state for %s\n",ocb->name);
+			tester ();
+		}
+d1404 5
+a1408 6
+		if ( s == NULLSTATE )
+		{
+			twerror ( "rollback_state: trying to forward null state for %s\n",
+						ocb->name );
+			tester();
+		}
+d1410 9
+a1418 2
+		send_state_copy ( s, ocb );
+	}
+d1472 7
+d1481 3
+a1483 1
+		if ( gtVTime ( n->sndtim, state->sndtim ) )
+d1486 2
+a1487 1
+		if ( eqVTime ( n->sndtim, state->sndtim ) )
+a1499 1
+FUNCTION send_state_ack ( msg )
+d1501 2
+d1504 1
+d1507 1
+d1513 9
+a1521 1
+	sysmsg ( STATEACK, p, 0, msg->low.from_node );
+d1524 1
+a1524 1
+FUNCTION send_state_nak ( msg )
+d1527 1
+d1530 2
+d1538 14
+a1551 1
+	sysmsg ( STATENAK, p, 0, msg->low.from_node );
+d1554 1
+a1554 1
+FUNCTION send_state_done ( msg )
+d1557 1
+d1560 1
+d1566 9
+a1574 1
+	sysmsg ( STATEDONE, p, 0, msg->low.from_node );
+d1657 1
+d1660 1
+d1753 1
+a1753 1
+		split. */
+d1757 5
+d1962 1
+a1962 1
+				oldStartVts, oldEndVts, newStartVts, newEndVts, miparm.me, 
+d2074 7
+a2190 1
+#ifdef DLM
+d2206 1
+a2206 1
+#endif
+d2212 1
+a2212 1
+	if ( HomeNode == miparm.me )
+d2347 2
+a2348 1
+FUNCTION recv_phase_ack ()
+d2351 1
+d2355 2
+d2359 9
+d2374 2
+a2375 1
+FUNCTION recv_phase_nak ()
+d2378 1
+d2383 3
+d2388 9
+d2576 21
+d2598 2
+d2636 9
+d2783 6
+d2794 4
+d2808 1
+d2816 3
+d2824 2
+a2825 1
+FUNCTION recv_phase_done ()
+d2829 1
+d2833 2
+d2839 3
+a2841 1
+		_pprintf("migrating phase removed from sendOcbQ prematurely\n");
+a2872 1
+#ifdef DLM
+a2880 1
+#endif
+d2919 29
+a2947 4
+		twerror ( "recv_vtime F wrong node %d for %s at %f",
+			location->node, msg->rcver, msg->rcvtim.simtime );
+		tester ();
+		return;
+d2966 1
+a2966 1
+	send_vtime_ack ( msg );
+d2969 1
+a2969 1
+FUNCTION send_vtime_ack ( msg )
+d2972 1
+d2982 1
+a2982 1
+	sysmsg ( VTIMEACK, p, sizeof(VTimeInfo), msg->low.from_node );
+d2985 1
+a2985 1
+FUNCTION send_vtime_done ( msg )
+d2988 1
+d2998 1
+a2998 1
+	sysmsg ( VTIMEDONE, p, sizeof(VTimeInfo), msg->low.from_node );
+d3023 3
+a3025 2
+		twerror("recv_phase: no room for ocb of migrating phase\n");
+		send_phase_nak( msg );
+d3068 3
+d3097 1
+a3097 1
+	if (location != NULL && location->node == miparm.me )
+d3118 1
+a3118 1
+		send_phase_ack ( msg );
+d3123 1
+a3123 1
+		send_phase_done ( msg );
+d3127 1
+a3127 1
+FUNCTION send_phase_ack ( msg )
+d3130 1
+d3133 1
+d3139 8
+a3146 1
+	sysmsg ( PHASEACK, p, 0, msg->low.from_node );
+d3149 1
+a3149 1
+FUNCTION send_phase_nak ( msg )
+d3152 1
+d3155 2
+d3163 14
+a3176 1
+	sysmsg ( PHASENAK, p, 0, msg->low.from_node );
+d3179 1
+a3179 1
+FUNCTION send_phase_done ( msg )
+d3182 1
+d3185 1
+d3191 8
+a3198 1
+	sysmsg ( PHASEDONE, p, 0, msg->low.from_node );
+d3206 1
+a3206 1
+	dprintf ( "%d", miparm.me );
+d3229 2
+a3230 3
+#ifdef DLM
+	dprintf ( "%d", miparm.me );
+#endif DLM
+d3303 7
+d3424 63
+@
+
+
+1.10
+log
+@Added MicroTime support. Removed mistuff.
+@
+text
+@d1 4
+d7 3
+a44 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.9
+log
+@Fix Sun3 compile error.
+@
+text
+@d3 3
+d76 1
+a78 1
+extern int resendState;
+d754 3
+d763 1
+d877 1
+d879 1
+a1351 2
+#define from_node mistuff[0]
+
+d1362 1
+a1362 1
+	sysmsg ( STATEACK, p, 0, msg->from_node );
+d1376 1
+a1376 1
+	sysmsg ( STATENAK, p, 0, msg->from_node );
+d1389 1
+a1389 1
+	sysmsg ( STATEDONE, p, 0, msg->from_node );
+d2119 3
+d2128 1
+d2395 3
+d2404 1
+d2434 3
+d2443 1
+d2469 3
+d2478 1
+d2581 3
+d2590 1
+d2681 1
+a2681 1
+	sysmsg ( VTIMEACK, p, sizeof(VTimeInfo), msg->from_node );
+d2696 1
+a2696 1
+	sysmsg ( VTIMEDONE, p, sizeof(VTimeInfo), msg->from_node );
+d2831 1
+a2831 1
+	sysmsg ( PHASEACK, p, 0, msg->from_node );
+d2845 1
+a2845 1
+	sysmsg ( PHASENAK, p, 0, msg->from_node );
+d2858 1
+a2858 1
+	sysmsg ( PHASEDONE, p, 0, msg->from_node );
+@
+
+
+1.8
+log
+@Take out preint state deletion in recv_state().
+@
+text
+@d3 3
+a71 1
+extern int resendState;
+d75 1
+@
+
+
+1.7
+log
+@Fix code for DLM off.
+@
+text
+@d3 3
+d1008 1
+d1051 1
+a1311 1
+#endif
+d1314 1
+d1535 1
+a1536 1
+				ocb->name );
+@
+
+
+1.6
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        migr.c,v $
+d67 1
+a69 1
+extern int migrGraph;
+d1537 1
+d1545 1
+d1731 1
+d1760 1
+d1977 1
+d1993 1
+d2122 1
+d2127 1
+d2561 1
+d2570 1
+@
+
+
+1.5
+log
+@1. Add parameter to FindObject() call.
+2. Fix dlm bugs.
+@
+text
+@d2 5
+a6 1
+ * $Log:	migr.c,v $
+d24 1
+a24 1
+char migr_id [56] = "@@(#)migr.c	1.31\t10/6/89\t14:25:23\tTIMEWARP";
+d26 3
+a28 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d30 1
+a30 1
+/*		migr.c - Object Migration Routines	*/
+d39 5
+a43 5
+	There is a protocol involved in sending a state to another
+	node which may take a while to complete. Therefore, a
+	queue of states to send is used to hold onto any number
+	of states. Only the first state in the sendStateQ can be
+	in the process of sending to another node.
+d49 5
+a53 5
+	There is a protocol involved in sending an object phase
+	to another node which may take a while to complete.
+	Therefore, a queue of ocb's to send is used to hold onto
+	any number of object phases. Only the first ocb in the
+	sendOcbQ can be in the process of sending to another node.
+d73 2
+a74 2
+/*	send_state_copy is called by go_forward in rollback.c
+	when an object is BLKINF and phase_end is < POSINF.
+d76 6
+a81 6
+	loadstatebuffer in state.c makes a copy of the object's
+	cs (current state) and leaves a pointer to the copy
+	in the object's sb (state buffer). For this to work
+	the cs must point to the state to copy and the sb
+	must be available (NULL). The sb should always be
+	NULL when the runstat is BLKINF.
+d83 3
+a85 3
+	Once a copy of the state is made, this routine should
+	release the object's stack, which was allocated by
+	loadstatebuffer, and clear the object's sb and stk.
+d87 4
+a90 4
+	The state copy is send to the next phase of the object
+	by calling send_state unless the next phase is on the
+	same node. In that case the state is put in the next
+	phase's state queue.
+d98 2
+a99 2
+    State * state;
+    Ocb * ocb;
+d101 6
+a106 6
+    Objloc * location;
+    int finish_send_state_copy ();
+    State * new_state;
+    Ocb		*next;
+    State * last_sent = ocb->last_sent;
+    Ocb * inSendQueue;
+d110 4
+a113 4
+    /*  If the state in question is erroneous, let's not bother sending
+	it.  The migration code doesn't currently send it correctly,
+	anyway, and an erroneous state won't do any good on the destination
+	end, anyway. */
+d115 2
+a116 2
+    if ( state->serror != NOERR )
+    {
+d119 1
+a119 1
+	_pprintf("send_state_copy: not sending state for %s because of state error \n", ocb->name );
+d122 2
+a123 2
+	return;
+    }
+d125 1
+a125 1
+    fstateout++;
+d127 1
+a127 1
+    ocb->last_sent = state;
+d131 7
+a137 7
+	points to the last state sent.  If such a state exists, compare it
+	to the state about to be sent.  If they are the same, then if 
+	last_state is no longer saved in the state queue (because it was 
+	committed), destroy last_state.  Then clear the out_of_sq flag.
+	In either case, if the compare is the same, simply return.  If
+	the compare is not the same, check whether out_of_sq is set, which
+	means that a committed state must be destroyed.
+d140 5
+a144 5
+    if ( last_sent )
+    {
+	/* Coming soon */
+	if (  state_compare ( last_sent, state, ocb->pvz_len ) ==  0 )
+        {
+d148 2
+a149 2
+	    if ( ocb->out_of_sq )
+            {
+d153 9
+a161 9
+		l_remove ( last_sent );
+		destroy_state ( last_sent );
+	    }
+	    ocb->out_of_sq = 0;
+	    dupStateSend++;
+	    return; /* jump forward for phase wins !!! */
+        }
+	else if ( ocb->out_of_sq )
+	{
+d165 3
+a167 2
+	    l_remove ( last_sent );
+	    destroy_state ( last_sent );
+a168 1
+    }
+d170 1
+a170 1
+    ocb->out_of_sq = 0;
+d172 1
+a172 1
+    new_state = copystate ( state );
+d174 3
+a176 3
+    if ( new_state == NULL )
+    {
+	l_remove ( state );
+d178 1
+a178 1
+	new_state = state;
+d180 2
+a181 2
+	/* If we later commit the bundle associated with this state, remember
+		that the state should count as committed. */
+d183 1
+a183 1
+        ocb->loststate = 1;
+d185 1
+a185 1
+        ocb->last_sent = NULL;
+d188 1
+a188 1
+	_pprintf ( "send_state_copy: lost a state for %s\n", ocb->name );
+d191 6
+a196 6
+	if ( ocb->runstat == READY )
+	    ocb->runstat = GOFWD;
+    }
+    else
+    if ( new_state == (State *) -1 )
+    {
+d198 9
+a206 9
+	/* In this case, the node could not obtain enough memory to make
+		a copy of the state for shipping, and could not even obtain
+		enough memory to copy any deferred memory segments lying
+		around in earlier versions of the state.  Set the object
+		into STATESEND status, which will cause it to try again
+		later.  Also, change the svt to the phase's phase_end which
+		will reorder the scheduler queue, so that the retry will happen
+		at the appropriate priority.  Since there isn't a copy of a 
+		state to send, return immediately. */
+d208 5
+a212 5
+	ocb->runstat = STATESEND;
+	ocb->svt = ocb->phase_end;
+	next = l_next_macro ( ocb );
+	l_remove ( ocb );		/* remove ocb from object list */
+	nqocb ( ocb, next );	/* reinsert ocb in new time order */
+d214 2
+a215 2
+	return;
+    }
+d217 2
+a218 2
+    if ( ocb->runstat == STATESEND )
+    {
+d220 3
+a222 3
+	/* If we got this far with this status, we have a copy of the state
+	    to send.  Change the run status of this phase to BLKINF.   Also,
+	    reorder the scheduler queue to put it in its proper place.  */
+d224 1
+a224 1
+	ocb->runstat = BLKINF;
+d226 5
+a230 5
+	ocb->svt = posinf;
+	next = l_next_macro ( ocb );
+	l_remove ( ocb );		/* remove ocb from object list */
+	nqocb ( ocb, next );	/* reinsert ocb in new time order */
+    }
+d232 1
+a232 1
+    new_state->ocb = (Byte *) ocb;
+d234 8
+a241 8
+    /*  First check to see if the phase to receive the state is in the
+	queue of phases to be migrated.  If so, and if the phase hasn't
+	started migrating yet, the state copy will be 
+	put into the state queue of that phase locally, rather than being
+	shipped to the eventual destination node.  The process to do so is
+	moderately complex, as the phase getting the state must be rolled
+	back when it is in the sending queue, rather than the schedule
+	queue.  As a result, some of the normal rollback code cannot be used. */
+d244 1
+a244 1
+    inSendQueue = findInSendQueue ( ocb->name, ocb->phase_end );
+d246 7
+a252 7
+    if ( inSendQueue != NULL && !(inSendQueue->migrWait & WAITFORACK) &&
+		!(inSendQueue->migrWait & WAITFORDONE ) )
+    {
+	rollbackInMigrQ++;
+	putStateInSendQueue ( inSendQueue, new_state );
+	return;
+    }
+d255 1
+a255 1
+    location = GetLocation ( ocb->name, ocb->phase_end );
+d257 6
+a262 6
+    if ( location && (location->node != miparm.me || location->po != NULL) )
+    {
+	finish_send_state_copy ( new_state, location );
+    }
+    else
+    {
+d264 8
+a271 8
+	FindObject (
+			ocb->name,
+			ocb->phase_end,
+			new_state,
+			finish_send_state_copy,
+			NOTMSG
+		   );
+    }
+d276 2
+a277 2
+    State * state;
+    Objloc * location;
+d279 2
+a280 2
+    Ocb * ocb;
+    int flags = 0;
+d284 1
+a284 1
+    ocb = (Ocb *) state->ocb;
+d287 1
+a287 1
+	send_state_copy() & finish_send_state_copy() */
+d289 1
+a289 1
+    ocb->next_node = location->node;
+d291 13
+a303 13
+    if ( ocb->next_node == tw_node_num )
+    {
+	put_state_in_sq ( location->po, state );
+	state->ocb = location->po;
+	/* This is a bug fix having nothing to do with my new code.  If
+		two adjacent phases of an object are on the same node,
+		TW2.4.1 wouldn't handle it properly.  When the earlier
+		phase forwarded a state to the later phase, the state 
+		would be queued, but the later phase wouldn't be rolled
+		back, so it might never execute.  Also, neither the object
+		statistics nor the node statistics took account of these
+		state receives on the receiving end, so stats wouldn't
+		balance.  */
+d305 1
+a305 1
+	rollback_state ( location->po, state->sndtim );
+d307 6
+a312 6
+	ocb->stats.stforw++;
+	fstatein++;
+    }
+    else
+    {
+	Ocb * migrating;
+d314 4
+a317 4
+	/*  Set the flags for send_state().  In this routine, the state
+		copy is always pre-interval.  If the destination phase has
+		not yet gotten to the destination node, also set the flags
+		to show that it must wait for the migration. */
+d319 1
+a319 1
+	flags |= PRE_INTERVAL;
+d321 1
+a321 1
+	migrating = findInSendQueue (ocb->name, ocb->phase_end);
+d323 6
+a328 3
+	if ( migrating != NULL )
+	{
+		flags |= WAIT_FOR_MIGRATE;
+a329 3
+
+	send_state ( state, ocb, flags );
+    }
+d333 3
+a335 3
+/*	All control information for sending a state to another node
+	has been added to the state header (State and 
+	State_Migr_Hdr in twsys.h).
+d337 3
+a339 3
+ 	In version 2.5 all migration information will be in 	
+	State_Migr_Hdr. For now however, the segment and packet
+	information will reside in State.
+d341 7
+a347 7
+	States are divided into segments and segments are divided
+	into packets. The global variable pktlen is used for the
+	packetizing. Segment 0 is the state header and data area.
+	Dynamically allocated blocks of memory are segments 1 thru
+	MaxAddresses. These segment numbers are the same as the
+	offsets into the address_table and are not necessarily
+	contiguous due to allocates and frees by the objects.
+d352 3
+a354 3
+    State * state;
+    Ocb * ocb;
+    int flags;
+d356 4
+a359 4
+    Byte * segment;
+    int seglen;
+    register int i;
+    State_Migr_Hdr  * migr_hdr;
+d365 2
+a366 2
+    /*  send_state() should never be handed a state in an error condition.
+	If this state is erroneous, trap to tester().  */
+d368 6
+a373 6
+    if ( state->serror != NOERR )
+    {
+	twerror ( "send_state: %s trying to send erroneous state %x\n",
+			ocb->name, state );
+	tester();
+    }
+d377 6
+a382 6
+    migr_hdr = ( State_Migr_Hdr *) l_create ( sizeof ( State_Migr_Hdr ) );
+    migr_hdr->time_to_deliver = ocb->phase_end; 
+    migr_hdr->to_node = ocb->next_node;	      
+    migr_hdr->state = state;
+    migr_hdr->waiting_for_ack = FALSE;
+    migr_hdr->waiting_for_done = FALSE;
+d384 2
+a385 2
+    /* Set the migration header flags to indicate whether the state is
+	pre-interval, and whether it is being migrated or forwarded. */
+d387 1
+a387 1
+    migr_hdr->migr_flags = flags;
+d390 4
+a393 4
+    state->ocb = (Byte *) ocb;
+    state->segno = 0;
+    state->no_segs = 1;
+    segment = (Byte *) state;
+d395 5
+a399 5
+    /*  The state points to the type table entry for this state's type, which 
+	contains a field describing the size of the state.  This is a 
+	preferable method to examining the size of the memory block currently 
+	holding the state.   Once we're sure that this works, the paranoid 
+	test can be removed.  */
+d401 1
+a401 1
+    seglen =  state->otype->statesize + sizeof (State)+12 ;
+d403 1
+a403 1
+	/* the 12 bytes holds "state limit" */
+d405 7
+a411 7
+    if ( seglen != (((List_hdr *)segment)-1)->size )
+    {
+	twerror("send_state: type table length for a state doesn't match memory block size, state ptr %x\n", state);
+ 	_pprintf("	seglen = %d, list hdr length = %d\n",seglen,
+			(((List_hdr *)segment)-1)->size);
+	tester();
+    }
+d413 2
+a414 4
+    state->tot_pkts = ( seglen + pktlen - 1 ) / pktlen;
+    if ( state->address_table != NULL )
+    {
+	for ( i = 0; i < Max_Addresses; i++ )
+d416 1
+a416 7
+	    if ( state->address_table[i] != NULL )
+	    {
+		state->no_segs++;
+		segment = (Byte *) state->address_table[i];
+		if ( segment == DEFERRED )
+		    state->tot_pkts++;
+		else
+d418 13
+a430 3
+		    seglen = (((List_hdr *)segment)-1)->size;
+		    state->tot_pkts += 
+			( seglen + pktlen - 1 ) / pktlen;
+a431 1
+	    }
+d433 2
+a434 3
+    }
+    state->pktno = 0;
+    state->no_pkts = 0;	/* depends on segno */
+d442 4
+a445 4
+    if ( sendStateQ && ( migr_hdr->migr_flags & PRE_INTERVAL) )
+     {   
+        State_Migr_Hdr  * scan_hdr, * next_scan;
+	Ocb * ocb1, * ocb2;
+d447 4
+a450 4
+        scan_hdr = nxtmigrh_macro ( sendStateQ );
+        while ( scan_hdr != NULL )
+         { 
+           next_scan = nxtmigrh_macro ( scan_hdr );
+d452 9
+a460 9
+	   /* If the scan_hdr state is a pre-interval one, and it's not
+		migrating, and it's not in the middle of moving, and it is
+		going to the same node as the migr_hdr state, and the two 
+		states have the same time_to_deliver, and the name of the 
+		receiving object is the same, delete the scan_hdr state, as 
+		the migr_hdr state will replace it.  If this code causes
+		trouble, the first thing to try is to also check the
+		send times on the states.  It shouldn't be necessary, but
+		perhaps it is.*/
+d462 10
+a471 10
+           if (  (scan_hdr->migr_flags & PRE_INTERVAL) &&
+                 !(scan_hdr->migr_flags & MIGRATING)   &&
+                 !(scan_hdr->migr_flags & STATE_MOVING) &&
+                 (scan_hdr->to_node == migr_hdr->to_node) &&
+                 eqVTime ( scan_hdr->time_to_deliver,
+                           migr_hdr->time_to_deliver)
+              )
+              {  
+                 ocb1 = (Ocb *) migr_hdr->state->ocb;
+                 ocb2 = (Ocb *) scan_hdr->state->ocb;
+d473 2
+a474 2
+                 if ( strcmp (ocb1->name, ocb2->name ) == 0)
+                  {
+d476 6
+a481 6
+        _pprintf ("about to delete pre-int state from migr queue\n");
+        dump_state_migr_hdr ( scan_hdr );
+        showstate ( scan_hdr->state );
+        dump_state_migr_hdr ( migr_hdr );
+	showstate ( migr_hdr->state );
+        tester();
+d484 11
+a494 11
+                     ocb2->num_states--;
+                     states_to_send--;
+		     didNotSendState++;	     
+                     destroy_state ( scan_hdr->state );
+                     l_remove ( scan_hdr );
+                     l_destroy ( scan_hdr );
+                  }   
+               }
+           scan_hdr = next_scan;
+          }
+      }          
+d497 1
+a497 1
+    l_insert ( l_prev_macro ( sendStateQ ),  migr_hdr );
+d499 1
+a499 1
+    states_to_send++;
+d501 1
+a501 1
+    send_state_from_q ();
+d505 23
+a527 23
+/*	The protocol for sending a state to another node is as follows.
+	First, send packet 0 of segment 0 of the state. One packet
+	must be at least big enough for the state header because it
+	contains control information like the total number of packets
+	to be sent. Next, the sending waits for an acknowledgement
+	from the receiving node. No other state messages (STATEMSG)
+	can be sent while a state acknowledgement is pending. There
+	are three state acknowledgement messages: STATEACK, STATENAK
+	and STATEDONE. STATEACK means the receiving node has
+	allocated memory for the first segment, has stored packet 0
+	and is waiting for the rest of the state packets and segments.
+	STATENAK is sent any time the receiving node fails to allocate
+	memory for a state segment. In that case the entire protocol
+	starts over. STATEDONE means the last packets has arrived
+	and been stored. If there is only one packet altogether then
+	STATEDONE is sent instead of STATEACK. After receiving STATEACK,
+	the sending node is free to send all the rest of the packets.
+	There is no sensitivity to message arrival order after the
+	first packet. There is enough information in each packet to
+	put it in its place without reference to any other packet
+	except the first one. The receiver knows when it has the
+	entire state by keeping track of a total packet count in
+	the state header.
+d531 6
+a536 6
+	The ocb in question might possibly have been migrated by the time
+	we try to follow it, in which case we're in for a world of hurt.
+	This wouldn't happen often, but might occasionally.  To fix it, 
+	copy any info we need out of it into the migr_hdr at the time the
+	state is put into the migrating state queue.  This will require
+	putting more stuff into the migr_hdr. */
+d540 7
+a546 7
+    Msgh * statemsg;
+    State_Migr_Hdr * migr_hdr;
+    Byte * segment, * packet;
+    int seglen, lenpkt, offset;
+    register int i, k;
+    Ocb * ocb;
+    Ocb * migrating;
+d551 1
+a551 1
+    migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+d553 2
+a554 2
+    if ( migr_hdr == sendStateQ )
+	return;
+d556 2
+a557 2
+    if ( migr_hdr->waiting_for_ack )
+	return;
+d559 2
+a560 2
+    if ( migr_hdr->waiting_for_done )
+	return;
+d563 7
+a569 7
+    /*  Check to see if the destination phase for this state is still in
+	the phase migration queue.  If it is, don't send this state.
+	Instead, reorder the queue to bring up the next state not marked
+	as waiting for migration, and send that one, instead.  If no such
+	state is found, move this state to the end of the queue and return.
+	More complex manipulations than the latter are possible, but it
+	should do for now. */
+d571 1
+a571 1
+    ocb = (Ocb *) migr_hdr->state->ocb;
+d573 3
+a575 3
+    if ( migr_hdr->migr_flags & WAIT_FOR_MIGRATE )
+    {
+	Ocb * sendQueueHead;
+d577 4
+a580 4
+	/*  If the destination phase is still in the migration queue, and
+		it is not at the front (or, if at the front, has not yet
+		set up an ocb on the destination node), delay this migration
+		in favor of doing something else. */
+d582 2
+a583 2
+	migrating = findInSendQueue ( ocb->name, migr_hdr->time_to_deliver );
+        sendQueueHead = nxtocb_macro ( sendOcbQ );
+d585 4
+a588 4
+	if (  migrating != NULL && ( migrating != sendQueueHead  || 
+	     migrating->migrStatus == MIGRNOTSTARTED ||
+	     migrating->migrStatus == MIGRSTART ) )
+	{
+d590 3
+a592 3
+	    while ( migr_hdr = l_next_macro ( migr_hdr ) )
+	    {
+		/*  If there are no suitable states, return. */
+d594 2
+a595 2
+	        if ( migr_hdr == sendStateQ )
+		{
+d597 1
+a597 1
+		    send_ocb_from_q ();
+d599 4
+a602 4
+		    return;
+		}
+	
+    	        ocb = (Ocb *) migr_hdr->state->ocb;
+d604 2
+a605 2
+		/* If this migrating state is not waiting for a phase to
+			complete its migration, send this one. */
+d607 2
+a608 2
+		if ( !(migr_hdr->migr_flags & WAIT_FOR_MIGRATE) )
+			break;
+d610 3
+a612 3
+		/* If the state is waiting for a phase to move, check to
+			see if the phase has moved or is moving.   If so, send 
+			this state.  If not, keep looking for another state. */
+d614 2
+a615 2
+	        migrating = findInSendQueue ( ocb->name, 
+				migr_hdr->time_to_deliver );
+d617 6
+a622 6
+	        if ( migrating != NULL &&
+			migrating != sendQueueHead )
+		    continue;
+	        else
+		{
+		    /* Indicate that this state can now be migrated. */
+d624 4
+a627 4
+		    migr_hdr->migr_flags &= ~WAIT_FOR_MIGRATE;
+		    break;
+		}
+	    }
+d629 3
+a631 3
+	    /* If we get here, we have a candidate for migration.  Reorder the 
+		state migration queue to put this state at its head.  Otherwise, 		confusion will perhaps reign if the state must be sent in 
+		multiple pieces. */
+d633 1
+a633 1
+	    l_remove ( migr_hdr );
+d635 1
+a635 1
+            l_insert (  sendStateQ ,  migr_hdr );
+d637 3
+a639 3
+        }
+	else 
+	{
+d641 3
+a643 3
+	    /* Indicate that this state can now be migrated.  In this case,
+		we needn't reorder the state migration queue, as this state
+		is already at the head of it.  */
+d645 2
+a646 1
+	    migr_hdr->migr_flags &= ~WAIT_FOR_MIGRATE;
+d648 1
+a648 2
+    }
+	
+d650 1
+a650 1
+    statemsg = (Msgh *) l_create ( msgdefsize );
+d652 2
+a653 2
+    if ( statemsg == NULL )
+	return;
+d655 1
+a655 1
+    i = 0;
+d657 3
+a659 3
+    if ( migr_hdr->state->segno == 0 )
+    {
+	segment = (Byte *) migr_hdr->state;
+d661 1
+a661 1
+	if ( migr_hdr->state->pktno == 0 )
+d663 2
+a664 2
+	    migr_hdr->waiting_for_ack = TRUE;
+	    migr_hdr->migr_flags |= STATE_MOVING;
+d667 2
+a668 4
+    }
+    else
+    {
+	for ( k = migr_hdr->state->segno; ; i++ )
+d670 4
+a673 2
+	    if ( migr_hdr->state->address_table[i] != NULL )
+		k--;
+d675 4
+a678 2
+	    if ( k == 0 )
+		break;
+a679 2
+	segment = (Byte *) migr_hdr->state->address_table[i++];
+    }
+d681 3
+a683 3
+    if ( segment == DEFERRED )
+    {
+	seglen = (int)DEFERRED;
+d685 1
+a685 1
+	migr_hdr->state->no_pkts = 1;
+d687 1
+a687 1
+	packet = (Byte *) (&segment);
+d689 5
+a693 5
+	lenpkt = sizeof ( segment );
+    }
+    else
+    {
+	seglen = (((List_hdr *)segment)-1)->size;
+d695 1
+a695 1
+	migr_hdr->state->no_pkts = ( seglen + pktlen - 1 ) / pktlen;
+d697 1
+a697 1
+	offset = pktlen * migr_hdr->state->pktno;
+d699 1
+a699 1
+	packet = segment + offset;
+d701 1
+a701 1
+	lenpkt = seglen - offset;
+d703 3
+a705 3
+	if ( lenpkt > pktlen )
+	    lenpkt = pktlen;
+    }
+d708 10
+a717 10
+    make_static_msg ( 
+			statemsg, 
+			STATEMSG, 
+			ocb->name, 
+    			migr_hdr->state->sndtim, 
+			ocb->name, 
+			migr_hdr->time_to_deliver, 
+			lenpkt, 
+			packet 
+		    );
+d719 5
+a723 5
+    statemsg->pktno  = migr_hdr->state->pktno;
+    statemsg->no_pkts = migr_hdr->state->no_pkts;
+    statemsg->seglen = seglen;
+    statemsg->segno = i;
+    statemsg->flags |= SYSMSG;
+d726 3
+a728 3
+    /* Use the migration header's flags to determine if the state is migrating
+	or is a pre-interval state.  Who knows what may have happened to the
+	ocb runstat in the meantime? */
+d730 6
+a735 6
+    ocb->migrStatus |= (Byte) SENDSTATE;
+    if ( migr_hdr->migr_flags & MIGRATING )
+    {
+	statemsg->flags |= MOVING;
+	statemsg->rcvtim = ocb->phase_begin;
+    }
+d737 2
+a738 2
+    {
+        extern int mlog, node_cputime;
+d740 2
+a741 2
+        if ( mlog )
+        {
+d743 1
+a743 1
+            mark3time ();
+d746 1
+a746 1
+            butterflytime ();
+d748 3
+a750 3
+            statemsg->cputime = node_cputime;
+        }
+    }
+d752 1
+a752 1
+    sndmsg ( statemsg, sizeof(Msgh) + lenpkt, migr_hdr->to_node );
+d754 1
+a754 1
+    migr_hdr->state->pktno++;
+d756 3
+a758 3
+    if ( migr_hdr->state->pktno == migr_hdr->state->no_pkts )
+    {
+	migr_hdr->state->pktno = 0;
+d760 1
+a760 1
+	migr_hdr->state->segno++;
+d762 5
+a766 4
+	if ( migr_hdr->state->segno == migr_hdr->state->no_segs )
+	if ( migr_hdr->state->no_segs > 1 || migr_hdr->state->no_pkts > 1 )
+	{
+	    migr_hdr->waiting_for_done = TRUE;
+a767 1
+    }
+d772 2
+a773 2
+    State_Migr_Hdr * migr_hdr;
+    Ocb * o;
+d777 1
+a777 1
+    migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+d779 5
+a783 5
+    if ( l_ishead_macro ( migr_hdr ) )
+    {
+	twerror ( "recv_state_done: no states in migration queue\n");
+	tester();
+    }
+d785 3
+a787 3
+    /*  It's OK to get a state done message only if the state is 
+	waiting_for_done or it consists of only one segment of only one
+	packet. */
+d789 6
+a794 6
+    if ( migr_hdr->waiting_for_done != TRUE  &&
+	 ( migr_hdr->state->no_segs >1 || migr_hdr->state->no_pkts >1) )
+    {
+	twerror("recv_state_done: premature done signal\n");
+	tester();
+    }
+d796 1
+a796 1
+    o = (Ocb *) migr_hdr->state->ocb;
+d798 5
+a802 5
+    /* The moving state can make a gvt contribution if it is a pre-interval
+	non-migrating state, since it will cause a rollback at the 
+	destination end.  It will roll back the destination phase to its
+	delivery time, which is the same as the sending phase's phase end,
+	so that time is the gvt contribution that should be made. */
+d804 6
+a809 6
+    if ( ( migr_hdr->migr_flags & PRE_INTERVAL ) &&
+	 !( migr_hdr->migr_flags & MIGRATING ) &&
+	 ltVTime ( migr_hdr->time_to_deliver, min_msg_time ) )
+    {
+	min_msg_time = migr_hdr->time_to_deliver;
+    }
+d813 3
+a815 3
+    twerror("recv_state_done: min_msg time %f set before gvt %f\n",
+		min_msg_time.simtime, gvt.simtime);
+    tester();
+d817 4
+a820 4
+    o->migrStatus &= (Byte) ~SENDSTATE;
+    destroy_state ( migr_hdr->state );
+    l_remove ( migr_hdr );
+    l_destroy ( migr_hdr );
+d822 1
+a822 1
+    states_to_send--;	/* done sending state */
+d824 1
+a824 1
+    send_ocb_from_q ();
+d829 1
+a829 1
+    State_Migr_Hdr * migr_hdr;
+d833 1
+a833 1
+    migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+d835 5
+a839 5
+    if ( l_ishead_macro ( migr_hdr ) )
+    {
+	twerror("recv_state_ack: no states in migration queue\n");
+	tester();
+    }
+d841 1
+a841 1
+    migr_hdr->waiting_for_ack = FALSE;
+d843 1
+a843 1
+    send_state_from_q ();	/* send the rest */
+d848 1
+a848 1
+    State_Migr_Hdr * migr_hdr;
+d852 2
+a853 2
+    stateNaksRecv++;
+    migr_hdr = (State_Migr_Hdr *) l_next_macro ( sendStateQ );
+d855 2
+a856 2
+    migr_hdr->waiting_for_ack = FALSE;
+    migr_hdr->waiting_for_done = FALSE;
+d858 2
+a859 2
+    migr_hdr->state->segno = 0;
+    migr_hdr->state->pktno = 0;
+d861 1
+a861 1
+    resendState = FALSE;	/* don't resend til next GVT click */
+d864 1
+a864 1
+    _pprintf("Backing off state send for %s\n",migr_hdr->state->ocb->name);
+d867 8
+a874 8
+    /*  Now check to see if we want to reorder the state queue.  This queue
+	is not ordered when states are put into it, because the state at the
+	front might be in the middle of being moved.  States already being
+	moved must remain at the front of the queue until they are completely
+	moved.  At this point, however, the receival of a nak indicates that
+	the state at the head of the queue is not in the midddle of a move,
+	so it can be shuffled.  The ordering is done by characteristic virtual
+	time. */
+d876 1
+a876 1
+    reorderStateMigrQ ();
+d879 6
+a884 6
+    /*  This causes a node to restart a state send immediately upon receipt
+	of a nak.  It is probably better to let the node go off and do
+	something else before trying again, as the most likely reason for
+	the nak was that insufficient memory was available to receive the
+	state.  The main loop of TWOS will eventually call send_state_from_q
+	again.  */
+d886 1
+a886 1
+    send_state_from_q ();	/* try again */
+d892 1
+a892 1
+    Msgh * msg;
+d894 5
+a898 5
+    Objloc * location;
+    Ocb * ocb;
+    State * state;
+    Byte * segment;
+    int offset, i;
+d902 1
+a902 1
+    location = GetLocation ( msg->rcver, msg->rcvtim );
+d904 2
+a905 2
+    if ( location == NULL )
+    {
+d907 3
+a909 3
+	to avoid this condition, in most cases, but odd timing can still
+	cause it to happen, at least in theory.  Sending a nak and having
+	a retransmission later should fix the problem. */
+d911 4
+a914 4
+	twerror ( "recv_state F can't find %s at %f", msg->rcver, msg->rcvtim.simtime );
+	send_state_nak ( msg );
+	return;
+    }
+d916 2
+a917 2
+    if ( location->node != tw_node_num )
+    {
+d921 1
+a921 1
+	RemoveFromCache(msg->rcver,msg->rcvtim);
+d923 1
+a923 1
+	location = GetLocation ( msg->rcver, msg->rcvtim );
+d926 1
+a926 1
+	/*  A NULL location means it hasn't shown up yet, so nak and return. */
+d928 2
+a929 2
+	if ( location == NULL )
+	{
+d931 4
+a934 4
+	    send_state_nak ( msg );
+	    return;
+        }
+	else
+d936 2
+a937 2
+	/*  But if the local object location info thinks the phase is on
+		another node, there's a serious problem. */
+d939 2
+a940 2
+	if ( location->node != tw_node_num )
+	{
+d942 5
+a946 4
+	    twerror ( "recv_state F bad location for %s at %f\n", msg->rcver, 
+			msg->rcvtim.simtime );
+	    tester ();
+	    return;
+a947 1
+    }
+d949 1
+a949 1
+    ocb = location->po;
+d951 1
+a951 1
+    state = ocb->rstate;
+d953 7
+a959 7
+    if ( msg->segno == 0 )
+    {
+	segment = (Byte *) state;
+    }
+    else
+    {
+	i = msg->segno - 1;
+d961 3
+a963 3
+	/*  If rstate is NULL at this point, we have naked a state while a
+		packet is still in transit.  The state will be completely
+		resent.  This packet should merely be ignored. */
+d965 2
+a966 2
+	if ( state == NULL )
+	{
+d968 2
+a969 2
+	    _pprintf("recv_state: %s NULL state for segment other than 0\n", 
+			ocb->name );
+d971 3
+a973 3
+	    return;
+	}
+	    	
+d975 6
+a980 6
+	if ( state->address_table == NULL )
+	{
+		twerror("recv_state: Address table not set up in time for %s, state %x\n",
+			ocb->name, state);
+		tester();
+	}
+d982 5
+a986 5
+	if (ocb->rstate == NULL)
+	    {
+	    _pprintf("recv_state: rstate is NULL, object %s, i = %d, msg = %x\n",ocb->name,i,msg);
+	    tester();
+	    }
+d989 2
+a990 2
+	segment = (Byte *) state->address_table[i];
+    }
+d992 1
+a992 3
+    if ( segment == NULL )
+    {
+	if ( msg->seglen == (int)DEFERRED )
+d994 7
+a1000 5
+	    segment = DEFERRED;
+	}
+	else
+	{
+	    segment = m_create ( msg->seglen, msg->rcvtim, NONCRITICAL );
+d1002 3
+a1004 3
+	    if ( segment == NULL )
+	    {
+		State * preInt;
+d1006 7
+a1012 7
+		/*  Bummer.  We don't have, and can't make, enough memory
+			to handle the incoming segment.  In the special case
+			that the segment is a non-migrating pre-interval
+			state, perhaps something can be done.  We can try
+			freeing our existing pre-interval state immediately,
+			in the hopes that it will release a large enough
+			chunk of memory. */
+d1014 1
+a1014 1
+		preInt = fststate_macro ( ocb );
+d1016 4
+a1019 4
+		/* If we're moving a pre-interval state, and we have enough
+			of it here to examine its time, and we already have
+			some other state in the ocb's state queue, and that
+			state is a pre-interval state . . . */
+d1021 6
+a1026 6
+		if ( state != NULLSTATE &&
+		     ltVTime ( state->sndtim, ocb->phase_begin ) &&
+		     preInt != NULL && 
+		     ltVTime ( preInt->sndtim, ocb->phase_begin ) ) 
+		{
+		    
+d1029 1
+a1029 1
+		ocb->name );
+d1032 1
+a1032 1
+		    l_remove ( preInt );	/* take state out of list */
+d1034 2
+a1035 2
+		    if ( preInt == ocb->cs )
+			ocb->cs = NULL;
+d1037 1
+a1037 1
+		    destroy_state ( preInt );	/* release all its memory */
+d1039 1
+a1039 1
+		    /*  Now try again. */
+d1041 3
+a1043 3
+	            segment = m_create ( msg->seglen, msg->rcvtim, NONCRITICAL);
+		}
+	    }
+d1045 3
+a1047 3
+	    /* If emergency measures haven't helped, undo any state migration
+		already done and send a nak.  The state will be resent later. 
+		*/
+d1049 6
+a1054 6
+	    if ( segment == NULL )
+	    {
+		if ( ocb->rstate != NULL )
+		{
+		    destroy_state ( ocb->rstate );
+		    ocb->rstate = NULL;
+d1058 1
+a1058 1
+		}
+d1060 1
+a1060 1
+		send_state_nak ( msg );
+d1062 3
+a1064 3
+		return;
+	    }
+	}
+d1066 3
+a1068 3
+	if ( msg->segno == 0 )
+	{
+	    state = (State *) (msg + 1);
+d1070 5
+a1074 5
+	    if ( state->address_table != NULL )
+	    {
+		state->address_table = (Address *)
+		    m_create ( Max_Addresses * sizeof(Address),
+		    msg->rcvtim, NONCRITICAL );
+d1076 6
+a1081 6
+		if ( state->address_table == NULL )
+		{
+		    l_destroy ( segment );
+		    send_state_nak ( msg );
+		    return;
+		}
+d1083 2
+a1084 2
+		clear ( state->address_table, Max_Addresses*sizeof(Address) );
+	    }
+d1087 1
+a1087 1
+	_pprintf("address_table %s %x\n",ocb->name,state->address_table);
+d1090 1
+a1090 1
+	    state = (State *) segment;
+d1092 7
+a1098 2
+	    ocb->rstate = state;	/* state under construction */
+	    ocb->migrStatus |= (Byte) RECVSTATE;
+d1100 2
+a1101 1
+	else
+d1103 3
+a1105 1
+	    state->address_table[i] = (Address) segment;
+a1106 1
+    }
+d1108 4
+a1111 3
+    if ( segment != DEFERRED )
+    {
+	offset = pktlen * msg->pktno;
+d1113 1
+a1113 2
+	entcpy ( segment+offset, msg+1, msg->txtlen );
+    }
+a1114 7
+    if ( state->tot_pkts > 1 )
+    {
+	send_state_ack ( msg );
+    }
+
+    state->tot_pkts--;
+
+d1117 3
+a1119 3
+    if ( state->tot_pkts == 0 )
+    {
+	ocb->rstate = NULL;
+d1121 2
+a1122 2
+	ocb->migrStatus &= (Byte) ~RECVSTATE;
+	send_state_done ( msg );
+d1125 1
+a1125 1
+	validState(state);
+d1128 3
+a1130 3
+	if ( msg->flags & MOVING )
+	{
+	    State * s = fststate_macro ( ocb );
+d1133 2
+a1134 2
+	phase is going to discard it, anyway, when it re-executes at svt.
+	Get rid of it now.  */
+d1136 2
+a1137 2
+	    if ( geVTime ( state->sndtim, ocb->svt ) )
+	    {
+d1142 6
+a1147 6
+		destroy_state ( state );
+	    }
+	    else
+	    if ( ltVTime ( state->sndtim, ocb->phase_begin )
+	    && ( s != NULL && ltVTime ( s->sndtim, ocb->phase_begin ) )  )
+	    {
+d1150 1
+a1150 1
+		ocb->name);
+d1152 1
+a1152 1
+		tester();
+d1154 11
+a1164 11
+	    }
+	    else
+	    {
+		put_state_in_sq ( ocb, state );
+		state->ocb = ocb;
+	    }
+						/* Don't replace the state
+						/* before phase_begin with
+						/* a moving state because
+						/* it is the oldest one. */
+	    ocb->num_states--;
+d1166 9
+a1174 9
+	    if ( ( ocb->num_states + ocb->num_imsgs + ocb->num_omsgs ) == 0 )
+	    {
+		rollback_phase ( ocb, msg );
+	    }
+	}
+	else
+	{
+	    ocb->stats.stforw++;
+	    fstatein++;
+d1177 5
+a1181 5
+	    if (ltVTime(state->sndtim,gvt))
+	    {
+		_pprintf("forwarded state to %s at time %2f, less than gvt %2f\n",
+			ocb->name, state->sndtim.simtime, gvt.simtime);
+	    }
+d1184 4
+a1187 3
+	    put_state_in_sq ( ocb, state );
+	    state->ocb = ocb;
+	    rollback_state ( ocb, state->sndtim );
+a1188 1
+    }
+d1193 2
+a1194 2
+    Ocb * ocb;
+    Msgh * msg;
+d1198 4
+a1201 4
+    if ( ocb->runstat == BLKINF || ocb->runstat == BLKSTATE )
+    {	/* if blocked, restart at current time */
+	rollback ( ocb, ocb->svt );
+    }
+d1205 1
+a1205 1
+    ocb->phase_limit = ocb->next_limit;
+d1207 10
+a1216 10
+    if ( ltVTime ( ocb->phase_limit, ocb->phase_end ) )
+    {
+	ocb->migrStatus &= (Byte) ~RECVVTIME;
+	send_vtime_done ( msg );
+    }
+    else
+    {
+	ocb->migrStatus = (Byte) MIGRDONE;
+	send_phase_done ( msg );
+    }
+d1221 2
+a1222 2
+    Ocb * ocb;
+    VTime statetime;
+d1224 1
+a1224 1
+    register Msgh * msg;
+d1228 1
+a1228 1
+    msg = fstimsg_macro ( ocb );
+d1230 8
+a1237 8
+    if ( msg )
+    {
+	rollback ( ocb, msg->rcvtim );
+    }
+    else
+    if ( neVTime ( ocb->phase_end, posinfPlus1) )
+    {
+	State * s;
+d1239 4
+a1242 4
+	/*  This is a phase with no work to do and another later phase it
+		must feed.  Having just received a pre-interval state,
+		this phase must now send it to the next phase, since it
+		has no local events to process. */
+d1244 1
+a1244 1
+	s = fststate_macro ( ocb );
+d1246 5
+a1250 5
+	if ( s != lststate_macro ( ocb ) )
+	{
+	    twerror ( "rollback_state: empty input queue, but last state not equal first state for %s\n",ocb->name);
+	    tester ();
+	}
+d1252 8
+a1259 5
+	if ( s == NULLSTATE )
+	{
+	    twerror ( "rollback_state: trying to forward null state for %s\n",
+			ocb->name );
+	    tester();
+d1261 1
+a1261 4
+
+	send_state_copy ( s, ocb );
+    }
+	
+d1266 2
+a1267 2
+    Ocb * ocb;
+    State * state;
+d1269 1
+a1269 1
+    State * s, * n;
+d1273 1
+a1273 1
+/* Pre-Interval State...	*/
+d1275 1
+a1275 5
+    if ( ltVTime ( state->sndtim, ocb->phase_begin ) )
+    {
+	s = fststate_macro ( ocb );
+
+	if ( s != NULL && ltVTime ( s->sndtim, ocb->phase_begin ) )
+d1277 1
+a1277 5
+	    l_remove ( s );
+	    destroy_state ( s );
+	    if ( ocb->cs == s )
+		ocb->cs = NULL;
+	}
+d1279 7
+a1285 11
+	/*  This phase may be part of a dynamically created object, and
+		the earlier phase may have rolled back the creation or
+		processed a dynamic destroy.  In such cases, this incoming
+		preinterval state carries in its type field the information
+		that the object should be of type NULL at this phase's
+		phase_begin.  Therefore, when putting a pre-interval state
+		in the state queue, check to see if its type matches the
+		existing type field in the phase's ocb, and change the ocb
+		type field if necessary.  The printf code is temporary,
+		to ensure that the code is working.  The rest of the code
+		is permanent. */
+d1287 11
+a1297 2
+	if ( state->otype != ocb->typepointer )
+	{
+d1299 3
+d1303 1
+a1303 1
+	    _pprintf("phase %s changing type from %s to %s because of arriving pre-interval state\n",
+d1306 4
+a1309 1
+		ocb->name, ocb->typepointer->type, state->otype->type );
+d1312 1
+a1312 2
+	ocb->typepointer = state->otype;
+    }
+d1314 4
+a1317 1
+    s = ocb->sqh;
+d1319 6
+a1324 4
+    for ( n = nxtstate_macro ( s ); n; n = nxtstate_macro ( s ) )
+    {
+	if ( gtVTime ( n->sndtim, state->sndtim ) )
+	    break;
+d1326 1
+a1326 5
+	if ( eqVTime ( n->sndtim, state->sndtim ) )
+	{
+	    _pprintf("Trying to insert duplicate state (%x) into %s at %f\n",
+				state,ocb->name,state->sndtim.simtime);
+	    tester();
+d1329 1
+a1329 4
+	s = n;
+    }
+
+    l_insert ( s, state );
+d1336 1
+a1336 1
+    Msgh * msg;
+d1338 1
+a1338 1
+    Msgh * p;
+d1342 1
+a1342 1
+    p = sysbuf ();
+d1344 1
+a1344 1
+    sysmsg ( STATEACK, p, 0, msg->from_node );
+d1349 1
+a1349 1
+    Msgh * msg;
+d1351 1
+a1351 1
+    Msgh * p;
+d1354 1
+a1354 1
+    stateNaksSent++;
+d1356 1
+a1356 1
+    p = sysbuf ();
+d1358 1
+a1358 1
+    sysmsg ( STATENAK, p, 0, msg->from_node );
+d1363 1
+a1363 1
+    Msgh * msg;
+d1365 1
+a1365 1
+    Msgh * p;
+d1369 1
+a1369 1
+    p = sysbuf ();
+d1371 1
+a1371 1
+    sysmsg ( STATEDONE, p, 0, msg->from_node );
+d1376 2
+a1377 2
+    char * name;
+    STime * stime;
+d1379 3
+a1381 3
+    Objloc * location;
+    Ocb * ocb;
+    VTime vtime;
+d1385 1
+a1385 1
+    vtime = newVTime ( *stime, 0, 0 );
+d1387 1
+a1387 1
+    location = GetLocation ( name, vtime );
+d1389 6
+a1394 6
+    if ( location == NULL )
+    {
+	twerror ( "split_object_cmd E can't locate object %s with time %f",
+		name, *stime );
+	return;
+    }
+d1396 6
+a1401 6
+    if ( location->node != tw_node_num )
+    {
+	twerror ( "split_object_cmd E object %s with time %f is on node %d",
+		name, *stime, location->node );
+	return;
+    }
+d1403 1
+a1403 1
+    ocb = location->po;
+d1405 1
+a1405 1
+    split_object ( ocb, vtime );
+d1410 2
+a1411 2
+    Ocb * ocb;
+    VTime vtime;
+d1413 8
+a1420 8
+    Ocb * ocb2;
+    State * s, * preInt, * stateCopy;
+    Msgh * m;
+    Int HomeNode;
+    char	oldStartVts[20];
+    char	oldEndVts[20];
+    char	newStartVts[20];
+    char	newEndVts[20];
+d1424 7
+a1430 7
+    if ( eqVTime ( ocb->phase_begin, vtime )
+    ||   eqVTime ( ocb->phase_end, vtime ) )
+    {
+	twerror ( "split_object E invalid to split object %s from time %f to time %f at time %f", ocb->name, ocb->phase_begin.simtime, ocb->phase_end.simtime, vtime.simtime );
+	tester();
+	return ( NULL );
+    }
+d1433 2
+a1434 2
+    /* This test ensures that we do not split an object that is still 
+	migrating into the node hosting it.  */
+d1436 13
+a1448 13
+    if ( neVTime ( ocb->phase_end, ocb->phase_limit ) )
+    {
+	
+	twerror ( "split_object E trying to split object %s at time %f before phase limit %f reaches phase end %f\n", ocb->name, vtime.simtime, ocb->phase_limit.simtime, ocb->phase_end.simtime);
+	twerror ( "	phase limit - 	%f	%d	%d\n",
+			ocb->phase_limit.simtime, ocb->phase_limit.sequence1,
+			ocb->phase_limit.sequence2);
+	twerror ( "	phase end - 	%f	%d	%d\n",
+			ocb->phase_end.simtime, ocb->phase_end.sequence1,
+			ocb->phase_end.sequence2);
+	tester();
+	return ( NULL );
+    }
+d1450 1
+a1450 1
+    /*  This test ensures that we do not try to split a null object. */
+d1452 6
+a1457 6
+    if ( ocb->typepointer == &type_table[1] )
+    {
+	twerror ( "split_object: trying to split null object %s at time %f\n",
+		ocb->name, vtime.simtime );
+	return ( NULL );
+    }
+d1459 6
+a1464 6
+    if ( ocb->runstat == BLKPKT )
+    {
+	/* Don't try to split an object trying to send a message.  The code
+		probably works, but might not, especially in the case of
+		dynamic creation and destruction.  So just back off, instead.
+	*/
+d1466 2
+a1467 2
+	return ( NULL );
+    }
+d1470 5
+a1474 5
+    /*  Don't try to split ocbs that currently have an erroneous state.
+	There is a string associated with that erroneous state and the
+	state migration code is not prepared to handle moving that string.  
+	Moreover, unless the error state gets rolled back, the ocb won't
+	do any work on its new node, anyway. */
+d1476 1
+a1476 3
+    for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+    {
+	if ( s->serror != NOERR )
+d1478 2
+d1482 1
+a1482 1
+	    _pprintf("split_phase: Aborting split of %s because of error state in state queue \n", ocb->name );
+d1485 2
+a1486 1
+	    return ( NULL );
+a1487 1
+    }
+d1489 4
+a1492 4
+    /* Now make a copy of the state to be used as a pre-interval state
+	for the new phase.  Do it hear because this attempt can fail.
+	If it does, we need to abort the migration, and it will be a lot
+	easier to do that before we've done a lot of other stuff. */
+d1494 5
+a1498 5
+    for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+    {
+	if ( geVTime ( s->sndtim, vtime ) )
+	    break;
+    }
+d1500 6
+a1505 6
+    /*  If s is NULLSTATE, there are no states to be split off, except, 
+	perhaps, a pre-interval state.  So choose the last state of the
+	ocb's state queue as the pre-interval state, in this case.  On the
+	other hand, if s points to a state, that state is the first one 
+	in the queue to go to the later phase, so the previous state (if
+	any) is a pre-interval state that should be copied. */
+d1507 4
+a1510 4
+    if ( s == NULLSTATE )
+	preInt = lststate_macro ( ocb );
+    else
+        preInt = prvstate_macro ( s );
+d1512 1
+a1512 5
+    if ( preInt != NULLSTATE )
+    {
+	stateCopy = copystate ( preInt );
+
+	if ( stateCopy == ( State * ) -1 )
+d1514 1
+d1516 2
+a1517 5
+	    /* In this case, not only could we not make a state copy, but
+		we couldn't even make the original copy of the pre-interval
+		state a whole copy, with physical copies of all segments.
+		Nothing can be done to complete this split, so just abort
+		it. */
+d1519 6
+d1526 1
+a1526 1
+	    _pprintf( "split_object: split of %s aborted because of too little memory\n", 
+d1528 1
+a1528 1
+		ocb->name );
+d1530 2
+a1531 1
+	    return ( NULL );
+a1532 1
+    }
+d1534 7
+a1540 7
+    if ( migrGraph )
+    {
+    	ttoc1 (oldStartVts, ocb->phase_begin );
+    	ttoc1 (oldEndVts, ocb->phase_end );
+    	ttoc1 (newStartVts, vtime );
+    	ttoc1 (newEndVts, ocb->phase_end );
+    }
+d1542 1
+a1542 1
+    ocb2 = mkocb ();
+d1544 3
+a1546 3
+    /* mkocb() will return NULL if it couldn't lay hands on enough memory
+	to make an ocb data structure.  In that case, just back off this
+	split. */
+d1548 4
+a1551 4
+    if ( ocb2 == ( Ocb * ) NULL )
+    {
+	return ( NULL );
+    }
+d1553 7
+a1559 7
+    strcpy ( ocb2->name, ocb->name );
+    ocb2->typepointer = ocb->typepointer;
+    ocb2->oid = ocb->oid;
+    ocb2->phase_begin = vtime;
+    ocb2->phase_end = ocb->phase_end;
+    ocb2->crcount = 1;
+    ocb2->generation = 0;
+d1561 2
+a1562 2
+    /* This code will not be correct if we do not use the NEAR_FUTURE
+	form of splitting. */
+d1564 3
+a1566 3
+    /* The new phase inherits the causally connected Ept from the earlier
+	phase.  But the new phase has not yet done any work (under NEAR_FUTURE
+	splitting), so all its work fields get set to 0. */
+d1568 6
+a1573 6
+    ocb2->Ept = ocb->Ept;
+    ocb2->comEpt = ocb->comEpt;
+    ocb2->lastComEpt = ocb->lastComEpt;
+    ocb2->work = 0;
+    ocb2->comWork = 0;
+    ocb2->lastComWork = 0;
+d1576 4
+a1579 4
+    /* Bug fix necessary to let two adjacent phases of same object operate
+	on one node.  Until the later phase starts migrating, it should
+	not be held up by phase_limit, a field intended to make sure
+	it doesn't execute past the time currently being migrated. */
+d1581 1
+a1581 1
+    ocb2->phase_limit = ocb2->phase_end;
+d1583 5
+a1587 5
+    if ( ltVTime ( ocb->svt, vtime ) )
+    {
+	ocb2->svt = posinf;
+	ocb2->control = EDGE;
+	ocb2->runstat = BLKINF;
+d1589 5
+a1593 5
+	l_insert ( l_prev_macro ( _prqhd ), ocb2 );
+    }
+    else
+    {
+	ocb2->svt = ocb->svt;
+d1596 3
+a1598 3
+    twerror ( "split_object: ocb %s svt %f set to earlier than gvt %f\n",
+		ocb2->name, ocb2->svt.simtime, gvt.simtime);
+    tester();
+d1600 12
+a1611 12
+	ocb2->control = ocb->control;
+	ocb2->runstat = ocb->runstat;
+	ocb2->cs = ocb->cs;
+	ocb2->ci = ocb->ci;
+	ocb2->co = ocb->co;
+	ocb2->sb = ocb->sb;
+	ocb2->stk = ocb->stk;
+	ocb2->msgv = ocb->msgv;
+	ocb2->centry = ocb->centry;
+	ocb2->ecount = ocb->ecount;
+	ocb2->pvz_len = ocb->pvz_len;
+	ocb2->argblock = ocb->argblock;
+d1613 1
+a1613 1
+	l_insert ( ocb, ocb2 );
+d1615 8
+a1622 8
+	ocb->svt = posinf;
+	ocb->control = EDGE;
+	ocb->runstat = BLKINF;
+	ocb->cs = NULL;
+	ocb->ci = ocb->co = NULL;
+	ocb->sb = NULL;
+	ocb->stk = NULL;
+	ocb->msgv = NULL;
+d1624 2
+a1625 2
+	l_remove ( ocb );
+	l_insert ( l_prev_macro ( _prqhd ), ocb );
+d1627 3
+a1629 3
+	if ( xqting_ocb == ocb )
+	    xqting_ocb = ocb2;
+    }
+d1631 5
+a1635 5
+    /* Remove the object's entry from the local cache.  Do not change the
+        home list.  Despite the object's being split, the old home list entry
+        will still correctly direct messages, since both parts are still on
+        the same node.  The entry will be changed if either phase is migrated.
+    */
+d1637 1
+a1637 1
+    RemoveFromCache(ocb->name,vtime);
+d1639 2
+a1640 2
+    ocb->phase_end = vtime;
+    ocb->next_node = tw_node_num;
+d1642 9
+a1650 9
+    /* s was set earlier in this routine, but the copystate() routine
+	could have invoked message sendback, which could free
+	the state s points to.  s does not change, but what it points to
+	could be on the free list, or reallocated somewhere else.  So we
+	have to set s again.  This duplication of effort could have been
+	avoided had we not made the state copy until right after the split,
+	but then we would need to be able to back out of the split if the
+	state copy failed.  That's lots of code, though it's not very
+	complicated, so we'll live with the duplication, for the moment. */
+d1652 5
+a1656 5
+    for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+    {
+	if ( geVTime ( s->sndtim, vtime ) )
+	    break;
+    }
+d1658 4
+a1661 4
+    if ( s != NULL )
+    {
+	split_list ( ocb->sqh, ocb2->sqh, s );
+    }
+d1663 3
+a1665 3
+    /*  If there is a pre-interval state for the later phase, we made a
+	copy of it earlier in this routine.  Now put the copy in the 
+	state queue of the new phase. */
+d1667 6
+a1672 6
+    if ( preInt != ( State * ) NULL )
+    {
+	/*  The type of the earlier phase should be the same as the type
+		of the last state of that phase.  This might be important
+		if the split point moves dynamic create or destroy messages
+		into the later phase. */
+d1674 1
+a1674 1
+	ocb->typepointer = preInt->otype;
+d1676 3
+a1678 3
+	if ( stateCopy == NULL )
+	{
+	    l_remove ( preInt );
+d1680 1
+a1680 1
+	    stateCopy = preInt;
+d1682 1
+a1682 1
+	    ocb->loststate = 1;
+d1685 1
+a1685 1
+	    _pprintf ( "split_object: lost a state for %s\n", ocb->name );
+d1688 8
+a1695 8
+	    if ( ocb->runstat == READY )
+		ocb->runstat = GOFWD;
+	}
+	else
+	{
+	    ocb->last_sent = preInt;
+	    ocb->out_of_sq = 0; /* should be OK -- JUMP FORWARD stuff */
+	}
+d1698 1
+a1698 1
+	stateCopy->ocb = (Byte *) ocb2;
+d1700 1
+a1700 1
+    	l_insert ( ocb2->sqh, stateCopy );
+d1702 1
+a1702 1
+    }
+d1704 5
+a1708 5
+    for ( m = fstimsg_macro ( ocb ); m; m = nxtimsg_macro ( m ) )
+    {
+	if ( geVTime ( m->rcvtim, vtime ) )
+	    break;
+    }
+d1710 3
+a1712 26
+    if ( m != NULL )
+    {
+	split_list ( ocb->iqh, ocb2->iqh, m );
+    }
+
+    for ( m = fstomsg_macro ( ocb ); m; m = nxtomsg_macro ( m ) )
+    {
+	if ( geVTime ( m->sndtim, vtime ) )
+	    break;
+    }
+
+    if ( m != NULL )
+    {
+	split_list ( ocb->oqh, ocb2->oqh, m );
+    }
+
+    if ( migrGraph )
+    {
+	int icount, ocount, scount;
+	char buff[MINPKTL];
+
+	icount = ocount = scount = 0;
+
+	for (s = fststate_macro (ocb2); s; s = nxtstate_macro (s))
+    	{
+            scount++;
+d1715 1
+a1715 1
+	for (m = fstimsg_macro (ocb2); m; m = nxtimsg_macro (m))
+d1717 2
+a1718 1
+	    icount++;
+d1721 1
+a1721 1
+    	for (m = fstomsg_macro (ocb2); m; m = nxtomsg_macro (m))
+d1723 1
+a1723 1
+	    ocount++;
+d1726 4
+a1729 3
+    	sprintf ( buff, "Split %s %s %s %s %s %d %d %d %d\n", ocb->name, 
+		oldStartVts, oldEndVts, newStartVts, newEndVts, miparm.me, 
+		icount, ocount, scount );
+d1731 1
+a1731 2
+    	send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+    }
+d1733 23
+a1755 1
+    return ( ocb2 );
+d1760 3
+a1762 3
+    List_hdr * q1;
+    List_hdr * q2;
+    List_hdr * elem;
+d1764 3
+a1766 3
+    q1--;	/* point to list headers */
+    q2--;
+    elem--;
+d1768 2
+a1769 2
+    q2->prev = q1->prev;
+    q2->next = elem;
+d1771 2
+a1772 2
+    q1->prev = elem->prev;
+    q1->prev->next = q1;
+d1774 2
+a1775 2
+    elem->prev = q2;
+    q2->prev->next = q2;
+d1779 22
+a1800 22
+/*	The protocol for moving a phase to another node is as follows.
+	First take the ocb for the phase to be moved out of the main
+	ocb list and add it to the sendOcbQ. Next update the next_node
+	field of the immediately preceding phase (assuming for now
+	that we're only moving the second phase of an object that has
+	just been split). We will have to change the way states are
+	forwarded from the end of one phase to the beginning of the
+	next phase to use object location instead of next_node in the
+	ocb. Next notify the home node (for the first time) about the
+	existence of the new object phase. This will also have to
+	change when object location can handle object migration. Then
+	send a MOVEPHASE message to the destination node and wait for
+	a PHASEACK message in reply. There is no PHASENAK yet but it
+	will probably be necessary. When the PHASEACK message arrives,
+	the object's states, input messages and output messages can
+	all be sent. There is no sensitivity to the order of arrival
+	of these messages because the receiving node has control
+	information in the ocb: num_states, num_imsgs and num_omsgs.
+	When all of the messages have arrived the receiving node
+	sends a PHASEDONE message to the sender. On receipt of the
+	PHASEDONE message, the sender can remove the ocb from the
+	sendOcbQ and destroy it.
+d1805 3
+a1807 3
+    char * name;
+    STime * stime;
+    int * node;
+d1809 3
+a1811 3
+    Objloc * location;
+    VTime vtime;
+    Ocb * ocb;
+d1815 1
+a1815 1
+    *node = *node % tw_num_nodes;
+d1817 4
+a1820 4
+    if ( *node == tw_node_num )
+    {
+	return;
+    }
+d1822 1
+a1822 1
+    vtime = newVTime ( *stime, 0, 0 );
+d1824 1
+a1824 1
+    location = GetLocation ( name, vtime );
+d1826 6
+a1831 6
+    if ( location == NULL )
+    {
+	twerror ( "move_phase_cmd E can't locate object %s with time %f",
+		name, *stime );
+	return;
+    }
+d1833 6
+a1838 6
+    if ( location->node != tw_node_num )
+    {
+	twerror ( "move_phase_cmd E object %s with time %f is on node %d",
+		name, *stime, location->node );
+	return;
+    }
+d1840 1
+a1840 1
+    ocb = location->po;
+d1842 1
+a1842 1
+    move_phase ( ocb, *node );
+d1847 2
+a1848 2
+    Ocb * ocb;
+    int node;
+d1850 3
+a1852 3
+    State * s;
+    Msgh * m;
+    Int  HomeNode;
+d1857 2
+a1858 2
+    /* Don't permit migration of phases during initialization or termination
+	times. */
+d1860 6
+a1865 6
+    if ( leVTime ( gvt, neginfPlus1 ) )
+    {
+	_pprintf ( "move_phase: trying to migrate %s during initialization\n",
+		ocb->name );
+	tester();
+    }
+d1867 6
+a1872 6
+    if ( geVTime ( gvt, posinf ) )
+    {
+	_pprintf ( "move_phase: trying to migrate %s during termination\n",
+		ocb->name );
+	tester();
+    }
+d1874 5
+a1878 5
+    if ( ocb->runstat == BLKPHASE )
+    {
+	_pprintf ( "move_phase: ocb %x is BLKPHASE\n", ocb );
+	tester ();
+    }
+d1882 3
+a1884 3
+	/* Safest not to try this migration, as we're not sure the code
+		would work correctly in all cases, particularly dynamic
+		creation and destruction. */
+d1886 2
+a1887 2
+	return ( NULL) ;
+    }
+d1889 5
+a1893 5
+    /*  Don't try to move ocb's that currently have an erroneous state.
+	There is a string associated with that erroneous state and the
+	state migration code is not prepared to handle moving that string.  
+	Moreover, unless the error state gets rolled back, the ocb won't
+	do any work on its new node, anyway. */
+d1895 1
+a1895 3
+    for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+    {
+	if ( s->serror != NOERR )
+d1897 2
+d1901 1
+a1901 1
+	    _pprintf("move_phase: Aborting migration of %s because of error state in state queue \n", ocb->name );
+d1904 2
+a1905 1
+	    return ( NULL );
+a1906 1
+    }
+d1908 1
+a1908 1
+    l_remove ( ocb );
+d1910 5
+a1914 5
+    if ( ocb == xqting_ocb )
+    {
+	xqting_ocb = NULL;
+	setnull ();
+    }
+d1916 1
+a1916 1
+    ocb->runstat = BLKPHASE;
+d1918 8
+a1925 8
+    if ( ocb->sb != NULL )
+    {
+	adjustEffectWork ( ocb, ocb->sb );
+	destroy_state ( ocb->sb );
+	ocb->sb = NULL;
+	l_destroy ( ocb->stk );
+	ocb->stk = NULL;
+	destroy_message_vector ( ocb );
+d1927 8
+a1934 8
+	/*  If we are running in aggressive cancellation mode, make sure
+		that any messages sent for the event we are running get
+		cancelled.   The test for control == NONEDGE is probably
+		superfluous, as a non-null state buffer implies nonedge
+		control, but it's cheap and extra safety.  Moreover,
+		the nonedge status is what really should trigger the 
+		cancellation, not the presence of a state in the state buffer.  
+	*/
+d1936 3
+a1938 3
+	if ( aggressive  && ocb->control == NONEDGE )
+	    cancel_all_output ( ocb, ocb->svt );
+    }
+d1940 1
+a1940 1
+    l_insert ( l_prev_macro ( sendOcbQ ), ocb );
+d1942 2
+a1943 2
+    ocb->migrStatus = MIGRNOTSTARTED;
+    ocbs_to_send++;
+d1945 1
+a1945 1
+    migrout++;
+d1947 1
+a1947 1
+    ocb->next_node = node;
+d1949 4
+a1952 4
+    for ( s = fststate_macro ( ocb ); s; s = nxtstate_macro ( s ) )
+    {
+	ocb->num_states++;
+    }
+d1954 4
+a1957 4
+    for ( m = fstimsg_macro ( ocb ); m; m = nxtimsg_macro ( m ) )
+    {
+	ocb->num_imsgs++;
+    }
+d1959 4
+a1962 4
+    for ( m = fstomsg_macro ( ocb ); m; m = nxtomsg_macro ( m ) )
+    {
+	ocb->num_omsgs++;
+    }
+d1965 3
+a1967 3
+    _pprintf (
+	"Migrating %d states, %d imsgs, %d omsgs for object %s to node %d\n",
+	ocb->num_states,ocb->num_imsgs,ocb->num_omsgs,ocb->name,node );
+d1970 5
+a1974 5
+    if ( migrGraph )
+    {
+	char startVts[20];
+	char endVts [20];
+	char buff[MINPKTL];
+d1976 2
+a1977 2
+    	ttoc1 (startVts, ocb->phase_begin );
+    	ttoc1 (endVts, ocb->phase_end );
+d1979 3
+a1981 3
+	sprintf( buff, "Move %s %s %s %d %d %d %d\n", ocb->name, 
+		startVts, endVts, node, ocb->num_imsgs, ocb->num_omsgs,
+		ocb->num_states );
+d1983 4
+a1986 4
+    	send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+    }
+    /* Notify the home node that the phase has moved, and remove the 
+	entry for the phase from the local cache. */
+d1988 1
+a1988 1
+    HomeNode = name_hash_function ( ocb->name, HOME_NODE );
+d1990 10
+a1999 10
+    if ( HomeNode == miparm.me )
+    {
+	ChangeHLEntry ( ocb->name, ocb->phase_begin, node, ++(ocb->generation));
+    }
+    else
+    {
+	RemoteChangeHListEntry ( ocb->name, ocb->phase_begin, HomeNode, node,
+		++(ocb->generation) );
+	RemoveFromCache ( ocb->name, ocb->phase_begin );
+    }
+d2001 1
+a2001 1
+    SendCacheInvalidate ( ocb->name,ocb->phase_begin, node );
+d2003 2
+a2004 2
+    if ( ocbs_to_send == 1 )
+	send_ocb_from_q ();
+d2008 1
+a2008 1
+    return ( PHASE_MOVED );
+d2014 8
+a2021 8
+    int oid;
+    int num_states;
+    int num_imsgs;
+    int num_omsgs;
+    VTime svt;
+    int generation;
+    int crcount;
+    char type[TOBJLEN];
+d2023 6
+a2028 6
+    long    Ept;
+    long    comEpt;
+    long    lastComEpt;
+    long    work;
+    long    comWork;
+    long    lastComWork;
+d2031 1
+a2031 1
+    PhaseInfo;
+d2036 1
+a2036 1
+    Ocb * ocb;
+d2038 3
+a2040 3
+    PhaseInfo * phase;
+    Msgh * p;
+    char buff[MINPKTL];
+d2044 2
+a2045 2
+    /* Check to make sure that send_phase() has not already been run for this 
+	phase. */
+d2047 6
+a2052 6
+    if ( ocb->migrWait & WAITFORACK )
+    {
+	_pprintf ( "send_phase: send_phase called twice for %s (%f), addr %x\n",
+		ocb->name, ocb->phase_begin.simtime, ocb );
+	tester();
+    }
+d2055 1
+a2055 1
+    p = sysbuf ();
+d2057 1
+a2057 1
+    phase = (PhaseInfo *) ( p + 1 );
+d2059 4
+a2062 4
+    phase->oid = ocb->oid;
+    phase->num_states = ocb->num_states;
+    phase->num_imsgs = ocb->num_imsgs;
+    phase->num_omsgs = ocb->num_omsgs;
+d2064 1
+a2064 1
+    phase->svt = ocb->svt;
+d2067 3
+a2069 3
+    twerror("send_phase: svt %f set below gvt %f for %s\n",phase->svt.simtime,
+	gvt.simtime, ocb->name);
+    tester();
+d2072 2
+a2073 2
+    phase->generation = ocb->generation;
+    phase->crcount = ocb->crcount;
+d2075 6
+a2080 6
+    phase->Ept = ocb->Ept;
+    phase->comEpt = ocb->comEpt;
+    phase->lastComEpt = ocb->lastComEpt;
+    phase->work = ocb->work;
+    phase->comWork = ocb->comWork;
+    phase->lastComWork = ocb->lastComWork;
+d2083 1
+a2083 1
+    entcpy ( phase + 1, &ocb->stats, sizeof (ocb->stats) );
+d2085 5
+a2089 5
+    strcpy ( p->snder, ocb->name );
+    strncpy ( phase->type, ocb->typepointer->type, TOBJLEN );
+    strcpy ( p->rcver, ocb->name );
+    p->sndtim = ocb->phase_begin;
+    p->rcvtim = ocb->phase_end;
+d2091 1
+a2091 1
+    sysmsg (MOVEPHASE, p, sizeof(PhaseInfo)+sizeof(ocb->stats), ocb->next_node);
+d2093 1
+a2093 1
+    ocb->migrWait |= (Byte) WAITFORACK;
+d2096 1
+a2096 1
+    mark3time ();
+d2099 1
+a2099 1
+    butterflytime ();
+d2102 4
+a2105 4
+    sprintf ( buff, "%d %d %d %s %f %d %f %d %d %d %f\n",
+	tw_node_num, node_cputime, loadCount, ocb->name, 
+	ocb->phase_begin.simtime, ocb->next_node, ocb->svt.simtime,
+	ocb->num_states, ocb->num_imsgs, ocb->num_omsgs, gvt.simtime );
+d2107 4
+a2110 4
+    sprintf ( buff, "%d %d %s %f %d %f %d %d %d\n",
+	tw_node_num, node_cputime, ocb->name, ocb->phase_begin.simtime,
+	ocb->next_node, ocb->svt.simtime,
+	ocb->num_states, ocb->num_imsgs, ocb->num_omsgs );
+d2113 4
+a2116 4
+    if ( !migrGraph )
+    {
+	send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+    }
+d2121 1
+a2121 1
+    Ocb * ocb;
+d2125 1
+a2125 1
+    ocb = (Ocb *) l_next_macro ( sendOcbQ );
+d2127 2
+a2128 2
+    ocb->migrWait &= (Byte) ~WAITFORACK;
+    ocb->migrStatus = OCBSETUP;
+d2130 1
+a2130 1
+    send_vtime ( ocb );
+d2135 1
+a2135 1
+    Ocb * ocb;
+d2139 2
+a2140 2
+    phaseNaksRecv++;
+    ocb = (Ocb *) l_next_macro ( sendOcbQ );
+d2142 1
+a2142 1
+    ocb->migrWait &= (Byte) ~WAITFORACK;
+d2145 1
+a2145 1
+    _pprintf("recv_phase_nak: send of %s nak'ed\n",ocb->name );
+d2148 1
+a2148 1
+    send_ocb_from_q ();
+d2158 4
+a2161 4
+    State_Migr_Hdr * migr_hdr;
+    Msgh * msg;
+    Ocb * ocb;
+    VTime min;
+d2165 1
+a2165 1
+    min = posinfPlus1;
+d2168 1
+a2168 1
+	since they can cause rollbacks. */
+d2170 10
+a2179 9
+    if ( sendStateQ )
+    for ( migr_hdr = nxtstate_macro ( sendStateQ ); migr_hdr != NULL;
+	  migr_hdr = nxtstate_macro ( migr_hdr ) )
+    {  /* loop through states of migrating objects */
+	ocb = (Ocb *) migr_hdr->state->ocb;
+	if ( !( migr_hdr->migr_flags & MIGRATING)  && 
+		gtVTime ( min, migr_hdr->time_to_deliver ) )
+	{  /* find minimum time */
+	    min = migr_hdr->time_to_deliver;
+a2180 1
+    }
+d2183 1
+a2183 1
+	svt. */
+d2185 7
+a2191 7
+    if ( sendOcbQ )
+    for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL;
+	  ocb = nxtocb_macro ( ocb ) )
+    {  /* loop through migrating objects */
+	if ( gtVTime ( min, ocb->svt ) )
+	    min = ocb->svt;	/* calculate minimum time */
+    }
+d2193 5
+a2197 5
+    if ( ltVTime ( min, gvt ) )
+    {
+	twerror("migr_min: min %f less than gvt %f\n",min.simtime,gvt.simtime);
+	tester();
+    }
+d2200 7
+a2206 7
+    if ( oldgvt2.simtime != NEGINF  && 
+	eqVTime ( min, oldgvt1 ) && 
+	eqVTime ( oldgvt1, oldgvt2 ) )
+    {
+	_pprintf ( "GVT %f repeats three times, in migr_min() \n",
+			min.simtime);
+    }
+d2209 1
+a2209 1
+    return ( min );
+d2214 6
+a2219 6
+    VTime vt;
+    VTime limit;
+    int num_states;
+    int num_imsgs;
+    int num_omsgs;
+    char type[TOBJLEN];
+d2221 1
+a2221 1
+    VTimeInfo;
+d2225 1
+a2225 1
+    Ocb * ocb;
+d2229 1
+a2229 1
+    ocb = (Ocb *) l_next_macro ( sendOcbQ );
+d2231 2
+a2232 2
+    if ( ocb == sendOcbQ )
+	return;
+d2234 2
+a2235 2
+    if ( ocb->migrWait & WAITFORACK )
+	return;
+d2237 2
+a2238 2
+    if ( ocb->migrWait & WAITFORDONE )
+	return;
+d2240 1
+a2240 1
+    ocb->migrStatus = (Byte) MIGRSTART;
+d2242 1
+a2242 1
+    send_phase ( ocb );
+d2247 1
+a2247 1
+    Ocb * ocb;
+d2249 5
+a2253 5
+    State * s;
+    Msgh * m, * n;
+    VTimeInfo * vtime;
+    Msgh * p;
+    char buff[MINPKTL];
+d2257 1
+a2257 1
+    p = sysbuf ();
+d2259 1
+a2259 1
+    vtime = (VTimeInfo *) ( p + 1 );
+d2261 1
+a2261 1
+    vtime->vt = vtime->limit = ocb->phase_end;
+d2263 3
+a2265 3
+    vtime->num_states = 0;
+    vtime->num_imsgs = 0;
+    vtime->num_omsgs = 0;
+d2267 3
+a2269 3
+    s = fststate_macro ( ocb );
+    m = fstimsg_macro ( ocb );
+    n = fstomsg_macro ( ocb );
+d2271 2
+a2272 2
+    if ( s != NULL )
+	vtime->vt = s->sndtim;
+d2274 2
+a2275 2
+    if ( m != NULL && ltVTime ( m->rcvtim, vtime->vt ) )
+	vtime->vt = m->rcvtim;
+d2277 2
+a2278 2
+    if ( n != NULL && ltVTime ( n->sndtim, vtime->vt ) )
+	vtime->vt = n->sndtim;
+d2280 2
+a2281 2
+    if ( s != NULL && eqVTime ( s->sndtim, vtime->vt ) )
+	vtime->num_states++;
+a2282 4
+    if ( s != NULL )
+    {
+	s = nxtstate_macro ( s );
+
+d2284 2
+a2285 2
+	    vtime->limit = s->sndtim;
+    }
+d2287 3
+a2289 5
+    while ( m != NULL && eqVTime ( m->rcvtim, vtime->vt ) )
+    {
+	vtime->num_imsgs++;
+	m = nxtimsg_macro ( m );
+    }
+d2291 5
+a2295 2
+    if ( m != NULL && ltVTime ( m->rcvtim, vtime->limit ) )
+	vtime->limit = m->rcvtim;
+d2297 2
+a2298 5
+    while ( n != NULL && eqVTime ( n->sndtim, vtime->vt ) )
+    {
+	vtime->num_omsgs++;
+	n = nxtomsg_macro ( n );
+    }
+d2300 5
+a2304 2
+    if ( n != NULL && ltVTime ( n->sndtim, vtime->limit ) )
+	vtime->limit = n->sndtim;
+d2306 2
+a2307 5
+    strncpy ( p->snder, ocb->name, NOBJLEN );
+    strncpy ( vtime->type, ocb->typepointer->type, TOBJLEN );
+    strncpy ( p->rcver, ocb->name, NOBJLEN );
+    p->sndtim = vtime->vt;
+    p->rcvtim = ocb->phase_begin;
+d2309 5
+a2313 1
+    sysmsg ( MOVEVTIME, p, sizeof(VTimeInfo), ocb->next_node );
+d2315 1
+a2315 2
+    ocb->migrStatus = (Byte) SENDVTIME;
+    ocb->migrWait |= (Byte) WAITFORACK;
+d2317 4
+a2320 1
+    ocb->phase_limit = vtime->vt;
+d2325 1
+a2325 1
+    Msgh * msg;
+d2327 5
+a2331 5
+    Ocb * ocb;
+    State * s;
+    Msgh * m;
+    VTimeInfo * vtime;
+    int  flags = 0;
+d2335 1
+a2335 1
+    ocb = (Ocb *) l_next_macro ( sendOcbQ );
+d2337 3
+a2339 3
+    ocb->migrWait &= (Byte) ~WAITFORACK;
+    ocb->migrWait |= (Byte) WAITFORDONE;
+    ocb->migrStatus = SENDINGVTIME;
+d2341 1
+a2341 1
+    vtime = (VTimeInfo *) ( msg + 1 );
+d2344 1
+a2344 1
+    m = fstomsg_macro ( ocb );
+d2346 2
+a2347 2
+    while ( vtime->num_omsgs-- )
+    {
+d2350 1
+a2350 1
+	since both macros are identical. PLRBUG */
+d2352 1
+a2352 1
+	register Msgh * n = nxtomsg_macro ( m );
+d2354 1
+a2354 1
+	l_remove ( m );
+d2356 1
+a2356 1
+	set_reverse_macro ( m );
+d2358 1
+a2358 1
+	m->flags |= MOVING;
+d2360 2
+a2361 2
+	{
+	    extern int mlog, node_cputime;
+d2363 2
+a2364 2
+	    if ( mlog )
+	    {
+d2366 1
+a2366 1
+		mark3time ();
+d2369 1
+a2369 1
+		butterflytime ();
+d2371 3
+a2373 3
+		m->cputime = node_cputime;
+	    }
+	}
+d2375 1
+a2375 1
+	sndmsg ( m, m->txtlen + sizeof (Msgh), ocb->next_node );
+d2377 2
+a2378 2
+	m = n;
+    }
+d2380 3
+a2382 3
+    for ( m = fstimsg_macro ( stdout_ocb ); m; )
+    {
+	register Msgh * n = nxtimsg_macro ( m );
+d2384 1
+a2384 1
+	if ( geVTime ( m->rcvtim, ocb->phase_end ) ) break;
+d2386 1
+a2386 1
+	if ( gtVTime ( m->sndtim, vtime->vt ) ) break;
+d2388 4
+a2391 4
+	if ( geVTime ( m->sndtim, ocb->phase_begin )
+	&&   namecmp ( m->snder, ocb->name ) == 0 )
+	{
+	    l_remove ( m );
+d2393 1
+a2393 1
+	    m->flags |= MOVING;
+d2395 2
+a2396 2
+	{
+	    extern int mlog, node_cputime;
+d2398 2
+a2399 2
+	    if ( mlog )
+	    {
+d2401 1
+a2401 1
+		mark3time ();
+d2404 1
+a2404 1
+		butterflytime ();
+d2406 3
+a2408 3
+		m->cputime = node_cputime;
+	    }
+	}
+d2410 4
+a2413 1
+	    sndmsg ( m, m->txtlen + sizeof (Msgh), ocb->next_node );
+d2416 1
+a2416 2
+	m = n;
+    }
+d2418 3
+a2420 1
+    m = fstimsg_macro ( ocb );
+d2422 1
+a2422 3
+    while ( vtime->num_imsgs-- )
+    {
+	register Msgh * n = nxtimsg_macro ( m );
+d2424 1
+a2424 1
+	l_remove ( m );
+d2426 2
+a2427 1
+	m->flags |= MOVING;
+d2429 2
+a2430 5
+	{
+	    extern int mlog, node_cputime;
+
+	    if ( mlog )
+	    {
+d2432 1
+a2432 1
+		mark3time ();
+d2435 1
+a2435 1
+		butterflytime ();
+d2437 3
+a2439 3
+		m->cputime = node_cputime;
+	    }
+	}
+d2441 1
+a2441 1
+	sndmsg ( m, m->txtlen + sizeof (Msgh), ocb->next_node );
+d2443 2
+a2444 2
+	m = n;
+    }
+d2448 3
+a2450 3
+    if ( vtime->num_states )
+    {
+	s = fststate_macro ( ocb );
+d2452 1
+a2452 1
+	l_remove ( s );
+d2454 2
+a2455 2
+	/*  Set the flags to be given to send_state().  This state is
+		definitely migrating, and might be pre-interval. */
+d2457 1
+a2457 1
+	flags |= MIGRATING;
+d2459 2
+a2460 2
+	if ( ltVTime ( s->sndtim, ocb->phase_begin ) )
+	    flags |= PRE_INTERVAL;
+d2462 1
+a2462 1
+	send_state ( s, ocb, flags );
+d2464 2
+a2465 2
+	return;	/* wait for send_state_done */
+    }
+d2472 1
+a2472 1
+    tester ();
+d2477 2
+a2478 2
+    Ocb * ocb;
+    char buff[MINPKTL];
+d2482 1
+a2482 1
+    ocb = (Ocb *) l_next_macro ( sendOcbQ );
+d2484 2
+a2485 2
+    ocb->migrStatus = (Byte) SENDNEXTVTIME;
+    ocb->migrWait &= (Byte) ~WAITFORDONE;
+d2487 6
+a2492 6
+    if ( gtVTime ( ocb->phase_limit, ocb->svt ) )
+    {
+        if ( ltVTime ( ocb->svt, min_msg_time ) )
+        {
+            min_msg_time = ocb->svt;
+        }
+d2495 3
+a2497 3
+    twerror("recv_vtime_done: min_msg time %f set before gvt %f\n",
+		min_msg_time.simtime, gvt.simtime);
+    tester();
+d2499 1
+a2499 1
+	ocb->svt = ocb->phase_limit;
+d2502 3
+a2504 3
+    twerror ( "recv_vtime_done: svt %f set before gvt %f\n", ocb->svt.simtime,
+		gvt.simtime);
+    tester ();
+d2506 1
+a2506 1
+    }
+d2508 1
+a2508 1
+    send_vtime ( ocb );
+d2513 2
+a2514 2
+    Ocb * ocb;
+    char buff[MINPKTL];
+d2518 1
+a2518 1
+    ocb = (Ocb *) l_next_macro ( sendOcbQ );
+d2520 5
+a2524 5
+    if ( ocb == sendOcbQ )
+    {
+	_pprintf("migrating phase removed from sendOcbQ prematurely\n");
+	tester();
+    }
+d2526 1
+a2526 1
+    ocb->migrStatus = (Byte) MIGRDONE;
+d2528 2
+a2529 2
+    if ( ltVTime ( ocb->svt, min_msg_time ) )
+	min_msg_time = ocb->svt;
+d2532 3
+a2534 3
+    twerror("recv_phase_done: min_msg time %f set before gvt %f\n",
+		min_msg_time.simtime, gvt.simtime);
+    tester();
+d2537 1
+a2537 1
+    l_remove ( ocb );
+d2540 1
+a2540 1
+    mark3time ();
+d2543 1
+a2543 1
+    butterflytime ();
+d2547 2
+a2548 2
+    /*  Don't put a message in the migration log if we are creating it for
+	graphical purposes. */
+d2550 5
+a2554 5
+    if ( !migrGraph )
+    {
+	sprintf ( buff, "%d %d %s %f %d %f\n",
+	    tw_node_num, node_cputime, ocb->name, ocb->phase_begin.simtime,
+	    ocb->next_node, gvt.simtime );
+d2556 2
+a2557 2
+	send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+    }
+d2559 1
+a2559 1
+    nukocb ( ocb );
+d2561 1
+a2561 1
+    ocbs_to_send--;
+d2563 2
+a2564 2
+    if ( ocbs_to_send )
+	send_ocb_from_q ();
+d2566 6
+a2571 6
+    else
+	if ( l_next_macro ( sendOcbQ) != sendOcbQ )
+	{
+		twerror("stopped migrating phases before queue was empty\n");
+		tester();
+	}
+d2577 1
+a2577 1
+    Msgh * msg;
+d2579 3
+a2581 3
+    Ocb * ocb;
+    VTimeInfo * vtime;
+    Objloc * location;
+d2585 1
+a2585 1
+    location = GetLocation ( msg->rcver, msg->rcvtim );
+d2587 6
+a2592 6
+    if ( location == NULL )
+    {
+	twerror ( "recv_vtime F can't find %s at %f", msg->rcver, msg->rcvtim.simtime );
+	tester ();
+	return;
+    }
+d2594 7
+a2600 7
+    if ( location->node != tw_node_num )
+    {
+	twerror ( "recv_vtime F wrong node %d for %s at %f",
+	    location->node, msg->rcver, msg->rcvtim.simtime );
+	tester ();
+	return;
+    }
+d2602 1
+a2602 1
+    ocb = location->po;
+d2604 1
+a2604 1
+    vtime = (VTimeInfo *) ( msg + 1 );
+d2606 3
+a2608 3
+    ocb->num_imsgs = vtime->num_imsgs;
+    ocb->num_omsgs = vtime->num_omsgs;
+    ocb->num_states = vtime->num_states;
+d2610 3
+a2612 3
+    ocb->stats.numimmigr += ocb->num_imsgs;
+    ocb->stats.numommigr += ocb->num_omsgs;
+    ocb->stats.numstmigr += ocb->num_states;
+d2614 3
+a2616 3
+    ocb->phase_limit = vtime->vt;
+    ocb->next_limit = vtime->limit;
+    ocb->migrStatus = (Byte) RECVVTIME;
+d2618 1
+a2618 1
+    send_vtime_ack ( msg );
+d2623 1
+a2623 1
+    Msgh * msg;
+d2625 1
+a2625 1
+    Msgh * p;
+d2629 1
+a2629 1
+    p = sysbuf ();
+d2631 1
+a2631 1
+    *((VTimeInfo *) ( p + 1 )) = *((VTimeInfo *) ( msg + 1 ));
+d2633 1
+a2633 1
+    sysmsg ( VTIMEACK, p, sizeof(VTimeInfo), msg->from_node );
+d2638 1
+a2638 1
+    Msgh * msg;
+d2640 1
+a2640 1
+    Msgh * p;
+d2644 1
+a2644 1
+    p = sysbuf ();
+d2646 1
+a2646 1
+    *((VTimeInfo *) ( p + 1 )) = *((VTimeInfo *) ( msg + 1 ));
+d2648 1
+a2648 1
+    sysmsg ( VTIMEDONE, p, sizeof(VTimeInfo), msg->from_node );
+d2654 1
+a2654 1
+    Msgh * msg;
+d2656 4
+a2659 4
+    Ocb * ocb;
+    PhaseInfo * phase;
+    Pending_entry * request, * next;
+    Objloc * location;
+d2663 9
+a2671 9
+    ocb = mkocb ();
+    if ( ocb == NULL )
+    {
+	/*  We might want to change this from an error, if it occurs.
+	    In theory, the protocol should be able to handle getting a nak.
+	    At the moment, though, attempting to migrate to a node that
+	    is actually out of memory and cannot allocate an ocb would
+	    cause an infinite loop of migrations and naks.
+	*/
+d2673 3
+a2675 3
+	twerror("recv_phase: no room for ocb of migrating phase\n");
+	send_phase_nak( msg );
+    }
+d2677 1
+a2677 1
+    migrin++;
+d2679 1
+a2679 1
+    phase = (PhaseInfo *) ( msg + 1 );
+d2681 4
+a2684 4
+    ocb->oid = phase->oid;
+    ocb->num_states = phase->num_states;
+    ocb->num_imsgs = phase->num_imsgs;
+    ocb->num_omsgs = phase->num_omsgs;
+d2686 6
+a2691 6
+    ocb->Ept = phase->Ept;
+    ocb->comEpt = phase->comEpt;
+    ocb->lastComEpt = phase->lastComEpt;
+    ocb->work = phase->work;
+    ocb->comWork = phase->comWork;
+    ocb->lastComWork = phase->lastComWork;
+d2694 1
+a2694 1
+    ocb->svt = phase->svt;
+d2697 3
+a2699 3
+    twerror("recv_phase: svt %f set below gvt %f for %s\n",ocb->svt.simtime,
+		gvt.simtime, ocb->name);
+    tester();
+d2701 2
+a2702 2
+    ocb->generation = phase->generation;
+    ocb->crcount = phase->crcount;
+d2704 1
+a2704 1
+    entcpy ( &ocb->stats, phase + 1, sizeof(ocb->stats) );
+d2706 1
+a2706 1
+    ocb->stats.nummigr++;
+d2708 9
+a2716 9
+    strcpy ( ocb->name, msg->rcver );
+    ocb->typepointer = find_object_type ( phase->type );
+    ocb->control = EDGE;
+    ocb->runstat = BLKINF;
+    ocb->phase_begin = msg->sndtim;
+    ocb->phase_end = msg->rcvtim;
+    ocb->phase_limit = ocb->phase_begin;
+    ocb->crcount = 1;
+    ocb->migrStatus = (Byte) MIGRSTART;
+d2718 1
+a2718 1
+    nqocb ( ocb, _prqhd );
+d2720 6
+a2725 6
+    if ( ltVTime ( ocb->svt, gvt ) )
+    {
+	twerror ( "recv_phase: object %s svt %f less than gvt %f\n",
+	    ocb->name, ocb->svt.simtime, gvt.simtime );
+	tester ();
+    }
+d2727 1
+a2727 1
+    RemoveFromCache ( ocb->name, ocb->phase_begin );
+d2729 1
+a2729 1
+    location = GetLocation ( ocb->name, ocb->phase_begin );
+d2731 6
+a2736 6
+    if (location == (Objloc *) NULL || location->po == (Ocb *) NULL)
+    {
+	twerror("Can't find object %s, %2f in recv_phase\n",
+		ocb->name, ocb->phase_begin.simtime);
+	tester();
+    }
+d2738 4
+a2741 4
+    /* If the object is being migrated to its home node, that node may have
+	gotten requests for it between the time the home list entry changed
+	and the ocb was set up.  Any such requests are sitting in the pending
+	list.  Look for them and finish their work. */
+d2743 4
+a2746 4
+    if (location != NULL && location->node == miparm.me )
+    {
+	request = FindInPendingList(ocb->name,ocb->phase_begin,ocb->phase_end,
+		(Pending_entry *) l_next_macro(PendingListHeader));
+d2748 2
+a2749 2
+	while ( request != NULL )
+	{
+d2751 1
+a2751 1
+		_pprintf("Fixing up timing problem between home list change and migration start, object %s\n",ocb->name);
+d2753 3
+a2755 3
+		/*Remove this entry from the pending list. */
+		next = (Pending_entry *) l_next_macro(request);
+		RemoveFromPendingList(request,location);
+d2757 3
+a2759 2
+		request = FindInPendingList(ocb->name,ocb->phase_begin,
+				ocb->phase_end,next);
+a2760 1
+    }
+d2762 9
+a2770 9
+    if ( ocb->num_states + ocb->num_imsgs + ocb->num_omsgs )
+    {
+	send_phase_ack ( msg );
+    }
+    else
+    {
+	ocb->migrStatus = (Byte) MIGRDONE;
+	send_phase_done ( msg );
+    }
+d2775 1
+a2775 1
+    Msgh * msg;
+d2777 1
+a2777 1
+    Msgh * p;
+d2781 1
+a2781 1
+    p = sysbuf ();
+d2783 1
+a2783 1
+    sysmsg ( PHASEACK, p, 0, msg->from_node );
+d2788 1
+a2788 1
+    Msgh * msg;
+d2790 1
+a2790 1
+    Msgh * p;
+d2793 1
+a2793 1
+    phaseNaksSent++;
+d2795 1
+a2795 1
+    p = sysbuf ();
+d2797 1
+a2797 1
+    sysmsg ( PHASENAK, p, 0, msg->from_node );
+d2802 1
+a2802 1
+    Msgh * msg;
+d2804 1
+a2804 1
+    Msgh * p;
+d2808 1
+a2808 1
+    p = sysbuf ();
+d2810 1
+a2810 1
+    sysmsg ( PHASEDONE, p, 0, msg->from_node );
+d2815 1
+a2815 1
+    State_Migr_Hdr * migr_hdr;
+d2818 1
+a2818 1
+    dprintf ( "%d", miparm.me );
+d2820 1
+a2820 1
+    showstate_head ();
+d2822 3
+a2824 3
+    if ( sendStateQ )
+    for ( migr_hdr = nxtmigrh_macro ( sendStateQ ); migr_hdr != NULL;
+          migr_hdr = nxtmigrh_macro ( migr_hdr ) )
+d2826 1
+a2826 1
+    {
+d2828 7
+a2834 7
+        dump_state_migr_hdr ( migr_hdr );
+	showstate ( migr_hdr->state );
+	dprintf("	segno = %d, no_segs = %d, pktno = %d, no_pkts = %d, tot_pkts = %d\n", 
+		migr_hdr->state->segno, migr_hdr->state->no_segs, 
+		migr_hdr->state->pktno, migr_hdr->state->no_pkts,
+		migr_hdr->state->tot_pkts);
+    }
+d2839 1
+a2839 1
+    Ocb *ocb;
+d2842 1
+a2842 1
+    dprintf ( "%d", miparm.me );
+d2844 1
+a2844 1
+    showocb_head ();
+d2846 5
+a2850 5
+    if ( sendOcbQ )
+    for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL;
+	  ocb = nxtocb_macro ( ocb ) )
+    {
+	/* Print an asterisk in front of any object currently migrating. */
+d2852 6
+a2857 6
+	if ( ocb->migrWait & WAITFORACK || ocb->migrWait & WAITFORDONE )
+	    dprintf("* ");
+	else
+	    dprintf("  ");
+	showocb ( ocb );
+    }
+d2865 2
+a2866 2
+    int count = 0;
+    Ocb *ocb;
+d2868 4
+a2871 4
+    if ( sendOcbQ )
+    for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL;
+	  ocb = nxtocb_macro ( ocb ) )
+	    count++;
+d2873 1
+a2873 1
+    return ( count );
+d2879 1
+a2879 1
+	NULL if it isn't found, a pointer to it otherwise. */
+d2882 2
+a2883 2
+    Name name;
+    VTime time;
+d2885 1
+a2885 1
+    Ocb * ocb;
+d2887 9
+a2895 9
+    if ( sendOcbQ )
+	for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL; 
+		ocb = nxtocb_macro ( ocb ) )
+	{
+	    if ( strcmp ( name, ocb->name ) == 0 && 
+		geVTime ( time, ocb->phase_begin ) &&
+		ltVTime ( time, ocb->phase_end ) )
+	    return ocb;
+	}
+d2897 1
+a2897 1
+    return ( NULL );
+d2902 1
+a2902 1
+    Ocb * ocb;
+d2904 5
+a2908 5
+    if ( sendOcbQ )
+	for ( ocb = nxtocb_macro ( sendOcbQ ); ocb != NULL; 
+		ocb = nxtocb_macro ( ocb ) )
+		_pprintf("%s	",ocb->name);
+    _pprintf("sendOcbQ verified\n");
+d2913 2
+a2914 2
+	queue.  We must then check for rollback of the phase, which cannot
+	use ordinary rollback code. */
+d2918 2
+a2919 2
+    Ocb * ocb;
+    State * state;
+d2921 2
+a2922 2
+    State *firstState;
+    Msgh *firstIMsg, *firstOMsg;
+d2924 1
+a2924 1
+    /* Find the first state of the migrating phase. */
+d2926 5
+a2930 5
+    firstState = fststate_macro ( ocb );
+	
+    /* If this first state has a sndtime less than phase_begin, it
+    	must be discarded.  Otherwise, the state copy can be
+    	inserted at the front of the queue. */
+d2932 9
+a2940 9
+    if ( firstState != NULL && 
+    	ltVTime ( firstState->sndtim, ocb->phase_begin ) )
+    {
+	    
+        l_remove ( firstState );
+        destroy_state ( firstState );
+        if ( ocb->cs == firstState )
+    	    ocb->cs = NULL;
+    }
+d2942 3
+a2944 3
+    /*  This is a pre-interval state, so it should always be first in
+    	the state queue.  PARANOID code checks to see that it isn't
+    	misordered. */
+d2946 1
+a2946 1
+    l_insert ( ocb->sqh, state );
+d2949 2
+a2950 2
+    {
+        State * newState, * nextState ;
+d2952 11
+a2962 11
+        newState = nxtstate_macro ( ocb->sqh );
+        nextState = nxtstate_macro ( newState );
+	    
+        if ( nextState != ocb->sqh &&
+    	    geVTime ( newState->sndtim, nextState->sndtim ) )
+        {
+    	    _pprintf("state misorder in send queue, object %s, ocb ptr %x, first state %x, second state %x\n", 
+    	    ocb->name, ocb, newState, nextState);
+    	    tester();
+        }
+    }
+d2965 7
+a2971 7
+    /*  Now perform a half-assed rollback of the phase.  Its svt may
+    	need to be reset, states may need to be discarded, output
+    	messages may need to be cancelled.  It's a pity we can't use
+    	the code from rollback() for this purpose, but messing with
+    	it to handle an unusual dlm case is dangerous, and it would
+    	add code to the main line of TWOS to handle a very infrequent
+    	occurrence. */
+d2973 1
+a2973 1
+    firstIMsg = fstimsg_macro ( ocb );
+d2975 5
+a2979 5
+    /*  If there are no input messages being sent, then there is no need for
+	further rollback activity.  Otherwise, if the first input message is 
+	already the one to be run next, as it usually will be, no further work 
+	is needed.  We're just rolling back to the same place we were already 
+	at, simply with a different initial state. */
+d2981 9
+a2989 9
+    if ( firstIMsg == NULL || leVTime ( ocb->svt, firstIMsg->rcvtim ) )
+    {
+	return;
+    }
+	
+    /*  Must do a real rollback.  Adjust the svt, cancel any states at later
+	times, and, depending on whether lazy or aggressive cancellation is
+	being used, either unmark or cancel all output messages at later
+	times.  */
+d2991 1
+a2991 1
+    ocb->svt = firstIMsg->rcvtim;
+d2995 3
+a2997 3
+    twerror("putStateInSendQ: svt %f set before gvt %f for %s\n",
+		ocb->svt.simtime, gvt.simtime,ocb->name);
+    tester();
+d2999 1
+a2999 1
+    cancel_states ( ocb, ocb->svt );
+d3001 4
+a3004 4
+    if ( aggressive )
+	cancel_all_output ( ocb, ocb->svt );
+    else
+	unmark_all_output ( ocb, ocb->svt );
+d3008 3
+a3010 3
+	virtual time.  The queue is probably short, so a simple (even
+	stupid) method can be used - bubble sort.  Should this method
+	cause problems, a better sort can be added.  */
+d3014 1
+a3014 1
+    State_Migr_Hdr *migrHdr, *nxtMigrHdr;
+d3016 2
+a3017 8
+    for ( migrHdr = nxtstate_macro ( sendStateQ ); migrHdr != NULL; 
+	    migrHdr = nxtstate_macro ( migrHdr ) )
+    {
+	
+	nxtMigrHdr = nxtstate_macro ( migrHdr );
+	
+	if ( nxtMigrHdr != NULL &&
+	     ltVTime ( nxtMigrHdr->time_to_deliver, migrHdr->time_to_deliver) )
+d3019 11
+a3029 4
+	    l_remove ( migrHdr );
+	    l_insert ( nxtMigrHdr, migrHdr );
+	    migrHdr = nxtstate_macro ( sendStateQ ) ;
+	    continue;
+a3030 1
+    }
+@
+
+
+1.4
+log
+@1.  Take out diagnostic messages.
+2.  Don't allow migration of ocb's in BLKPT mode (because of bug 4 fix).
+@
+text
+@d3 4
+d59 1
+d100 1
+d106 15
+d141 3
+d149 1
+d161 1
+d180 1
+d183 1
+d185 1
+d190 3
+d194 34
+d264 2
+a265 1
+			finish_send_state_copy
+d361 10
+d391 5
+a395 5
+    /*  The state points to the owning ocb, which points to the type table
+	entry for this phase's type, which contains a field describing the
+	size of the state.  This is a preferable method to examining the
+	size of the memory block currently holding the state.   Once we're
+	sure that this works, the paranoid test can be removed.  */
+d397 3
+a399 1
+    seglen = ((Ocb *) state->ocb)->typepointer->statesize + sizeof (State) ;
+d404 2
+d460 1
+a460 2
+                 !scan_hdr->waiting_for_ack  &&
+                 !scan_hdr->waiting_for_done &&
+d660 1
+d764 1
+a764 1
+}
+d791 1
+d793 20
+d857 25
+d883 1
+d956 14
+d977 6
+d1000 47
+d1051 3
+d1082 4
+d1120 4
+d1185 1
+a1185 1
+}
+d1230 28
+d1282 24
+d1410 1
+a1410 1
+    State * s;
+d1465 65
+d1537 1
+d1540 9
+d1571 1
+d1638 10
+d1659 3
+a1661 1
+    s = lststate_macro ( ocb );
+d1663 1
+a1663 1
+    if ( s != NULL )
+d1665 4
+a1668 1
+	State * new_state = copystate ( s );
+d1670 3
+a1672 1
+	if ( new_state == NULL )
+d1674 1
+a1674 1
+	    l_remove ( s );
+d1676 1
+a1676 1
+	    new_state = s;
+d1680 1
+d1682 1
+a1682 3
+/*
+	    tester ();
+*/
+d1689 1
+a1689 1
+	    ocb->last_sent = s;
+d1694 1
+a1694 1
+	new_state->ocb = (Byte *) ocb2;
+d1696 2
+a1697 1
+	put_state_in_sq ( ocb2, new_state );
+d1885 19
+d2140 4
+d2335 1
+d3001 26
+@
+
+
+1.3
+log
+@Wholesale changes in phase migration code, including pre-interval state
+optimizations and a number of important bug fixes.
+@
+text
+@d3 4
+d84 1
+d391 1
+d398 1
+d938 1
+d943 1
+d1196 11
+d1525 9
+d1631 4
+d2110 4
+a2113 7
+	if ( ltVTime ( ocb->svt, min_msg_time ) )
+	{
+	    _pprintf("recv_vtime_done: setting min_msg_time to %f\n",
+		ocb->svt.simtime);
+
+	    min_msg_time = ocb->svt;
+	}
+@
+
+
+1.2
+log
+@Added msgloging to migrating states.
+Set state->ocb fields
+1st draft of jump forward for phase migration
+@
+text
+@d3 5
+a33 1
+State_Migr_Hdr * sendStateQ;
+a43 1
+Ocb * sendOcbQ;
+d45 2
+d48 1
+d52 6
+d91 1
+d99 11
+a109 1
+#ifdef JUMP_FORWARD
+d113 1
+a113 1
+	if ( /* state_compare ( last_sent, state, ocb->pvz_len ) == */ 0 )
+d117 3
+d123 1
+d128 3
+a133 6
+#else
+    if ( ocb->out_of_sq )
+    {
+        destroy_state ( last_sent );
+    }
+#endif JUMP_FORWARD
+d159 21
+d204 1
+d219 14
+d236 17
+a252 1
+	send_state ( state, ocb );
+d274 1
+a274 1
+FUNCTION send_state ( state, ocb )
+d278 1
+d301 1
+a301 1
+    migr_hdr->migr_flags = 0;
+a302 4
+    if ( ltVTime ( state->sndtim, ocb->phase_end ) )
+	migr_hdr->migr_flags |= PRE_INTERVAL;
+    if ( ocb->runstat == BLKPHASE )
+	migr_hdr->migr_flags |= MIGRATING;
+a303 1
+
+d308 15
+a322 1
+    seglen = (((List_hdr *)segment)-1)->size;
+d351 1
+a351 1
+/*
+d354 3
+d361 11
+d378 1
+a378 3
+                           migr_hdr->time_to_deliver) &&
+                 eqVTime ( scan_hdr->state->sndtim,
+                           migr_hdr->state->sndtim)
+a380 6
+        */
+
+
+/* This should be fixed by changing the State Header definition */
+/* in twsys.h   */
+/*
+d386 1
+a386 1
+        _pprintf ("PRE_INT GARBAGE\n");
+d389 2
+d395 1
+a403 1
+        */
+d439 8
+d455 1
+d459 1
+d471 88
+d571 1
+d573 2
+a614 1
+    ocb = (Ocb *) migr_hdr->state->ocb;
+d633 7
+a639 1
+    if ( ocb->runstat == BLKPHASE )
+d681 1
+d687 18
+d722 6
+d739 1
+d767 5
+d773 1
+a773 1
+	tester ();
+a780 1
+_pprintf("Migr bug fix invoked\n");
+d786 4
+a789 1
+	if ( location == NULL || location->node != tw_node_num )
+d791 5
+d797 6
+d821 8
+a876 3
+	    if ( state->tot_pkts > 1 )
+		send_state_ack ( msg );
+
+d880 1
+d895 5
+d902 2
+d908 1
+d915 5
+a919 3
+	    if ( geVTime ( state->sndtim, ocb->svt )
+	    || ( ltVTime ( state->sndtim, ocb->phase_begin )
+	    && ( s != NULL && ltVTime ( s->sndtim, ocb->phase_begin ) ) ) )
+d921 4
+d928 2
+d931 7
+d957 1
+d963 1
+d984 2
+d989 2
+d992 1
+d994 2
+d997 1
+d1083 1
+d1146 4
+d1161 33
+d1203 3
+d1207 18
+d1236 6
+d1351 29
+d1481 18
+d1523 12
+d1539 1
+d1561 1
+d1565 1
+d1567 15
+d1614 9
+d1636 3
+d1640 8
+d1658 7
+d1667 8
+d1678 2
+a1679 1
+    strcpy ( p->snder, ocb->typepointer->type );
+d1686 1
+a1686 1
+    ocb->waiting_for_ack = TRUE;
+d1695 1
+a1695 1
+    sprintf ( buff, "%d %d %d %s %f %d %f %d %d %d\n",
+d1698 1
+a1698 1
+	ocb->num_states, ocb->num_imsgs, ocb->num_omsgs );
+d1706 4
+a1709 1
+    send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+d1720 2
+a1721 1
+    ocb->waiting_for_ack = FALSE;
+d1732 1
+d1735 1
+a1735 1
+    ocb->waiting_for_ack = FALSE;
+d1756 3
+d1771 3
+a1781 1
+#ifdef PARANOID
+a1786 1
+#endif
+a1794 1
+	tester();
+d1808 1
+d1823 1
+a1823 1
+    if ( ocb->waiting_for_ack )
+d1826 1
+a1826 1
+    if ( ocb->waiting_for_done )
+d1829 2
+d1842 1
+d1898 3
+a1900 2
+    strcpy ( p->snder, ocb->typepointer->type );
+    strcpy ( p->rcver, ocb->name );
+d1906 2
+a1907 1
+    ocb->waiting_for_ack = TRUE;
+d1920 1
+d1926 2
+a1927 2
+    ocb->waiting_for_ack = FALSE;
+    ocb->waiting_for_done = TRUE;
+d1931 1
+d2042 2
+a2043 1
+	send_state ( s, ocb );
+d2045 7
+a2059 1
+    _pprintf ( "recv_vtime_nak\n" );
+d2066 1
+d2072 2
+a2073 1
+    ocb->waiting_for_done = FALSE;
+d2078 4
+d2083 7
+a2089 1
+
+d2091 6
+d2111 8
+d2121 6
+a2136 3
+    sprintf ( buff, "%d %d %s %f %d\n",
+	tw_node_num, node_cputime, ocb->name, ocb->phase_begin.simtime,
+	ocb->next_node );
+d2138 2
+a2139 1
+    send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+d2141 9
+d2156 8
+d2207 1
+a2241 1
+extern Pending_entry * PendingListHeader;
+d2255 8
+d2264 4
+d2276 8
+d2286 6
+d2300 1
+a2300 1
+    ocb->typepointer = find_object_type ( msg->snder );
+d2307 1
+d2313 1
+a2313 1
+	_pprintf ( "recv_phase: object %s svt %f less than gvt %f\n",
+d2359 1
+d2384 1
+d2421 4
+d2441 6
+d2456 1
+a2456 1
+    int count;
+d2468 129
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d78 1
+d84 29
+d125 1
+d172 1
+d445 15
+d666 1
+d691 1
+d969 5
+d975 1
+d1471 15
+d1506 15
+d1536 15
+@

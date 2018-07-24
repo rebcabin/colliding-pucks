@@ -1,0 +1,940 @@
+/* "Copyright (C) 1989, California Institute of Technology. 
+     U. S. Government Sponsorship under NASA Contract 
+   NAS7-918 is acknowledged." */
+/*********************************************************************
+*  newconf.c
+*  Read and interpret TW simulator configuration file
+*  in the simulator, called by global_init
+*
+*   JJW 12/19/87  update for files 3/15/88
+*   JJW  7/12/88  fix evtmsgs for text length
+*   JJW  9/30/88  create the type table
+*   JJW  2/17/89  fix it for nested files ( with @<file> )
+*   JJW  2/27/89  fix fopen to use HOST_fopen
+*   PJH (via JJW)  add IS_LOG stuff
+*
+***********************************************************************/
+
+#ifdef BF_MACH          /* Surely this repetitive nonsense   */
+#include <stdio.h>      /* can be fix by a properly worked   */
+#endif                  /* Makefile?                         */
+
+
+#ifdef BF_PLUS
+#include <stdio.h>
+#include <rsio.h>
+#endif
+
+#ifdef SUN
+#include <stdio.h>
+#endif
+
+#ifdef MARK3
+#include "stdio.h"
+#endif
+
+/* include objstats at specified arbitrary times */
+/* #define SPEC_OBJSTATS  */
+
+#ifdef SPEC_OBJSTATS
+#define SPEC_OBJSTATS_SIZE 20
+/* this define also in twsp1.c !!!!! */
+#endif
+
+#include "twcommon.h"
+#include "machdep.h"
+
+/* # define STANDALONE */
+
+#ifdef STANDALONE
+#define FUNCTION
+#else
+#include "tws.h"
+#include "twsd.h"
+extern void error();
+
+#endif
+
+extern int msgtextlen;		/* ### */
+extern int command_num;
+extern int yylineno;
+extern FILE *HOST_fopen();
+
+int displ_sw;
+int nesting;
+int no_stdout;
+int hasstdout;
+int cnfg_error;
+int file_del_flag;      /* see delfile */
+int now_msg_flag;
+FILE *oldfildes;
+
+#ifndef STANDALONE
+mesg_block twsconmsg =
+   {NULL,NULL,NULL,NULL,{NEGINF,0L,0L},{NEGINF,0L,0L},'x',"ZZ","twscon",0,0,NULL};	
+#endif
+
+static char newconfid[] = "%W%\t%G%";
+char inbuf[256];
+char *cfg_bptr = inbuf;
+char mygetc();
+
+
+FILE *get_cnfg_file();
+
+/***************************************************************************
+* main in conftest or configure_simulation in tw simulator.  
+*  called from global_init in tw simulator
+*
+****************************************************************************/
+#ifdef STANDALONE
+FUNCTION main(argc, argv)
+char **argv;
+#else
+FUNCTION configure_simulation(cnfg_file)
+char *cnfg_file;
+#endif
+{
+	extern FILE *yyin, *yyout;
+
+#ifdef STANDALONE
+	if(argc != 2)
+	{
+		fprintf(stderr, "Usage: configtst input_file.\n");
+		fprintf(stderr, "input can be - to use stdin\n");
+		exit(-1);
+	}
+
+	if (argv[1] [0]== '-') 
+	    yyin = stdin;
+	 else
+	  {
+	    yyin = fopen(argv[1], "r");
+#else
+	  {
+	    yyin = HOST_fopen(cnfg_file, "r");
+#endif
+	    if(yyin == (FILE *)NULL)
+	     {
+		fprintf(stderr, "simconfig: Can't open config file\n");
+#ifdef STANDALONE
+		fprintf(stderr, "%s\n",argv[1]);
+		exit(-1);
+#else
+		fprintf(stderr, "%s\n",cnfg_file);
+		yyin = get_cnfg_file(cnfg_file);
+#endif
+	     }
+	  }
+	yyout = stdout;
+	file_del_flag = 0;  /*see delfile */
+#ifdef STANDALONE
+	fprintf(stderr,"configure_simulation with %s\n",argv[1]);
+#else
+	fprintf(stderr,"configure_simulation with %s\n",cnfg_file);
+#endif
+
+	do {} while (yyparse()== 0);
+
+	fclose(yyin);
+	sim_start();
+#ifdef STANDALONE
+	if (cnfg_error)
+	  {
+	   fprintf(stderr,"%d configuration errors\n",cnfg_error);
+	   return(FAILURE);
+	  }
+	exit(0);
+#else
+
+	if (cnfg_error)
+	  {
+	   fprintf(stderr,"%d configuration errors\n",cnfg_error);
+	   return(FAILURE);
+	  }
+	else return(SUCCESS);
+#endif
+}
+
+/* ************************************** */
+/*  typeinit				  */
+/*  args:  objectype   */
+/* ************************************** */
+FUNCTION init_type(objecttype,filestrng)
+Name_object objecttype;
+char* filestrng;
+{
+	if (displ_sw == 1)
+	    printf("typeinit  %s  %s\n",objecttype,filestrng);
+#ifndef STANDALONE
+	if (cr_inittype(objecttype,filestrng) == FAILURE)
+	{
+		fprintf (stderr,"init type failed on %s  %s\n",objecttype,filestrng);
+		cnfg_error++;
+	}
+
+#endif
+}
+
+/* ***************************************
+*     allow_now_msgs()
+*  ***************************************/
+FUNCTION allow_now_msgs()
+{
+	if (displ_sw == 1)
+	    printf("allow now messages\n");
+	now_msg_flag = 1;
+}
+
+/* ***********************************************
+*  set maxmsgpool to integer value. Not a simulator command.
+*
+**************************************************/
+FUNCTION set_maxmsgpool(val)
+int val;
+{
+    if (displ_sw == 1)
+	    printf("maxmsgpool %d\n",val);
+}
+	
+
+/* ************************************** */
+/*  obcreate				  */
+/*  args:  rcver, rcvtim, objtype, node   */
+/* ************************************** */
+FUNCTION config_obj(obj, type,  node)
+Name_object  *obj;
+Type_object  *type;
+int   node;
+{
+	VTime cretime;
+	if (strcmp(obj,"stdout") == 0 )
+	   hasstdout = TRUE;
+
+	if (displ_sw == 1)
+	    printf("obcreate  %s   %s   %d\n",obj,type,node);
+#ifndef STANDALONE
+	cretime = newVTime(NEGINF,0,0);
+	strcpy(twsconmsg.rname,obj);
+	emq_current_ptr = &twsconmsg; /* for msgs sent in init section */
+	if (cr_create_object (obj, cretime, type) == FAILURE)
+	{
+		fprintf (stderr,"config_obj failed\n");
+		cnfg_error++;
+	}
+#endif
+}
+
+/* *********************** */
+/* timeval		   */
+/* args: interval 	   */
+/* *********************** */
+FUNCTION timeval(interval)
+STime interval;
+{
+if (displ_sw == 1)
+
+	printf
+	("timeval: %f\n",interval);
+
+}
+
+/* **************************** */
+/* timechg			*/
+/* args: interval_change_time	*/
+/* **************************** */
+FUNCTION timechg(interval_change_time)
+STime  interval_change_time;
+{
+if (displ_sw == 1)
+
+	printf
+	("timechg: %f\n",interval_change_time);
+
+}
+
+/* **************************** */
+/* pktlen			*/
+/* set message packet length	*/
+/* **************************** */
+FUNCTION pktlen(siz)
+int siz;
+{
+#ifndef STANDALONE
+extern int mesgdefsize;
+#else
+int mesgdefsize;
+#endif
+
+if (siz > MAXPKTL )
+    fprintf(stderr,"packet length can not exceed MAXPKTL\n");
+else
+mesgdefsize = siz;
+if (displ_sw == 1)
+	printf
+	("pktlen %d\n", mesgdefsize );
+}
+
+/* *********************************************** */
+/* tell					   */
+/* args:  rcver  rcvtim  msg_selector message		   */
+/* *********************************************** */
+FUNCTION config_msg(rcver, rcvtim, msg_selector, msg)
+char *rcver;
+STime  rcvtim;
+Long msg_selector;
+char *msg;
+{
+VTime msgtime;
+if (displ_sw == 1)
+	printf("tell %s  %f  %ld %s\n",rcver,rcvtim,msg_selector, msg);
+#ifdef STANDALONE
+	printf("size of text: %d\n",msgtextlen);	/* ### */
+#endif
+
+#ifndef STANDALONE
+	evtmsg_cnt++;
+	msgtime = newVTime(rcvtim,0L,0L);
+	if (cs_send_mesg (msg, rcver, msgtime, msg_selector) == FAILURE)
+	{
+		fprintf (stderr, "config_msg failed\n");
+		cnfg_error++;
+	}
+
+#endif
+}
+
+/* ******************************************** */
+/* rfget           	                        */
+/* args: path string 		                */
+/************************************************/
+FUNCTION rfgetx(path,file)
+char *path;
+char *file;
+{
+char arg[80];
+if (displ_sw == 1)
+#ifndef BF_PLUS
+	printf("rfget %s  %s\n(not used on Sun)\n",path,file);
+#else
+	printf("rfget %s  %s\n",path,file);
+#endif
+
+#ifdef BF_PLUS
+if (RF_access(file,0) == -1) {
+arg[0] = ':';
+arg[1] = 0;
+strncat(arg,path,78);
+rfget(arg,file);
+}
+#endif
+
+
+}
+
+/*PJH_IS        */
+/* ******************************************** */
+/* islog_init                                   */
+/* args: logsize  log_interval                  */
+/************************************************/
+#define MIN_IS_DELTA    100             /* .1 sec       */
+#define MAX_IS_DELTA    10000           /* 10 secs      */
+
+extern  int     I_speedup ();
+extern  int     IS_delta;
+extern  int     IS_clock1, IS_clock2;
+extern  int     ISLOG_enabled;
+
+typedef struct
+{
+    int seqnum;
+    double  cputime;
+    VTime  minvt;
+}
+    IS_LOG_ENTRY;
+
+extern IS_LOG_ENTRY * IS_log, *IS_logp, *IS_loge;
+extern int num_IS_entries;
+
+
+FUNCTION islog_init ( log_size, log_interval )
+int log_size;
+int log_interval;
+
+{
+   if (displ_sw == 1)
+	printf("islog  %d   %d\n", log_size, log_interval);
+
+#ifndef STANDALONE
+#if defined(BF_PLUS) || defined(BF_MACH)  
+
+   if ( log_interval < MIN_IS_DELTA || log_interval > MAX_IS_DELTA )
+    {
+        printf ("Log Interval setting out of bounds %d msecs\n", log_interval );        return;
+    }
+ 
+    IS_log = IS_logp = (IS_LOG_ENTRY *) sim_malloc
+                                ( log_size * sizeof (IS_LOG_ENTRY) );
+    if ( IS_log == NULL )
+    {
+        printf ( "can't allocate IS_log space\n" );
+        exit(1);
+    }
+   printf ("islog_init: %d %d\n", log_size, log_interval );
+
+   IS_loge = IS_log + log_size;
+   IS_delta = log_interval;
+   ISLOG_enabled = TRUE;
+#ifdef BF_PLUS
+   IS_clock1 = IS_clock2 =clock();
+   butterfly_msigalarm ( I_speedup );
+   malarm ( IS_delta );
+#endif
+#ifdef BF_MACH
+   IS_clock1 = IS_clock2 = getrtc();
+#endif
+#endif
+#endif
+}
+ 
+/* ******************************************** */
+/* rmint					*/
+/* args: mtype snder sndtim rcvr rcvtim message */
+/* ******************************************** */
+FUNCTION rmint(mtype,snder,sndtim,rcvr,rcvtim,message)
+char *mtype;
+Name_object *snder;
+STime sndtim;
+Name_object *rcvr;
+STime rcvtim;
+char *message;
+{
+if (displ_sw == 1)
+
+	printf("rmint %s  %s  %f  %s  %f  %s\n",
+		mtype,snder,sndtim,rcvr,rcvtim,message);
+
+
+
+}
+
+/* **************************************************
+ *  nest				  
+ *  string arg which is a new file  
+ * **************************************************/
+
+/* yyparse will exit after running this at top level. Switch the
+files for yyin and tell objend not to really exit when it is called. 
+Then go back to yyparse on the next line which is in new file. */
+
+FUNCTION nest(ff)
+ char *ff;
+
+{
+ extern FILE *yyin;
+
+ oldfildes = yyin;
+#ifdef STANDALONE
+ yyin = fopen(ff, "r");
+#else
+ yyin = HOST_fopen(ff, "r");
+#endif
+ if (yyin == NULL) 
+   {
+    fprintf(stderr,"can't open include file:  %s\n",ff);
+    yyin = oldfildes;
+   }
+ else
+   {
+   nesting = 1;
+   cfg_bptr = inbuf;
+   if (displ_sw)
+    printf("@%s\n",ff);
+   }
+}
+
+/* ***** */
+/* objend*/
+/* ***** */
+FUNCTION config_sim_start()
+{
+  if (displ_sw == 1)
+	printf
+	(  "objend\n"
+	);
+}
+
+/***********/
+FUNCTION set_dlm()
+{
+  if (displ_sw == 1)
+	printf
+	(  "dlm\n"
+	);
+}
+
+/***********/
+FUNCTION set_idledlm(val)
+int val;
+{
+  if (displ_sw == 1)
+	printf
+	(  "idledlm %d\n", val);
+}
+
+/***********/
+FUNCTION set_maxoff(val)
+int val;
+{
+  if (displ_sw == 1)
+	printf
+	(  "maxoff %d\n", val);
+}
+
+/***********/
+FUNCTION set_dlmint(val)
+int val;
+{
+  if (displ_sw == 1)
+	printf
+	(  "dlmint %d\n", val);
+}
+
+/***********/
+FUNCTION set_migrations(val)
+int val;
+{
+  if (displ_sw == 1)
+	printf
+	(  "migrations %d\n", val);
+}
+
+
+/* *********************** */
+/* Input          routine. */
+/* *********************** */
+/* In this file:  static char inbuf[256];  char *cfg_bptr  = inbuf;  */
+
+char mygetc(fp)
+FILE  *fp;
+{
+      char *stat;
+      char it;
+      if (cfg_bptr == inbuf)
+         { stat =(char *) HOST_fgets(inbuf, 255, fp);
+           if (stat == NULL)
+	   		return ( (char) NULL);  /* EOF */
+	 }
+ 
+ 
+      if (*(cfg_bptr) == '\n' )  {
+       cfg_bptr = inbuf;
+       return ('\n');
+       }
+ 
+       it = *cfg_bptr;
+       cfg_bptr++;
+       return(it);
+
+ 
+}
+/*********************************
+*
+*********************************/
+FUNCTION sim_start()
+
+{
+	VTime  time;
+	int   node;
+
+	time = newVTime(NEGINF,0L,0L);
+	node = 0;
+	if (hasstdout == 0)
+	{
+	if (displ_sw == 1) printf( "creating stdout\n");
+#ifndef STANDALONE
+
+
+	if (cr_create_object ((Name_object *)"stdout", time,(Type_object *) "stdout", node) == FAILURE) 
+	   {
+		fprintf (stderr,"config_obj failed\n");
+		cnfg_error++;
+	   }
+#endif
+	fprintf(stderr,"Simulation configured, %d commands\n",command_num);
+	}
+
+}
+
+/* ***** */
+/* go    */
+/* ***** */
+FUNCTION go()
+{
+if (displ_sw == 1)
+	printf("go\n");
+}
+
+/* *************** */
+/* set nostdout    */
+/* ***** ***********/
+FUNCTION set_nostdout()
+{
+	no_stdout = 1;
+if (displ_sw == 1)
+	printf
+	(  "nostdout\n"
+	);
+
+}
+
+/* **************************************************** */
+/* set maxacks     					*/
+/* arg: val	   					*/
+/*							*/
+/* ***** ************************************************/
+FUNCTION set_maxacks(val)
+int val;
+
+{ 
+if (displ_sw == 1)
+
+	printf
+	(  "maxacks  %d\n",val
+	);
+
+}
+
+
+/* *************** */
+/* set monitor on  */
+/* ***** ***********/
+FUNCTION set_monon()
+{ 
+if (displ_sw == 1)
+
+	printf
+	(  "monon\n"
+	);
+
+}
+
+
+/* *************** */
+/* set monitor off */
+/* ***** ***********/
+FUNCTION set_monoff()
+{ 
+if (displ_sw == 1)
+
+	printf
+	(  "monoff\n"
+	);
+
+}
+
+/* *************** */
+/* set objstksize  */
+/* ***** ***********/
+FUNCTION set_size(val)
+int val;
+{ 
+if (displ_sw == 1)
+	printf
+	(  "objstksize %d\n",val);
+}
+
+/* *************** */
+/* set cutoff  */
+/* ***** ***********/
+FUNCTION set_cutoff(val)
+double val;
+{ 
+if (displ_sw == 1)
+	printf
+	(  "cutoff %f\n",val);
+#ifndef STANDALONE
+cutoff_time = val;
+#endif
+}
+
+/* *************** */
+/* set display  */
+/* ***** ***********/
+FUNCTION set_display()
+{
+displ_sw = 1;
+if (displ_sw == 1)
+	printf
+	(  "fileecho\n"
+	);
+
+}
+
+/* *************** */
+/* get_file        */
+/* ***** ***********/
+FUNCTION get_file( path,name)
+char *path;
+char *name;
+{
+
+if (displ_sw == 1)
+	printf
+	(  "getfile %s   %s\n",path,name
+	);
+#ifndef STANDALONE
+if (strlen(name) > FILE_NAME_LENGTH )
+	{
+	fprintf(stderr,"get_file: line %d, name too long: %s\n", yylineno, name);
+	sim_debug("omitting file, now in sim_debug");
+	return(FAILURE);
+	}
+	if (io_get_file (path,name) == FAILURE)
+	{
+		fprintf (stderr,"getfile failed for %s\n",name);
+		cnfg_error++;
+	}
+#endif
+}
+
+/* *************** */
+/* del_file        */
+/*   any call sets file_del_flag. It is zeroed before parsing config file */
+/* ***** ***********/
+FUNCTION del_file(time, name)
+char *name;
+double time;
+{
+if (displ_sw == 1)
+	printf
+	(  "delfile %s delete at  %lf\n",name,time
+	);
+#ifndef STANDALONE
+if (strlen(name) > FILE_NAME_LENGTH )
+	{
+	fprintf(stderr,"del_file: line %d, name too long: %s\n", yylineno, name);
+	sim_debug("omitting file, now in sim_debug");
+	return(FAILURE);
+	}
+	if (io_del_file (name,time) == FAILURE)
+	{
+		fprintf (stderr,"delfile failed for %s\n",name);
+		cnfg_error++;
+	}
+#endif
+
+}
+
+
+/* *************** */
+/* put_file        */
+/* ***** ***********/
+FUNCTION put_file(path,name,node)
+char *path;
+char *name;
+int node;
+{
+if (displ_sw == 1)
+	printf
+	(  "putfile %s   %s   %d\n",path,name,node
+	);
+#ifndef STANDALONE
+if (strlen(name) > FILE_NAME_LENGTH )
+	{
+	fprintf(stderr,"put_file: line %d, name too long: %s\n", yylineno, name);
+	sim_debug("omitting file, now in sim_debug");
+	return(FAILURE);
+	}
+	if (io_put_file (path,name) == FAILURE)
+	{
+		fprintf (stderr,"putfile failed for %s\n",name);
+		cnfg_error++;
+	}
+#endif
+
+}
+
+
+
+
+/************************************************************************
+*
+*	cs_send_mesg - queue event messages
+*
+*	called by - config_msg 
+*
+*	- perform routine to format the message
+*	- if this is the first message queued
+*	-    link this message in as head of queue
+*	- else
+*	-    perform routine to queue it into its proper position
+*
+*************************************************************************/
+
+#ifndef STANDALONE
+
+FUNCTION cs_send_mesg (text, oname, vtime, selector)
+Message *text;
+Name_object oname;
+VTime vtime;
+Long selector;
+
+{
+	int tlen;
+	VTime sndtime;
+
+/*	tlen = strlen(text) + 1;	*/
+	tlen = msgtextlen;		/* ### see simlex */
+	sndtime = newVTime(NEGINF,0,0);
+	if (cm_create_event_message
+		("twscon", oname,
+		sndtime, vtime, selector,
+		tlen, text) == SUCCESS)  {
+	   cm_queue_event_message ();
+	   return(SUCCESS);
+	   }
+	else { 
+	  error ("cant create config message");
+	  return (FAILURE);
+	  }
+}
+#endif
+#ifndef STANDALONE
+/**************************************************************
+ *    open the configuration file and ask for it if the one on the
+ *    command line is invalid or not present.
+ ************************************************************** */
+FILE  FUNCTION *get_cnfg_file(cnfg_file)
+	char *cnfg_file;
+{
+	char cnfg_name[80];
+	FILE *cnfg_file_try;
+
+	cnfg_file_try = NULL;
+	while (cnfg_file_try == NULL)
+	{
+	    printf( "Specify config file: \n");
+	    fscanf(stdin, "%s", cnfg_name);
+	    cnfg_file_try = HOST_fopen(cnfg_name, "r");
+	    if (cnfg_file_try == NULL)
+	    {
+		printf("Config file %s not found.\n", cnfg_name);
+	    }
+	}
+	strcpy(cnfg_file,cnfg_name);
+	return (cnfg_file_try);
+}
+#endif
+
+/************************************************************************
+*
+*  cr_typetable - fill in the typetable from the date in table.c
+*
+*  called by main().
+*
+*
+************************************************************************/
+#ifndef STANDALONE
+FUNCTION cr_typetable()
+{
+#ifdef TWUSRLIB
+void * twulib_init_type();
+#endif
+
+extern ObjectType *objectTypeList[];
+extern ObjectType stdouttype;
+int stdout_there = 0;
+
+num_types = 0;
+while ( objectTypeList[num_types] != 0 && num_types < MAX_NUM_TYPES)
+   {
+   process[num_types].init = objectTypeList[num_types]->init;
+   process[num_types].event = objectTypeList[num_types]->event;
+   process[num_types].term = objectTypeList[num_types]->term;
+   process[num_types].displayMsg = objectTypeList[num_types]->displayMsg;
+   process[num_types].displayState = objectTypeList[num_types]->displayState;
+   process[num_types].statesize = objectTypeList[num_types]->statesize;
+   process[num_types].type = objectTypeList[num_types]->type;
+   process[num_types].initType = objectTypeList[num_types]->initType;
+
+#ifdef TWUSRLIB
+   process[num_types].libTable 
+       = twulib_init_type(&process[num_types], objectTypeList[num_types]); 
+#endif
+
+   if (strcmp(process[num_types].type, "stdout") == 0) 
+		stdout_there = 1;
+   num_types++;
+   }
+if (num_types >= MAX_NUM_TYPES) {
+	error("too many object types defined");
+	return(FAILURE);
+	}
+if ( !stdout_there &&  (num_types < (MAX_NUM_TYPES -1)))
+	{
+   process[num_types].init = stdouttype.init;
+   process[num_types].event = stdouttype.event;
+   process[num_types].term = stdouttype.term;
+   process[num_types].displayMsg = stdouttype.displayMsg;
+   process[num_types].displayState = stdouttype.displayState;
+   process[num_types].statesize = stdouttype.statesize;
+   process[num_types].type = stdouttype.type;
+   process[num_types].initType = stdouttype.initType;
+
+#ifdef TWUSRLIB
+   process[num_types].libTable 
+              = twulib_init_type(&process[num_types], &stdouttype); 
+#endif
+
+   num_types++;
+	}
+return(SUCCESS);
+}
+#endif
+
+#ifdef SPEC_OBJSTATS
+
+double time_array[SPEC_OBJSTATS_SIZE];  /* global */
+int init_obs = -1;
+#endif
+
+
+/* **************************************/
+/* objstats				*/
+/* collect objstats at a given time	*/
+/* **************************************/
+
+
+FUNCTION objstats(time)
+double time;
+{
+int ii, jj;
+if (displ_sw == 1)
+	printf
+	("objstats %lf\n", time );
+
+#ifdef SPEC_OBJSTATS
+if (init_obs == -1) {for (ii = 0; ii < SPEC_OBJSTATS_SIZE; time_array[ii++] = POSINF);
+		 init_obs = 0;
+	       }
+for (ii = 0; ii < SPEC_OBJSTATS_SIZE; ii++)
+     {
+      if (time < time_array[ii] && ii < (SPEC_OBJSTATS_SIZE - 1))
+	  { for (jj = SPEC_OBJSTATS_SIZE - 1; jj > ii; jj--)
+	       time_array[jj] = time_array[jj-1];
+	    time_array[ii] = time;
+	    break;
+	  }
+      
+     }
+if (ii == SPEC_OBJSTATS_SIZE) 
+     printf("objstats time array overflow\n");
+
+/* for (ii = 0; ii<SPEC_OBJSTATS_SIZE; ii++) printf("%3.3lf\n",time_array[ii]); */
+
+#endif
+}
+
+
+

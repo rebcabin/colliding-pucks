@@ -1,0 +1,99 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_7:1.3 TW2_6:1.3 TW2_5_1:1.3 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.15.05.58;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.16.18;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.37.33;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@clock handling for Butterfly
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	BBNclock.c,v $
+ * Revision 1.2  91/06/03  12:16:18  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:37:33  configtw
+ * Initial revision
+ * 
+*/
+
+/* Return time in ticks of 62.5  micro-seconds for Butterfly Plus       */
+
+#ifdef BF_PLUS
+long clock()
+{
+   return ( (*(unsigned long*)0xfff7b000));
+}
+#endif
+#ifdef BF_MACH
+long clock()
+{
+   return ( (unsigned long)getrtc());
+}
+#endif
+
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        BBNclock.c,v $
+a13 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 3
+a9 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d11 1
+a11 1
+/* Return time in ticks of 62.5  micro-seconds for Butterfly Plus	*/
+@

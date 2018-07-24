@@ -1,0 +1,170 @@
+#	Copyright (C) 1989, 1991, California Institute of Technology.
+#		U. S. Government Sponsorship under NASA Contract NAS7-918 
+#		is acknowledged.
+#
+
+#	makefile.config 8/4/88  8/16/88  1/19/89 4/18/89
+#	modified by JJW 3/6/90 for tw2.4 simulator
+#	modified by JJW 6/13/90 for Mach memory changes
+#	modified by JJW 11/5/91 for tw2.6 simulator
+#
+DESTDIR=
+INCDIR= ../../tw
+CFLAGS=	-O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I$(INCDIR)
+SPFLAGS=
+LFLAGS= -DTWUSRLIB
+ 
+LIB_SRC = ../../twulib
+LIB_DIR = ../../twulib/Sun4
+
+
+CFILES      =   version.c\
+		newconf.c\
+		itimer.c \
+		stdine.c \
+		stdout.c \
+		twhelp.c \
+		twsd.c \
+		twsp1.c \
+		twsp2.c \
+		simlex.c\
+		simpar.c\
+		twsp3.c\
+		twqueues.c \
+		oldtw.c \
+		HOST_fileio.c \
+		cubeio.c \
+		simmem.c \
+		faults.c
+
+
+OBJS          = version.o\
+		twsp1.o\
+		twsp2.o\
+		twsp3.o\
+		HOST_fileio.o \
+		itimer.o \
+		simlex.o\
+		simpar.o\
+		cubeio.o \
+		stdout.o\
+                SUN4copy.o\
+                SUN4comp.o\
+                SUN4clear.o\
+		twhelp.o\
+		twqueues.o \
+		twsd.o\
+		vtime.o \
+		simmem.o \
+		faults.o \
+		oldtw.o\
+		tlib.o
+
+# objects  for standalone config language tester
+
+OBJS2        =  newconf.o \
+		simlex.o\
+		simpar.o\
+		vtime.o\
+		HOST_fileio.o \
+		simmem.o
+
+NONLIB_OBJS =           \
+    newconf.o
+
+LIB_CODE =		        \
+    $(LIB_SRC)/twpackages.c    \
+    $(LIB_SRC)/TWULarray.c \
+    $(LIB_SRC)/outList.c \
+    $(LIB_SRC)/TWULcopy.c   \
+    $(LIB_SRC)/twusrlib.c       \
+    $(LIB_SRC)/evtList.c   \
+    $(LIB_SRC)/msgList.c   \
+    $(LIB_SRC)/multiPacket.c    \
+    newconf.z
+
+LIB_OBJS =              \
+    $(LIB_DIR)/twpackages.o    \
+    $(LIB_DIR)/TWULarray.o \
+    $(LIB_DIR)/outList.o \
+    $(LIB_DIR)/TWULcopy.o   \
+    $(LIB_DIR)/twusrlib.o       \
+    $(LIB_DIR)/evtList.o   \
+    $(LIB_DIR)/msgList.o   \
+    $(LIB_DIR)/multiPacket.o    \
+    newconf.z
+
+
+SFILES =        SUNcopy.s \
+		SUNclear.s \
+		SUNcomp.s
+
+.KEEP_STATE:
+
+
+dbgsim:= CFLAGS= -DSUN -DFAST_VTIME_MACROS -g   -DSIMULATOR -I$(INCDIR)
+
+
+conftest:= CFLAGS= -DSUN   -O -DSTANDALONE  -DSIMULATOR
+
+
+all:	twsim 
+
+
+twsim:	$(OBJS) $(NONLIB_OBJS)
+	ar rcv twsim.a $(OBJS) $(NONLIB_OBJS)
+	ranlib twsim.a
+
+twsiml: $(OBJS) $(LIB_CODE)
+	cd $(LIB_DIR); rm -f *.o; make -f Makefile.twsim
+	make newconf.z
+	ar rcv twsiml.a $(OBJS) $(LIB_OBJS)
+	ranlib twsiml.a
+
+dbgsim:	$(OBJS) $(NONLIB_OBJS)
+	ar rcv dbgsim.a $(OBJS) $(NONLIB_OBJS)
+	ranlib dbgsim.a
+
+
+conftest:	$(OBJS2)
+	cc -o conftest $(CFLAGS) $(OBJS2)
+
+clean:
+	rm -f *.o simlex.c simpar.c simpar.h y.output newconf.c
+
+.c.a:
+	$(AR) $(ARFLAGS) $@ $%
+
+.s.a:
+	$(AR) $(ARFLAGS) $@ $%
+
+%.o:	../%.c
+	cc $(CFLAGS) -c ../$*.c
+
+../simpar.c + ../simpar.h:	../simpar.y
+	yacc -vd ../simpar.y
+	sed -e s/yy/yXy/g -e s/YY/YxY/g y.tab.c >../simpar.c
+	sed -e s/yy/yXy/g -e s/YY/YxY/g y.tab.h >../simpar.h
+	rm -f y.tab.c
+	rm -f y.tab.h
+
+../simlex.c:	../simlex.l ../simpar.h
+	lex ../simlex.l
+	sed -e s/yy/yXy/g -e s/YY/YxY/g lex.yy.c >../simlex.c
+	rm -f lex.yy.c
+
+newconf.z:  ../newconf.c
+	cc $(CFLAGS) $(LFLAGS) -c ../newconf.c
+	mv newconf.o newconf.z
+
+
+../newconf.c:	../newconf.cyy
+	sed -e s/yy/yXy/g -e s/YY/YxY/g ../newconf.cyy >../newconf.c
+
+# DO NOT edit the file newconf.c.  Instead edit newconf.cyy. The
+# above creates newconf.c with the appropriate changes in the yy and YY
+# prefixes that yacc uses.
+
+
+
+

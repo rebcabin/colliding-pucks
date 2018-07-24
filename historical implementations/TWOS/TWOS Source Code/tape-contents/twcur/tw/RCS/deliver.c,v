@@ -1,0 +1,726 @@
+head     1.7;
+branch   ;
+access   ;
+symbols  TW2_7:1.7 TW2_6:1.7 TW2_5_1:1.6 TW2_5:1.4 TW2_4_2:1.2 TW2_4_1:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.7
+date     91.11.01.09.19.43;  author pls;  state Rel;
+branches ;
+next     1.6;
+
+1.6
+date     91.07.17.15.08.00;  author judy;  state Rel;
+branches ;
+next     1.5;
+
+1.5
+date     91.07.09.13.36.49;  author steve;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.06.03.12.24.00;  author configtw;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.05.31.12.50.43;  author pls;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.27.10.40.11;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.12;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@deliver messages
+@
+
+
+1.7
+log
+@1.  Change ifdef's and version id.
+2.  Eliminate unnecessary message copying for
+	forwarded messages.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	deliver.c,v $
+ * Revision 1.6  91/07/17  15:08:00  judy
+ * New copyright notice.
+ * 
+ * Revision 1.5  91/07/09  13:36:49  steve
+ * MicroTime support for Sun Version. Removed mistuff.
+ * 
+ * Revision 1.4  91/06/03  12:24:00  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.3  91/05/31  12:50:43  pls
+ * Add MSG parameter to FindObject call.
+ * 
+ * Revision 1.2  90/08/27  10:40:11  configtw
+ * Fix dynamic load management
+ * 
+ * Revision 1.1  90/08/07  15:38:12  configtw
+ * Initial revision
+ * 
+*/
+char deliver_id [] = "@@(#)deliver.c     $Revision$\t$Date$\tTIMEWARP";
+
+
+/*
+Purpose:
+
+		The main routine contained in this module is deliver(), and
+		its purpose is to send a message on its way from the
+		sending object to the receiver.  The low-level work of
+		message delivery is done by Mercury and the hardware,
+		so deliver() just takes care of high level Time Warp
+		delivery functions.  Other than keeping statistics, this
+		work mostly amounts to determining whether or not the
+		message needs to be sent off-node or not.  If not, a
+		local delivery routine is called.  If the message is
+		to be sent to another node, the sndmsg() routine is
+		called to pass it to the lower levels of the software.
+		Suitable error checking is done throughout.
+
+		The other routine in this module is sysmsg(), which 
+		performs a function similar to deliver(), but for
+		system messages.  System messages do not have specific
+		objects as receivers, and are guaranteed to be going
+		off-node.  The only complexity is whether the message
+		is to be broadcast or not.
+
+Functions:
+
+		deliver(m) - figure out how to get a message to its
+				destination object
+				Parameters - Msgh *m
+				Return - Always returns 0
+
+		sysmsg(msgtype,on,len,node) - send a system message off-node
+				Parameters - Int msgtype, Msgh *on, Int len, Int node
+				Return - Always returns 0
+
+Implementation:
+
+		Determine if the message is being sent in forward or reverse
+		direction.  If forward, look for its receiver in the world
+		map; if reverse, look for its original sender.  In either
+		case, use find_in_world_map() to find the destination.
+		If a destination has been found, call smsg_stat() to
+		keep some statistics, then decide whether the message 
+		is being sent on- or off-node.  If it's on-node, this
+		routine will take care of receiving it.  Call rmsg_stat()
+		to keep some message receipt statistics.  Based on 
+		whether the message was forward or reverse, put it into
+		the receiving object's input or output queue, respectively,
+		using the appropriate enqueueing routine.
+
+		If the message is not destined for this node, call sndmsg()
+		to get it off-node. 
+
+		If the object that should be receiving the message cannot
+		be found in the world map, try to return it to the sender.
+		Look for the sender in the world map.  It is presumed to
+		be local.  If it's not the currently executing ocb, 
+		print an error message.  If it is, destroy the message
+		and set an error condition in the executing object's
+		ocb.
+
+		sysmsg() is somewhat simpler.  It sets some bits in the
+		message's header to indicate that it is a system message,
+		fills in a couple of other fields in the header, then
+		simply tries to send the system message out.  There are
+		two possible cases.  If the message is to be broadcast,
+		brdcst() is called.  If the message is point-to-point,
+		sndmsg() is used.
+
+*/
+#include "twcommon.h"
+#include "twsys.h"
+#include "machdep.h"
+
+extern	Msgh	*rm_msg;
+
+
+#if TIMING
+#define DELIVER_TIMING_MODE 8
+#endif
+
+FUNCTION        deliver (m)
+	Msgh           *m;
+{
+	Objloc         *location;
+	Ocb            *o;
+	Int             reverse;
+	Name *objname;
+	VTime time;
+
+  Debug
+
+#if TIMING
+	start_timing ( DELIVER_TIMING_MODE );
+#endif
+
+	reverse = isreverse_macro (m);
+
+	if (reverse)
+	{   /* going back to sender */
+		objname = (Name *) m->snder;
+		time = m->sndtim;
+	}
+	else
+	{   /* get receiver info */
+		objname = (Name *) m->rcver;
+		time = m->rcvtim;
+	}
+
+/*  Find where the object is, if the local node knows.*/
+
+	location = GetLocation(objname,time);
+
+
+/* If there is no local information for this object, or if the object isn't
+		on this node.  */
+
+	if (location == (Objloc *) NULL || location->node != tw_node_num ||
+		location->po == NULL)
+	{
+		if ( islocked_macro ( m ) )     /* from another node */
+			{	/* m must be rm_msg */
+			if ( rm_msg != (Msgh *) rm_buf)
+				{	/* not pointing to our receive buffer, so don't m_create */
+				unlock_macro(m);
+				rm_msg = NULL;
+				}
+			else
+				{	/* we can't hang onto rm_buf */
+				m = (Msgh *) m_create ( msgdefsize, time, CRITICAL );
+
+				acceptmsg ( m );    /* get & unlock message from rm_msg */
+				}
+
+			if (reverse)
+			{   /* going back to sender */
+				objname = (Name *) m->snder;
+			}
+			else
+			{   /* get receiver info */
+					objname = (Name *) m->rcver;
+			}
+
+			/* If this message was sent to this node from some other node,
+				and the object that should get the message isn't on this node,
+				then the sending node has an incorrect cache entry.  Before
+				forwarding the message to the proper destination, send a
+				cache invalidation request to the node that sent the message
+				here.  Since this message could be either forward or reverse,
+				make sure that the invalidation goes to the right place. */
+
+#if PARANOID
+			if (m->low.from_node == tw_node_num)
+			{
+				_pprintf("invalidating own cache, object %s, phase %f\n",
+						objname,time);
+				showmsg(m);
+			}
+#endif
+			SendCacheInvalidate(objname,time,(int) m->low.from_node);
+/*Here is where to increment the statistic for messages forwarded due to
+		migration. */
+
+			rfaults++;
+		}
+
+		if (location == (Objloc *) NULL || (location->node == tw_node_num &&
+				location->po == NULL))
+		{  /* node is unknown or it's this node & object is unknown */
+			FindObject(objname,time,m,FinishDeliver,MSG);
+		}
+		else
+			{  /* we know the node--send the message */
+			sndmsg (m, m->txtlen + sizeof (Msgh), location->node);
+			}
+		}	/* if no local info on object */
+	else  /* object is on this node */
+	{
+		o = location->po;
+		rmsg_stat (o, m);
+
+		/* for a normal message, put it in the object's input queue.
+		if it's a reverse message, put it in the original sender's
+		output queue. */
+
+		reverse ?
+				nq_output_message (o, m) :
+				nq_input_message (o, m);
+	}
+#if TIMING
+   stop_timing ();
+#endif
+}
+
+/* call this routine when a pending action is concluded */
+FUNCTION FinishDeliver(m,location)
+	Msgh *m;
+	Objloc *location;
+{
+	Debug
+
+	if (location->node == tw_node_num)
+	{  /* this node */
+		rmsg_stat (location->po, m);
+		if (isreverse_macro(m))
+		{  /* reverse message:  put in object's output queue */
+			nq_output_message(location->po, m) ;
+		}
+		else
+		{  /* else input queue */
+			nq_input_message (location->po, m);
+		}
+	}    
+	else
+	{   /* object is off-node-- send the message to it */
+		sndmsg (m, m->txtlen + sizeof (Msgh), location->node);
+	}
+}
+
+FUNCTION        sysmsg (msgtype, om, len, node)
+	Int             msgtype;
+	Msgh           *om;
+	Int             len;
+	Int             node;
+
+/* send out a system message */
+
+{
+	extern int mlog, node_cputime;
+
+  Debug
+
+	if ( mlog )
+	{
+#if MICROTIME
+		MicroTime ();
+#else
+#if MARK3
+		mark3time ();
+#endif
+#if BBN  /*PJH Not sure about this one... */
+		butterflytime ();
+#endif
+#endif
+		om->cputime = node_cputime;
+	}
+
+	BITSET (om->flags, SYSMSG); /* mark as a system message */
+	om->mtype = msgtype;
+	om->txtlen = len;
+
+	if (node == BCAST)
+	{  /* it's a broadcast */
+		brdcst (om, len + sizeof (Msgh));
+	}
+	else
+	{  /* send it out */
+		sndmsg (om, len + sizeof (Msgh), node);
+	}
+}
+@
+
+
+1.6
+log
+@New copyright notice.
+@
+text
+@d7 3
+d26 1
+a26 1
+char deliver_id [] = "@@(#)deliver.c     1.32\t10/2/89\t14:18:23\tTIMEWARP";
+d102 1
+d104 2
+a105 1
+#ifdef TIMING
+d120 1
+a120 1
+#ifdef TIMING
+d149 9
+a157 2
+		{
+			m = (Msgh *) m_create ( msgdefsize, time, CRITICAL );
+d159 2
+a160 1
+			acceptmsg ( m );    /* get & unlock message from rm_msg */
+d179 1
+a179 1
+#ifdef PARANOID
+d200 1
+a200 1
+		{  /* we know the node--send the message */
+d202 2
+a203 2
+		}
+	}
+d217 1
+a217 1
+#ifdef TIMING
+d262 1
+a262 1
+#ifdef MICROTIME
+d265 1
+a265 1
+#ifdef MARK3
+d268 1
+a268 1
+#ifdef BBN  /*PJH Not sure about this one... */
+@
+
+
+1.5
+log
+@MicroTime support for Sun Version. Removed mistuff.
+@
+text
+@d1 4
+d7 3
+a24 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.4
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        deliver.c,v $
+d93 1
+a94 1
+#define from_node mistuff[0]
+a95 1
+
+d136 1
+a136 1
+	if (location == (Objloc *) NULL || location->node != miparm.me ||
+d163 1
+a163 1
+			if (m->from_node == miparm.me)
+d170 1
+a170 1
+			SendCacheInvalidate(objname,time,(int) m->from_node);
+d177 1
+a177 1
+		if (location == (Objloc *) NULL || (location->node == miparm.me &&
+d212 1
+a212 1
+	if (location->node == miparm.me)
+d245 3
+d253 1
+@
+
+
+1.3
+log
+@Add MSG parameter to FindObject call.
+@
+text
+@d2 4
+a5 1
+ * $Log:	deliver.c,v $
+d13 1
+a13 1
+char deliver_id [] = "@@(#)deliver.c	1.32\t10/2/89\t14:18:23\tTIMEWARP";
+d15 3
+a17 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d22 12
+a33 12
+	The main routine contained in this module is deliver(), and
+	its purpose is to send a message on its way from the
+	sending object to the receiver.  The low-level work of
+	message delivery is done by Mercury and the hardware,
+	so deliver() just takes care of high level Time Warp
+	delivery functions.  Other than keeping statistics, this
+	work mostly amounts to determining whether or not the
+	message needs to be sent off-node or not.  If not, a
+	local delivery routine is called.  If the message is
+	to be sent to another node, the sndmsg() routine is
+	called to pass it to the lower levels of the software.
+	Suitable error checking is done throughout.
+d35 6
+a40 6
+	The other routine in this module is sysmsg(), which 
+	performs a function similar to deliver(), but for
+	system messages.  System messages do not have specific
+	objects as receivers, and are guaranteed to be going
+	off-node.  The only complexity is whether the message
+	is to be broadcast or not.
+d44 4
+a47 4
+	deliver(m) - figure out how to get a message to its
+		destination object
+		Parameters - Msgh *m
+		Return - Always returns 0
+d49 3
+a51 3
+	sysmsg(msgtype,on,len,node) - send a system message off-node
+		Parameters - Int msgtype, Msgh *on, Int len, Int node
+		Return - Always returns 0
+d55 12
+a66 12
+	Determine if the message is being sent in forward or reverse
+	direction.  If forward, look for its receiver in the world
+	map; if reverse, look for its original sender.  In either
+	case, use find_in_world_map() to find the destination.
+	If a destination has been found, call smsg_stat() to
+	keep some statistics, then decide whether the message 
+	is being sent on- or off-node.  If it's on-node, this
+	routine will take care of receiving it.  Call rmsg_stat()
+	to keep some message receipt statistics.  Based on 
+	whether the message was forward or reverse, put it into
+	the receiving object's input or output queue, respectively,
+	using the appropriate enqueueing routine.
+d68 2
+a69 2
+	If the message is not destined for this node, call sndmsg()
+	to get it off-node. 
+d71 7
+a77 7
+	If the object that should be receiving the message cannot
+	be found in the world map, try to return it to the sender.
+	Look for the sender in the world map.  It is presumed to
+	be local.  If it's not the currently executing ocb, 
+	print an error message.  If it is, destroy the message
+	and set an error condition in the executing object's
+	ocb.
+d79 7
+a85 7
+	sysmsg() is somewhat simpler.  It sets some bits in the
+	message's header to indicate that it is a system message,
+	fills in a couple of other fields in the header, then
+	simply tries to send the system message out.  There are
+	two possible cases.  If the message is to be broadcast,
+	brdcst() is called.  If the message is point-to-point,
+	sndmsg() is used.
+d98 2
+a99 2
+FUNCTION	deliver (m)
+    Msgh	   *m;
+d101 5
+a105 5
+    Objloc	   *location;
+    Ocb            *o;
+    Int             reverse;
+    Name *objname;
+    VTime time;
+d110 1
+a110 1
+    start_timing ( DELIVER_TIMING_MODE );
+d113 1
+a113 1
+    reverse = isreverse_macro (m);
+d115 10
+a124 10
+    if (reverse)
+    {	/* going back to sender */
+        objname = (Name *) m->snder;
+        time = m->sndtim;
+    }
+    else
+    {	/* get receiver info */
+        objname = (Name *) m->rcver;
+        time = m->rcvtim;
+    }
+d128 1
+a128 1
+    location = GetLocation(objname,time);
+d132 1
+a132 1
+	on this node.  */
+d134 6
+a139 6
+    if (location == (Objloc *) NULL || location->node != miparm.me ||
+	location->po == NULL)
+    {
+        if ( islocked_macro ( m ) )	/* from another node */
+        {
+    	    m = (Msgh *) m_create ( msgdefsize, time, CRITICAL );
+d141 1
+a141 1
+	    acceptmsg ( m );	/* get & unlock message from rm_msg */
+d143 8
+a150 8
+	    if (reverse)
+	    {	/* going back to sender */
+	        objname = (Name *) m->snder;
+	    }
+	    else
+	    {	/* get receiver info */
+		    objname = (Name *) m->rcver;
+	    }
+d152 7
+a158 7
+	    /* If this message was sent to this node from some other node,
+		and the object that should get the message isn't on this node,
+		then the sending node has an incorrect cache entry.  Before
+		forwarding the message to the proper destination, send a
+		cache invalidation request to the node that sent the message
+		here.  Since this message could be either forward or reverse,
+		make sure that the invalidation goes to the right place. */
+d161 6
+a166 6
+	    if (m->from_node == miparm.me)
+	    {
+		_pprintf("invalidating own cache, object %s, phase %f\n",
+			objname,time);
+		showmsg(m);
+	    }
+d168 1
+a168 1
+	    SendCacheInvalidate(objname,time,(int) m->from_node);
+d170 1
+a170 1
+	migration. */
+d172 2
+a173 2
+	    rfaults++;
+	}
+d175 9
+a183 4
+	if (location == (Objloc *) NULL || (location->node == miparm.me &&
+		location->po == NULL))
+	{  /* node is unknown or it's this node & object is unknown */
+	    FindObject(objname,time,m,FinishDeliver,MSG);
+d185 4
+a188 9
+	else
+	{  /* we know the node--send the message */
+    	    sndmsg (m, m->txtlen + sizeof (Msgh), location->node);
+	}
+    }
+    else  /* object is on this node */
+    {
+        o = location->po;
+        rmsg_stat (o, m);
+d190 3
+a192 3
+        /* for a normal message, put it in the object's input queue.
+        if it's a reverse message, put it in the original sender's
+        output queue. */
+d194 4
+a197 4
+        reverse ?
+		nq_output_message (o, m) :
+		nq_input_message (o, m);
+    }
+d205 2
+a206 2
+    Msgh *m;
+    Objloc *location;
+d208 1
+a208 1
+    Debug
+d210 12
+a221 7
+    if (location->node == miparm.me)
+    {  /* this node */
+	rmsg_stat (location->po, m);
+	if (isreverse_macro(m))
+	{  /* reverse message:  put in object's output queue */
+	    nq_output_message(location->po, m) ;
+	}
+d223 2
+a224 2
+	{  /* else input queue */
+	    nq_input_message (location->po, m);
+a225 5
+    }    
+    else
+    {   /* object is off-node-- send the message to it */
+	sndmsg (m, m->txtlen + sizeof (Msgh), location->node);
+    }
+d229 4
+a232 4
+    Int             msgtype;
+    Msgh           *om;
+    Int             len;
+    Int             node;
+d237 1
+a237 1
+    extern int mlog, node_cputime;
+d241 2
+a242 2
+    if ( mlog )
+    {
+d244 1
+a244 1
+	mark3time ();
+d247 1
+a247 1
+	butterflytime ();
+d249 2
+a250 2
+	om->cputime = node_cputime;
+    }
+d252 3
+a254 3
+    BITSET (om->flags, SYSMSG);	/* mark as a system message */
+    om->mtype = msgtype;
+    om->txtlen = len;
+d256 8
+a263 8
+    if (node == BCAST)
+    {  /* it's a broadcast */
+	brdcst (om, len + sizeof (Msgh));
+    }
+    else
+    {  /* send it out */
+	sndmsg (om, len + sizeof (Msgh), node);
+    }
+@
+
+
+1.2
+log
+@Fix dynamic load management
+@
+text
+@d3 3
+d175 1
+a175 1
+	    FindObject(objname,time,m,FinishDeliver);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d136 9
+@

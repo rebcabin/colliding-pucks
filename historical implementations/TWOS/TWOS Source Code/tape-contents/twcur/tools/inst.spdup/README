@@ -1,0 +1,23 @@
+	Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+	        is acknowledged.	
+
+This directory contains the TW2.3 versions of the programs needed to 
+graph the instantaneous speedup of a Time Warp run. The data which
+these tools work with are produced by using the configuration file
+directive "islog" for a simulation run. The tools consist of
+two programs:
+
+	1). gvtfilter.c - This program converts raw data into a usable
+			  format.
+
+	2). ispeeder.c - This program produces instananeous speedup
+			data suitable for plotting.
+
+The plotting of instantaneous speedup is intended to be done on a
+Macintosh using Microsoft Excel. For a detailed explanation of the 
+function of these programs see Section 6.4 of the Time Warp Operating 
+System User's Manual.
+
+
+

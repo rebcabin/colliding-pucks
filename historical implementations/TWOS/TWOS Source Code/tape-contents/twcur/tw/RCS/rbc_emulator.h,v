@@ -1,0 +1,72 @@
+head     1.2;
+branch   ;
+access   ;
+symbols  TW2_7:1.2 TW2_6:1.2 TW2_5_1:1.2 TW2_5:1.2;
+locks    ; strict;
+comment  @ * @;
+
+
+1.2
+date     91.06.03.12.26.18;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     91.03.26.10.33.47;  author pls;  state Dev;
+branches ;
+next     ;
+
+
+desc
+@includes for rollback chip emulator
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@/*
+ * $Log:        rbc_emulator.h,v $
+ * Revision 1.1  91/03/26  10:33:47  pls
+ * Initial revision
+ * 
+*/
+
+/*
+ * Copyright (C) 1991, Integrated Parallel Technology, All Rights Reserved.
+ * U. S. Government Sponsorship under SBIR Contract NAS7-1102 is acknowledged.
+ */
+
+/* rbc_emulator.h */
+
+/*
+ * state_address and cmd_address are local to rbc_init_start.
+ * define STATE_ADDRESS and CMD_ADDRESS so the include files
+ * below will not redefine them (so we don't get the defaults).
+ */
+
+#define STATE_ADDRESS state_address
+#define CMD_ADDRESS cmd_address
+
+#define RBC_NUM_KB      64
+
+typedef char kilo_mem[1024];
+/* kilo_mem kilo_memory[RBC_NUM_KB] but malloced */
+extern kilo_mem * kilo_memory;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d24 1
+a24 1
+#define RBC_NUM_KB	64
+@

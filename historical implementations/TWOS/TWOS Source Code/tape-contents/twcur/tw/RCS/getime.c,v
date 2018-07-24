@@ -1,0 +1,434 @@
+head     1.4;
+branch   ;
+access   ;
+symbols  TW2_7:1.4 TW2_6:1.4 TW2_5_1:1.4 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.4
+date     91.07.17.15.08.27;  author judy;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.07.09.13.42.50;  author steve;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.24.14;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.25;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@get the time
+@
+
+
+1.4
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	getime.c,v $
+ * Revision 1.3  91/07/09  13:42:50  steve
+ * Added MicroTime support for Sun version.
+ * 
+ * Revision 1.2  91/06/03  12:24:14  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:38:25  configtw
+ * Initial revision
+ * 
+*/
+char getime_id [] = "@@(#)getime.c       1.16\t6/2/89\t12:43:47\tTIMEWARP";
+
+
+/*
+
+Purpose:
+
+		getime() contains the routines necessary for getting a time
+		for the user.  How this is to be done depends on details of the
+		underlying hardware and software.  This module is therefore
+		highly dependent on what machine Time Warp is running on.  In
+		fact, some of the routines in this module are not even compiled
+		for some types of hardware.
+
+Functions:
+
+		getime(time) - return a timing to the user
+				Parameters - int *time
+				Return - the current time
+
+		clock() - read a system clock
+				Parameters - none
+				Return - the clock's reading
+
+		print_resource_utilization() - print out some systems statistics
+				Parameters - none
+				Return - always returns 0
+
+Implementation:
+
+		getime() has two implementations, one for the Mark3 Hypercube,
+		another for anything else.  On the Hypercube, it simply makes
+		a system call to clock(), and returns the result.  On any other
+		hardware currently in use, it calls the system function
+		getrusage(), which fills a data structure with all sorts of 
+		interesting information.  In this case, all that is needed is
+		a seconds reading and a microseconds reading, which are converted
+		into a single microseconds reading.  In either implementation,
+		the calling program expects to get an absolute reading of time,
+		not a reading relative to a previous reading.  (In the case of
+		both clock() and getrusage(), when we speak of "system function",
+		we are talking about a level below Time Warp that provides these
+		services.  If a new machine we are running on does not provide them,
+		then they must be implemented in Time Warp.  For instance, the
+		non-Mark3 Hypercube systems do not provide clock(), so, for those
+		systems, we must write a clock() function outselves.  See below.)
+
+		If we are not compiling the system for the Mark3 Hypercube,
+		then two other functions are compiled.  One is clock(), which
+		simply calls getim().  The other is print_resource_utilization(),
+		which makes a call to getrusage(), and then prints out much of
+		the information returned from that call.
+
+*/
+
+#include <stdio.h> 
+#include "twcommon.h"
+#include "twsys.h"
+#include "machdep.h"
+
+#ifdef TRANSPUTER
+
+getime ( time )
+
+	int * time;
+{
+	*time = 64 * Time ();       /* This assumes a low priority clock */
+}
+
+long clock ()
+{
+	int time ;
+
+	getime (& time) ;
+
+	return time ;
+}
+
+transputer_time_init ( time )
+
+int     time;
+
+{
+	SetTime ( time );
+}
+
+
+clockval ()
+{
+	int         tmp;
+	float       secs;
+	
+	tmp = Time ();
+	secs = 64.0 * (float) tmp / 1000000;
+
+}
+
+#endif
+
+
+#ifdef MARK3
+getime ( time )
+
+	int * time;
+{
+	*time = clock ();
+}
+#endif
+
+#ifdef BBN
+getime ( time )
+
+	int * time;
+{
+	*time = clock ();
+}
+#endif
+
+#ifdef SUN
+
+
+long clock ()
+{
+#ifdef MICROTIME
+	extern long node_cputime;
+
+	MicroTime();
+	return node_cputime;
+#else
+	int time ;
+	getime (& time) ;
+
+	return time ;
+#endif
+}
+
+getime ( time )
+
+	int * time;
+{
+#ifdef MICROTIME
+	*time = clock ();
+#else
+	struct rusage r;
+
+	getrusage ( RUSAGE_SELF, &r );
+
+	*time = r.ru_utime.tv_sec * 1000000 + r.ru_utime.tv_usec;
+#endif
+}
+
+print_resource_utilization ()
+{
+	struct rusage r;
+
+	getrusage ( RUSAGE_SELF, &r );
+
+	printf ( "\n" );
+	printf ( "utime = %d,%d stime = %d,%d\n",   r.ru_utime.tv_sec,
+									            r.ru_utime.tv_usec,
+									            r.ru_stime.tv_sec,
+									            r.ru_stime.tv_usec );
+
+	printf ( "maxrss = %d ixrss = %d idrss = %d isrss = %d\n",  r.ru_maxrss,
+									                            r.ru_ixrss,
+									                            r.ru_idrss,
+									                            r.ru_isrss );
+
+	printf ( "minflt = %d majflt = %d nswap = %d\n",    r.ru_minflt,
+									                    r.ru_majflt,
+									                    r.ru_nswap ) ;
+
+	printf ( "inblock = %d oublock = %d msgsnd = %d msgrcv = %d\n",
+									            r.ru_inblock,
+									            r.ru_oublock,
+									            r.ru_msgsnd,
+									            r.ru_msgrcv );
+
+	printf ( "nsignals = %d nvcsw = %d nivcsw = %d\n",  r.ru_nsignals,
+									                    r.ru_nvcsw,
+									                    r.ru_nivcsw );
+}
+#endif
+@
+
+
+1.3
+log
+@Added MicroTime support for Sun version.
+@
+text
+@d1 4
+d7 3
+a18 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        getime.c,v $
+d136 6
+a142 1
+
+d146 1
+d153 3
+d161 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char getime_id [] = "@@(#)getime.c	1.16\t6/2/89\t12:43:47\tTIMEWARP";
+d9 3
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d17 6
+a22 6
+	getime() contains the routines necessary for getting a time
+	for the user.  How this is to be done depends on details of the
+	underlying hardware and software.  This module is therefore
+	highly dependent on what machine Time Warp is running on.  In
+	fact, some of the routines in this module are not even compiled
+	for some types of hardware.
+d26 3
+a28 3
+	getime(time) - return a timing to the user
+		Parameters - int *time
+		Return - the current time
+d30 3
+a32 3
+	clock() - read a system clock
+		Parameters - none
+		Return - the clock's reading
+d34 3
+a36 3
+	print_resource_utilization() - print out some systems statistics
+		Parameters - none
+		Return - always returns 0
+d40 16
+a55 16
+	getime() has two implementations, one for the Mark3 Hypercube,
+	another for anything else.  On the Hypercube, it simply makes
+	a system call to clock(), and returns the result.  On any other
+	hardware currently in use, it calls the system function
+	getrusage(), which fills a data structure with all sorts of 
+	interesting information.  In this case, all that is needed is
+	a seconds reading and a microseconds reading, which are converted
+	into a single microseconds reading.  In either implementation,
+	the calling program expects to get an absolute reading of time,
+	not a reading relative to a previous reading.  (In the case of
+	both clock() and getrusage(), when we speak of "system function",
+	we are talking about a level below Time Warp that provides these
+	services.  If a new machine we are running on does not provide them,
+	then they must be implemented in Time Warp.  For instance, the
+	non-Mark3 Hypercube systems do not provide clock(), so, for those
+	systems, we must write a clock() function outselves.  See below.)
+d57 5
+a61 5
+	If we are not compiling the system for the Mark3 Hypercube,
+	then two other functions are compiled.  One is clock(), which
+	simply calls getim().  The other is print_resource_utilization(),
+	which makes a call to getrusage(), and then prints out much of
+	the information returned from that call.
+d74 1
+a74 1
+    int * time;
+d76 1
+a76 1
+    *time = 64 * Time ();	/* This assumes a low priority clock */
+d81 1
+a81 1
+    int time ;
+d83 1
+a83 1
+    getime (& time) ;
+d85 1
+a85 1
+    return time ;
+d90 1
+a90 1
+int	time;
+d93 1
+a93 1
+    SetTime ( time );
+d99 5
+a103 5
+    int		tmp;
+    float	secs;
+    
+    tmp = Time ();
+    secs = 64.0 * (float) tmp / 1000000;
+d113 1
+a113 1
+    int * time;
+d115 1
+a115 1
+    *time = clock ();
+d122 1
+a122 1
+    int * time;
+d124 1
+a124 1
+    *time = clock ();
+d133 1
+a133 1
+    int time ;
+d135 1
+a135 1
+    getime (& time) ;
+d137 1
+a137 1
+    return time ;
+d142 1
+a142 1
+    int * time;
+d144 1
+a144 1
+    struct rusage r;
+d146 1
+a146 1
+    getrusage ( RUSAGE_SELF, &r );
+d148 1
+a148 1
+    *time = r.ru_utime.tv_sec * 1000000 + r.ru_utime.tv_usec;
+d153 1
+a153 1
+    struct rusage r;
+d155 1
+a155 1
+    getrusage ( RUSAGE_SELF, &r );
+d157 5
+a161 5
+    printf ( "\n" );
+    printf ( "utime = %d,%d stime = %d,%d\n",	r.ru_utime.tv_sec,
+						r.ru_utime.tv_usec,
+						r.ru_stime.tv_sec,
+						r.ru_stime.tv_usec );
+d163 4
+a166 4
+    printf ( "maxrss = %d ixrss = %d idrss = %d isrss = %d\n",	r.ru_maxrss,
+								r.ru_ixrss,
+								r.ru_idrss,
+								r.ru_isrss );
+d168 3
+a170 3
+    printf ( "minflt = %d majflt = %d nswap = %d\n",	r.ru_minflt,
+							r.ru_majflt,
+							r.ru_nswap ) ;
+d172 5
+a176 5
+    printf ( "inblock = %d oublock = %d msgsnd = %d msgrcv = %d\n",
+						r.ru_inblock,
+						r.ru_oublock,
+						r.ru_msgsnd,
+						r.ru_msgrcv );
+d178 3
+a180 3
+    printf ( "nsignals = %d nvcsw = %d nivcsw = %d\n",	r.ru_nsignals,
+							r.ru_nvcsw,
+							r.ru_nivcsw );
+@

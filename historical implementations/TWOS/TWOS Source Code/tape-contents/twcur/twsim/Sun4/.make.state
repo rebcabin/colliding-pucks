@@ -1,0 +1,85 @@
+.MAKE_VERSION:	VERSION-1.0
+version.o:
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../version.c
+newconf.z:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h ../tws.h ../twsd.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -DTWUSRLIB -c ../newconf.c
+	mv newconf.o newconf.z
+.BUILT_LAST_MAKE_RUN:
+newconf.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h ../tws.h ../twsd.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../newconf.c
+cubeio.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../tws.h ../twsd.h ../../tw/twsys.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../cubeio.c
+faults.o:
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../faults.c
+twqueues.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h ../tws.h ../twsd.h ../twqueues.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../twqueues.c
+.BUILT_LAST_MAKE_RUN:
+twsim:
+	ar rcv twsim.a version.o twsp1.o twsp2.o twsp3.o HOST_fileio.o  itimer.o  simlex.o simpar.o cubeio.o  stdout.o SUN4copy.o SUN4comp.o SUN4clear.o twhelp.o twqueues.o  twsd.o vtime.o  simmem.o  faults.o  oldtw.o tlib.o newconf.o
+	ranlib twsim.a
+simpar.o:	/usr/include/sys/types.h /usr/include/sys/sysmacros.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../simpar.c
+simlex.o:	/usr/include/stdio.h ../simpar.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../simlex.c
+simmem.o:
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../simmem.c
+oldtw.o:	../../tw/twcommon.h ../../tw/vtime.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../oldtw.c
+../newconf.c:
+	sed -e s/yy/yXy/g -e s/YY/YxY/g ../newconf.cyy >../newconf.c
+twsiml:.RECURSIVE ../../twulib/Sun4 twulib Makefile.twsim
+twsiml:
+	cd ../../twulib/Sun4; rm -f *.o; make -f Makefile.twsim
+	make newconf.z
+	ar rcv twsiml.a version.o twsp1.o twsp2.o twsp3.o HOST_fileio.o  itimer.o  simlex.o simpar.o cubeio.o  stdout.o SUN4copy.o SUN4comp.o SUN4clear.o twhelp.o twqueues.o  twsd.o vtime.o  simmem.o  faults.o  oldtw.o tlib.o ../../twulib/Sun4/twpackages.o     ../../twulib/Sun4/TWULarray.o  ../../twulib/Sun4/outList.o  ../../twulib/Sun4/TWULcopy.o    ../../twulib/Sun4/twusrlib.o        ../../twulib/Sun4/evtList.o    ../../twulib/Sun4/msgList.o    ../../twulib/Sun4/multiPacket.o     newconf.z
+	ranlib twsiml.a
+clean:
+	rm -f *.o simlex.c simpar.c simpar.h y.output newconf.c
+twsd.o:	../../tw/twcommon.h ../../tw/vtime.h ../tws.h ../twsd.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../twsd.c
+itimer.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../itimer.c
+tlib.o:	../../tw/twcommon.h ../../tw/vtime.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../tlib.c
+HOST_fileio.o:	/usr/include/stdio.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../HOST_fileio.c
+twhelp.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h ../tws.h ../twsd.h ../twctype.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../twhelp.c
+../simpar.h:
+	yacc -vd ../simpar.y
+	sed -e s/yy/yXy/g -e s/YY/YxY/g y.tab.c >../simpar.c
+	sed -e s/yy/yXy/g -e s/YY/YxY/g y.tab.h >../simpar.h
+	rm -f y.tab.c
+	rm -f y.tab.h
+../simpar.c:
+	yacc -vd ../simpar.y
+	sed -e s/yy/yXy/g -e s/YY/YxY/g y.tab.c >../simpar.c
+	sed -e s/yy/yXy/g -e s/YY/YxY/g y.tab.h >../simpar.h
+	rm -f y.tab.c
+	rm -f y.tab.h
+../simlex.c:
+	lex ../simlex.l
+	sed -e s/yy/yXy/g -e s/YY/YxY/g lex.yy.c >../simlex.c
+	rm -f lex.yy.c
+dbgsim:
+	ar rcv dbgsim.a version.o twsp1.o twsp2.o twsp3.o HOST_fileio.o  itimer.o  simlex.o simpar.o cubeio.o  stdout.o SUN4copy.o SUN4comp.o SUN4clear.o twhelp.o twqueues.o  twsd.o vtime.o  simmem.o  faults.o  oldtw.o tlib.o newconf.o
+	ranlib dbgsim.a
+statsio.o:	../../tw/twcommon.h ../../tw/vtime.h ../tws.h ../twsd.h /usr/include/stdio.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../statsio.c
+SUN4copy.o:
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw  -sun4 -c  SUN4copy.c
+vtime.o:	../../tw/twcommon.h ../../tw/vtime.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../vtime.c
+SUN4comp.o:
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw  -sun4 -c  SUN4comp.c
+stdout.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../stdout.c
+SUN4clear.o:
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw  -sun4 -c  SUN4clear.c
+twsp3.o:	/usr/include/stdio.h /usr/include/varargs.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h ../tws.h ../twsd.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../twsp3.c
+twsp2.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h ../tws.h ../twsd.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../twsp2.c
+twsp1.o:	/usr/include/stdio.h ../../tw/twcommon.h ../../tw/vtime.h ../../tw/machdep.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/resource.h /usr/include/signal.h /usr/include/vm/faultcode.h /usr/include/sys/types.h /usr/include/sys/sysmacros.h /usr/include/sys/socket.h /usr/include/netinet/in.h /usr/include/netdb.h /usr/include/fcntl.h /usr/include/sys/fcntlcom.h /usr/include/sys/timeb.h /usr/include/errno.h /usr/include/sys/errno.h ../tws.h
+twsp1.o:	../twsd.h ../twctype.h 
+	cc -O -DSUN  -DSIMULATOR -DFAST_VTIME_MACROS -I../../tw -c ../twsp1.c

@@ -1,0 +1,1781 @@
+head     1.9;
+branch   ;
+access   ;
+symbols  TW2_7:1.9 TW2_6:1.9 TW2_5_1:1.8 TW2_5:1.7 TW2_4_2:1.5 TW2_4_1:1.4 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.9
+date     91.11.01.09.22.53;  author pls;  state Rel;
+branches ;
+next     1.8;
+
+1.8
+date     91.07.17.15.08.06;  author judy;  state Rel;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.03.12.24.02;  author configtw;  state Rel;
+branches ;
+next     1.6;
+
+1.6
+date     91.03.26.09.25.23;  author pls;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     90.10.19.16.26.44;  author pls;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     90.09.18.09.52.29;  author configtw;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     90.08.28.11.02.48;  author configtw;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.27.10.41.08;  author configtw;  state Dev;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.16;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@simulate file i/o
+@
+
+
+1.9
+log
+@1.  Change ifdef's, version id.
+2.  Add fileNum() routine.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	fileio.c,v $
+ * Revision 1.8  91/07/17  15:08:06  judy
+ * New copyright notice.
+ * 
+ * Revision 1.7  91/06/03  12:24:02  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.6  91/03/26  09:25:23  pls
+ * Change tell to schedule.
+ * 
+ * Revision 1.5  90/10/19  16:26:44  pls
+ *      (1) fix fscanf bugs
+ *      (2) check file name length
+ *      (3) add object name to tw_fopen error message
+ *      (4) fix bug in closing file
+ * 
+ * Revision 1.4  90/09/18  09:52:29  configtw
+ * fix up len bugs in tw_printf() and tw_fprint()
+ * 
+ * Revision 1.3  90/08/28  11:02:48  configtw
+ * Fix Mark3 path in tw_printf().
+ * 
+ * Revision 1.2  90/08/27  10:41:08  configtw
+ * Make tw_printf, tw_fprintf work with varargs.
+ * 
+ * Revision 1.1  90/08/07  15:38:16  configtw
+ * Initial revision
+ * 
+*/
+char fileio_id [] = "@@(#)fileio.c       $Revision$\t$Date$\tTIMEWARP";
+
+
+#include <stdio.h>
+#include <varargs.h>
+#include "twcommon.h"
+#include "twsys.h"
+#include "machdep.h"
+
+FILE * HOST_fopen ();
+
+fileNum(name)
+
+	char	*name;
+
+{
+	Int		i;
+
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( strcmp ( name, tw_file[i].name ) == 0 )
+			break;
+	}
+
+	return (i);
+}	/* fileNum */
+
+getfile ( filename, name )
+ 
+	char * filename, * name;
+{
+	FILE * fp;
+	int i, size, n;
+	Byte * filearea;
+
+#if MARK3
+	dep ();
+#endif
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( tw_file[i].name[0] == 0 )
+			break;
+	}
+
+	if ( i == MAX_TW_FILES )
+	{
+		printf ( "too many files (%d)\n", MAX_TW_FILES );
+#if MARK3
+		indep ();
+#endif
+		return;
+	}
+
+	/* Check to make sure that the provided name is no longer than 
+		FILE_NAME_LENGTH characters long.  Otherwise, complain and
+		return.  The equivalence part of the comparison is because
+		FILE_NAME_LENGTH includes the null, and strlen() doesn't.  */
+
+	if ( strlen ( name ) >= FILE_NAME_LENGTH )
+	{
+		printf("file name %s too long; shorten to %d characters\n",
+				name, FILE_NAME_LENGTH - 1 );
+#if MARK3
+		indep ();
+#endif
+		return;
+	}
+
+	fp = fopen ( filename, "r" );
+ 
+	if ( fp == NULL )
+	{
+		printf ( "file %s not found\n", filename );
+#if MARK3
+		indep ();
+#endif
+		return;
+	}
+
+	fseek ( fp, 0, 2 );
+	size = ftell ( fp );
+
+	filearea = m_allocate ( size + 1 );
+
+	if ( filearea == NULL )
+	{
+		fclose ( fp );
+		printf ( "not enough memory (%d bytes) for %s\n", size, filename );
+#if MARK3
+		indep ();
+#endif
+		return;
+	}
+
+	rewind ( fp );
+
+	n = fread ( filearea, size, 1, fp );
+	fclose ( fp );
+ 
+	if ( n != 1 )
+	{
+		printf ( "fread didn't work: n = %d\n", n );
+		return;
+	}
+
+	* ( filearea + size ) = 0;
+/* 
+	printf ( "%s read into %d bytes at %x\n", filename, size, filearea );
+*/ 
+	strcpy ( tw_file[i].name, name );
+	strcpy ( tw_file[i].filename, filename );
+	tw_file[i].area = filearea;
+	tw_file[i].size = size;
+ 
+#if MARK3
+	indep ();
+#endif
+}
+
+delfile ( name )
+
+	char * name;
+{
+	int i;
+
+	i = fileNum(name);
+	if ( i == MAX_TW_FILES )
+	{
+		_pprintf ( "delfile: file %s not found\n", name );
+		return;
+	}
+
+	m_release ( (Mem_hdr *) tw_file[i].area );
+
+	tw_file[i].name[0] = 0;
+}
+
+int tw_fopen ( name, mode )
+
+	char * name;
+	char * mode;
+{
+	int i, j;
+
+	i = fileNum(name);
+	if ( i == MAX_TW_FILES )
+	{
+		_pprintf ( "tw_fopen: file %s not found\n", name );
+		return ( 0 );
+	}
+	
+	for ( j = 0; j < MAX_TW_STREAMS; j++ )
+	{
+		if ( xqting_ocb->sb->stream[j].open_flag == 0 )
+			break;
+	}
+
+	if ( j == MAX_TW_STREAMS )
+	{
+		_pprintf ( "tw_fopen: too many streams (%d) for object %s\n",
+			MAX_TW_STREAMS,xqting_ocb->name);
+		return ( 0 );
+	}
+
+	xqting_ocb->sb->stream[j].open_flag = 1;
+	xqting_ocb->sb->stream[j].file_num = i;
+	xqting_ocb->sb->stream[j].char_pos = 0;
+
+	return ( j + 1 );
+}
+
+/*************************************************************************
+
+Try to find a stream open for reading. if so is it a file called STDIN. 
+if so call tw_fscanf. if none is found try to tw_fopen STDIN and if OK
+call tw_fscanf. if no file return EOF.  Return value from tw_fscanf if
+all is well.
+*************************************************************************/
+
+int tw_scanf ( form, var )
+
+	char * form;
+	char * var;
+{
+	int stream, i, j;
+
+	for ( stream = 0; stream < MAX_TW_STREAMS; stream++ )
+	{
+		if ( xqting_ocb->sb->stream[stream].open_flag == 1 )
+		{
+			j = xqting_ocb->sb->stream[stream].file_num;
+
+			if ( strcmp ( tw_file[j].name, "STDIN" ) == 0 )
+				break;
+		}
+	}
+
+	if ( stream == MAX_TW_STREAMS )
+	{
+		stream = tw_fopen ( "STDIN", "r" );
+		if ( stream == 0 ) return ( EOF );
+
+/* A zero would be difficult to distinguish from tw_fscanf returning zero because
+it couldn't match the item.  This EOF return should be preceded by an error msg
+from tw_fopen saying no file. If returned zero you could get into an
+infinite loop here by repeating the call assuming that tw_fscanf returned the
+zero. */
+
+	}
+	else
+		stream++;
+
+	i = tw_fscanf ( stream, form, var );
+
+	return ( i );
+}
+
+int tw_fread ( buff, itemsize, nitems, stream )
+
+	Byte * buff;
+	int itemsize;
+	int nitems;
+	int stream;
+{
+	int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+	int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+
+	Byte * area = tw_file[file_num].area;
+	int filesize = tw_file[file_num].size;
+
+	int i;
+
+	area += char_pos;
+
+	for ( i = 0; i < nitems; i++ )
+	{
+		if ( char_pos >= filesize )
+			break;
+
+		entcpy ( buff, area, itemsize );
+
+		buff += itemsize;
+		area += itemsize;
+		char_pos += itemsize;
+	}
+
+	xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+
+	return ( i );
+}
+
+Byte * tw_fgets ( buff, n, stream )
+
+	Byte * buff;
+	int n;
+	int stream;
+{
+	register Byte * bp = buff;
+
+	int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+	int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+
+	Byte * area = tw_file[file_num].area;
+	int filesize = tw_file[file_num].size;
+	int i;
+
+	area += char_pos;
+
+	for ( i = 1; i < n; i++ )
+	{
+		if ( char_pos >= filesize )
+		{
+			buff = NULL;
+			break;
+		}
+
+		*bp++ = *area;
+		char_pos++;
+
+		if ( *area++ == '\n' )
+			break;
+	}
+
+	*bp = 0;
+
+	xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+
+	return ( buff );
+}
+
+int tw_fgetc ( stream )
+
+	int stream;
+{
+	int buff;
+
+	int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+	int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+
+	Byte * area = tw_file[file_num].area;
+	int filesize = tw_file[file_num].size;
+
+	area += char_pos;
+
+	if ( char_pos >= filesize )
+		buff = EOF;
+	else
+	{
+		buff = *area;
+		char_pos++;
+	}
+
+	xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+
+	return ( buff );
+}
+
+int tw_feof ( stream )
+
+	int stream;
+{
+	int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+	int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+	int filesize = tw_file[file_num].size;
+
+	if ( char_pos >= filesize )
+		return ( EOF );
+
+	return ( FALSE );
+}
+
+/*************************************************************************
+
+Call sscanf on a single variable only.  This is because we havn't figured
+out how to use sscanf with varargs. return 1, 0 if no match, or EOF if
+reached end of file. Most files will end with \n and thus will have to 
+be scanned again after last genuine read and will return 0 and set EOF.
+
+*************************************************************************/
+
+int tw_fscanf ( stream, form, var )
+
+	int stream;
+	char * form;
+	int * var;
+{
+	int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+	int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+
+	Byte * area;
+	int filesize = tw_file[file_num].size;
+	int i = 0;
+
+	if (char_pos < filesize ) 
+		area = tw_file[file_num].area + char_pos;
+	 else
+		return(EOF); /* bug. open_flag should not have been READ_S */
+
+/* below is incorrect. The input will skip over leading whitespace which is
+not right if the first form character is  %c or %[  */
+
+	while ( *area == ' ' || *area == '\t' || *area == '\n' &&
+						( char_pos < filesize) )
+	{
+		area++;
+		char_pos++;
+		if ( char_pos >= filesize )
+		{
+				i = EOF;
+				break;
+		}
+	}
+
+	if (i != EOF) i = sscanf ( area, form, var );
+	if ( i == EOF )
+	{
+		return (EOF);
+	}
+
+/* Because sscanf returns EOF, 0, or objects matched (1 in our case ) we need
+to read the memory image of the file to find the next whitespace where the next
+record begins */  
+
+	while ( *area != 0 && *area != ' ' && *area != '\t' && *area != '\n'
+		&& char_pos < filesize )
+	{
+		area++;
+		char_pos++;
+	}
+
+	xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+
+	return ( i );
+}
+
+tw_fclose ( stream )
+
+	int stream;
+{
+	xqting_ocb->sb->stream[stream-1].open_flag = 0;
+}
+
+FILE * output_fp_for_mproc;
+
+putfile ( filename, name, node )
+
+	char * filename;
+	char * name;
+	int * node;
+{
+	register int i;
+
+#if MARK3
+	dep ();
+#endif
+
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( tw_file[i].name[0] == 0 )
+			break;
+	}
+
+	if ( i == MAX_TW_FILES )
+	{
+		printf ( "too many files (%d)\n", MAX_TW_FILES );
+#if MARK3
+		indep ();
+#endif
+		return;
+	}
+
+	/* Check to make sure that the provided name is no longer than 
+		FILE_NAME_LENGTH characters long.  Otherwise, complain and
+		return.  The equivalence part of the comparison is because
+		FILE_NAME_LENGTH includes the null, and strlen() doesn't.  */
+
+	if ( strlen ( name ) >= FILE_NAME_LENGTH )
+	{
+		printf("file name %s too long; shorten to %d characters\n",
+				name, FILE_NAME_LENGTH - 1 );
+#if MARK3
+		indep ();
+#endif
+		return;
+	}
+
+#if MARK3
+	indep ();
+#endif
+ 
+	strcpy ( tw_file[i].name, name );
+	strcpy ( tw_file[i].filename, filename );
+	tw_file[i].area = NULL;
+	tw_file[i].size = 0;
+
+	if ( miparm.me == 0 )
+	{
+		obcreate_b ( name, "stdout", *node );
+	}
+}
+
+tw_fputs ( buff, stream )
+
+	Byte * buff;
+	int stream;
+{
+	TW_STREAM * stream_ptr = &xqting_ocb->sb->stream[stream-1];
+
+	int file_num = stream_ptr->file_num;
+
+	char * object_name = tw_file[file_num].name;
+
+	int len = strlen ( buff );
+
+	int selector = xqting_ocb->oid + stream_ptr->sequence++;
+
+	schedule ( object_name, now, selector, len, buff );
+}
+
+tw_fputc ( buff, stream )
+
+	Byte buff;
+	int stream;
+{
+	TW_STREAM * stream_ptr = &xqting_ocb->sb->stream[stream-1];
+
+	int file_num = stream_ptr->file_num;
+
+	char * object_name = tw_file[file_num].name;
+
+	int len = 1;
+
+	int selector = xqting_ocb->oid + stream_ptr->sequence++;
+
+	schedule ( object_name, now, selector, len, &buff );
+}
+
+/**************************************************************
+*
+*       tw_fprintf()
+*
+*  Send file output to the on node file object for later commitment
+*
+***************************************************************/
+
+#if defined(SUN) || defined(BF_MACH)
+tw_fprintf(iostream,fmt, va_alist)
+int iostream;
+char *fmt;
+va_dcl
+
+{
+	va_list xx;
+
+	struct _iobuf  stream;
+	unsigned char buf[MAXPKTL];
+	int len;
+
+	stream._ptr = buf;
+	stream._base = buf;
+	stream._cnt = 0;
+	stream._bufsiz = MAXPKTL;
+	stream._flag = 2;  /* IOWRT */
+	stream._file = 0;
+
+	va_start(xx);
+	_doprnt(fmt,xx,&stream);
+	va_end(xx);
+
+	len = MAXPKTL - stream._cnt;
+	buf[len] = 0;
+
+	tw_fputs ( buf, iostream );
+}
+
+#else
+
+FUNCTION tw_fprintf ( stream, form, arg1, arg2, arg3, arg4, arg5, arg6,
+				arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15,
+				 arg16, arg17, arg18, arg19, arg20)
+
+	int stream;
+	char * form;
+	int *arg1, *arg2, *arg3, *arg4, *arg5, *arg6, *arg7, *arg8, *arg9,
+		*arg10, *arg11, *arg12, *arg13, *arg14, *arg15, *arg16, *arg17,
+		*arg18, *arg19, *arg20;
+{
+	char buff[MAXPKTL];
+
+	sprintf ( buff,
+				form, arg1, arg2, arg3, arg4, arg5,
+				arg6, arg7, arg8, arg9, arg10,
+				arg11, arg12, arg13, arg14, arg15, arg16, arg17,
+				arg18, arg19, arg20 );
+
+	tw_fputs ( buff, stream );
+}
+
+#endif
+
+/**************************************************************
+*
+*       tw_printf()
+*
+*  Send print output to the node's stdout object for later commitment
+*
+***************************************************************/
+
+#if defined(SUN) || defined(BF_MACH)
+
+FUNCTION tw_printf(fmt, va_alist)
+char *fmt;
+va_dcl
+
+{
+	va_list xx;
+
+	struct _iobuf  stream;
+	unsigned char buf[MAXPKTL];
+	int len;
+	long selector;
+
+	stream._ptr = buf;
+	stream._base = buf;
+	stream._cnt = 0;
+	stream._bufsiz = MAXPKTL;
+	stream._flag = 2;  /* IOWRT */
+	stream._file = 0;
+
+	va_start(xx);
+	_doprnt(fmt,xx,&stream);
+	va_end(xx);
+
+	len = MAXPKTL - stream._cnt;
+	buf[len] = 0;
+	selector = xqting_ocb->oid + xqting_ocb->sb->stdout_sequence++;
+	schedule ( "stdout", now, selector, len+1, buf );
+}
+
+#else
+
+FUNCTION tw_printf ( form, arg1, arg2, arg3, arg4, arg5, arg6,
+				arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15,
+				arg16, arg17, arg18, arg19, arg20)
+
+	char * form;
+	int *arg1, *arg2, *arg3, *arg4, *arg5, *arg6, *arg7, *arg8, *arg9,
+		*arg10, *arg11, *arg12, *arg13, *arg14, *arg15, *arg16, *arg17,
+		*arg18, *arg19, *arg20;
+{
+	char buff[MAXPKTL];
+	int len;
+	long selector;
+
+	sprintf ( buff,
+				form, arg1, arg2, arg3, arg4, arg5,
+				arg6, arg7, arg8, arg9, arg10,
+				arg11, arg12, arg13, arg14, arg15, arg16, arg17,
+				arg18, arg19, arg20 );
+
+	len = strlen ( buff );
+
+	selector = xqting_ocb->oid + xqting_ocb->sb->stdout_sequence++;
+
+	schedule ( "stdout", now, selector, len+1, buff );
+}
+
+#endif
+
+tw_fwrite ( buff, size, nitems, stream )
+
+	char * buff;
+	int size;
+	int nitems;
+	int stream;
+{
+	TW_STREAM * stream_ptr = &xqting_ocb->sb->stream[stream-1];
+
+	int file_num = stream_ptr->file_num;
+
+	char * object_name = tw_file[file_num].name;
+
+	int len = size * nitems;
+
+	int selector = xqting_ocb->oid + stream_ptr->sequence++;
+
+	schedule ( object_name, now, selector, len, buff );
+}
+
+FILE * open_output_file ( name )
+
+	char * name;
+{
+	FILE * fp;
+	int i;
+
+	i = fileNum(name);
+	if ( i == MAX_TW_FILES )
+	{
+		_pprintf ( "open_output_file: %s not found\n", name );
+		return ( NULL );
+	}
+
+	fp = HOST_fopen ( tw_file[i].filename, "w" );
+
+	if ( fp == NULL )
+	{
+		_pprintf ( "can't create file %s\n", tw_file[i].filename );
+		return ( NULL );
+	}
+/*
+	_pprintf ( "open_output_file: %s %x\n", tw_file[i].filename, fp );
+*/
+	return ( fp );
+
+}
+
+#define ALL_F 25        /* Display all streams */
+FUNCTION tw_ftell (st)
+int st;
+{
+  int i;
+
+	for ( i = 0; i < MAX_TW_STREAMS; i++ )
+	{
+	 if ( st == ALL_F || st == i )
+	  {
+		 _pprintf("stream = %d, file_num= %d, open_flag= %d, char_pos= %d\n",
+		 i+1,
+		 xqting_ocb->sb->stream[i].file_num,
+		 xqting_ocb->sb->stream[i].open_flag,
+		 xqting_ocb->sb->stream[i].char_pos );
+	  }
+
+	}
+	return (0);
+}
+
+@
+
+
+1.8
+log
+@New copyright notice.
+@
+text
+@d7 3
+d35 1
+a35 1
+char fileio_id [] = "@@(#)fileio.c       1.31\t7/25/89\t09:52:56\tTIMEWARP";
+d46 16
+d70 1
+a70 1
+#ifdef MARK3
+d82 1
+a82 1
+#ifdef MARK3
+d97 1
+a97 1
+#ifdef MARK3
+d108 1
+a108 1
+#ifdef MARK3
+d123 1
+a123 1
+#ifdef MARK3
+d149 1
+a149 1
+#ifdef MARK3
+d160 1
+a160 6
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( strcmp ( name, tw_file[i].name ) == 0 )
+			break;
+	}
+
+d179 1
+a179 6
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( strcmp ( name, tw_file[i].name ) == 0 )
+			break;
+	}
+
+d447 1
+a447 1
+#ifdef MARK3
+d460 1
+a460 1
+#ifdef MARK3
+d475 1
+a475 1
+#ifdef MARK3
+d481 1
+a481 1
+#ifdef MARK3
+d691 1
+a691 6
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( strcmp ( name, tw_file[i].name ) == 0 )
+			break;
+	}
+
+@
+
+
+1.7
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        fileio.c,v $
+a33 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.6
+log
+@Change tell to schedule.
+@
+text
+@d2 4
+a5 1
+ * $Log:	fileio.c,v $
+d7 4
+a10 4
+ * 	(1) fix fscanf bugs
+ * 	(2) check file name length
+ * 	(3) add object name to tw_fopen error message
+ * 	(4) fix bug in closing file
+d25 1
+a25 1
+char fileio_id [] = "@@(#)fileio.c	1.31\t7/25/89\t09:52:56\tTIMEWARP";
+d27 3
+a29 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d41 1
+a41 1
+    char * filename, * name;
+d43 3
+a45 3
+    FILE * fp;
+    int i, size, n;
+    Byte * filearea;
+d48 1
+a48 1
+    dep ();
+d50 5
+a54 5
+    for ( i = 0; i < MAX_TW_FILES; i++ )
+    {
+	if ( tw_file[i].name[0] == 0 )
+	    break;
+    }
+d56 3
+a58 3
+    if ( i == MAX_TW_FILES )
+    {
+	printf ( "too many files (%d)\n", MAX_TW_FILES );
+d60 1
+a60 1
+	indep ();
+d62 2
+a63 2
+	return;
+    }
+d65 4
+a68 4
+    /* Check to make sure that the provided name is no longer than 
+	FILE_NAME_LENGTH characters long.  Otherwise, complain and
+	return.  The equivalence part of the comparison is because
+	FILE_NAME_LENGTH includes the null, and strlen() doesn't.  */
+d70 4
+a73 4
+    if ( strlen ( name ) >= FILE_NAME_LENGTH )
+    {
+	printf("file name %s too long; shorten to %d characters\n",
+		name, FILE_NAME_LENGTH - 1 );
+d75 1
+a75 1
+	indep ();
+d77 2
+a78 2
+	return;
+    }
+d80 1
+a80 1
+    fp = fopen ( filename, "r" );
+d82 3
+a84 3
+    if ( fp == NULL )
+    {
+	printf ( "file %s not found\n", filename );
+d86 1
+a86 1
+	indep ();
+d88 2
+a89 2
+	return;
+    }
+d91 2
+a92 2
+    fseek ( fp, 0, 2 );
+    size = ftell ( fp );
+d94 1
+a94 1
+    filearea = m_allocate ( size + 1 );
+d96 4
+a99 4
+    if ( filearea == NULL )
+    {
+	fclose ( fp );
+	printf ( "not enough memory (%d bytes) for %s\n", size, filename );
+d101 1
+a101 1
+	indep ();
+d103 2
+a104 2
+	return;
+    }
+d106 1
+a106 1
+    rewind ( fp );
+d108 2
+a109 2
+    n = fread ( filearea, size, 1, fp );
+    fclose ( fp );
+d111 5
+a115 5
+    if ( n != 1 )
+    {
+	printf ( "fread didn't work: n = %d\n", n );
+	return;
+    }
+d117 1
+a117 1
+    * ( filearea + size ) = 0;
+d119 1
+a119 1
+    printf ( "%s read into %d bytes at %x\n", filename, size, filearea );
+d121 4
+a124 4
+    strcpy ( tw_file[i].name, name );
+    strcpy ( tw_file[i].filename, filename );
+    tw_file[i].area = filearea;
+    tw_file[i].size = size;
+d127 1
+a127 1
+    indep ();
+d133 1
+a133 1
+    char * name;
+d135 1
+a135 1
+    int i;
+d137 5
+a141 5
+    for ( i = 0; i < MAX_TW_FILES; i++ )
+    {
+	if ( strcmp ( name, tw_file[i].name ) == 0 )
+	    break;
+    }
+d143 5
+a147 5
+    if ( i == MAX_TW_FILES )
+    {
+	_pprintf ( "delfile: file %s not found\n", name );
+	return;
+    }
+d149 1
+a149 1
+    m_release ( (Mem_hdr *) tw_file[i].area );
+d151 1
+a151 1
+    tw_file[i].name[0] = 0;
+d156 2
+a157 2
+    char * name;
+    char * mode;
+d159 1
+a159 1
+    int i, j;
+d161 5
+a165 5
+    for ( i = 0; i < MAX_TW_FILES; i++ )
+    {
+	if ( strcmp ( name, tw_file[i].name ) == 0 )
+	    break;
+    }
+d167 11
+a177 11
+    if ( i == MAX_TW_FILES )
+    {
+	_pprintf ( "tw_fopen: file %s not found\n", name );
+	return ( 0 );
+    }
+    
+    for ( j = 0; j < MAX_TW_STREAMS; j++ )
+    {
+	if ( xqting_ocb->sb->stream[j].open_flag == 0 )
+	    break;
+    }
+d179 6
+a184 6
+    if ( j == MAX_TW_STREAMS )
+    {
+	_pprintf ( "tw_fopen: too many streams (%d) for object %s\n",
+	    MAX_TW_STREAMS,xqting_ocb->name);
+	return ( 0 );
+    }
+d186 3
+a188 3
+    xqting_ocb->sb->stream[j].open_flag = 1;
+    xqting_ocb->sb->stream[j].file_num = i;
+    xqting_ocb->sb->stream[j].char_pos = 0;
+d190 1
+a190 1
+    return ( j + 1 );
+d203 2
+a204 2
+    char * form;
+    char * var;
+d206 1
+a206 1
+    int stream, i, j;
+d208 1
+a208 3
+    for ( stream = 0; stream < MAX_TW_STREAMS; stream++ )
+    {
+	if ( xqting_ocb->sb->stream[stream].open_flag == 1 )
+d210 3
+a212 1
+	    j = xqting_ocb->sb->stream[stream].file_num;
+d214 3
+a216 2
+	    if ( strcmp ( tw_file[j].name, "STDIN" ) == 0 )
+		break;
+a217 1
+    }
+d219 4
+a222 4
+    if ( stream == MAX_TW_STREAMS )
+    {
+	stream = tw_fopen ( "STDIN", "r" );
+	if ( stream == 0 ) return ( EOF );
+d230 3
+a232 3
+    }
+    else
+	stream++;
+d234 1
+a234 1
+    i = tw_fscanf ( stream, form, var );
+d236 1
+a236 1
+    return ( i );
+d241 4
+a244 4
+    Byte * buff;
+    int itemsize;
+    int nitems;
+    int stream;
+d246 2
+a247 2
+    int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+    int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+d249 2
+a250 2
+    Byte * area = tw_file[file_num].area;
+    int filesize = tw_file[file_num].size;
+d252 1
+a252 1
+    int i;
+d254 1
+a254 1
+    area += char_pos;
+d256 4
+a259 4
+    for ( i = 0; i < nitems; i++ )
+    {
+	if ( char_pos >= filesize )
+	    break;
+d261 1
+a261 1
+	entcpy ( buff, area, itemsize );
+d263 4
+a266 4
+	buff += itemsize;
+	area += itemsize;
+	char_pos += itemsize;
+    }
+d268 1
+a268 1
+    xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+d270 1
+a270 1
+    return ( i );
+d275 3
+a277 3
+    Byte * buff;
+    int n;
+    int stream;
+d279 1
+a279 1
+    register Byte * bp = buff;
+d281 2
+a282 2
+    int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+    int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+d284 3
+a286 3
+    Byte * area = tw_file[file_num].area;
+    int filesize = tw_file[file_num].size;
+    int i;
+d288 1
+a288 1
+    area += char_pos;
+d290 1
+a290 3
+    for ( i = 1; i < n; i++ )
+    {
+	if ( char_pos >= filesize )
+d292 5
+a296 3
+	    buff = NULL;
+	    break;
+	}
+d298 2
+a299 2
+	*bp++ = *area;
+	char_pos++;
+d301 3
+a303 3
+	if ( *area++ == '\n' )
+	    break;
+    }
+d305 1
+a305 1
+    *bp = 0;
+d307 1
+a307 1
+    xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+d309 1
+a309 1
+    return ( buff );
+d314 1
+a314 1
+    int stream;
+d316 1
+a316 1
+    int buff;
+d318 2
+a319 2
+    int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+    int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+d321 2
+a322 2
+    Byte * area = tw_file[file_num].area;
+    int filesize = tw_file[file_num].size;
+d324 1
+a324 1
+    area += char_pos;
+d326 7
+a332 7
+    if ( char_pos >= filesize )
+	buff = EOF;
+    else
+    {
+	buff = *area;
+	char_pos++;
+    }
+d334 1
+a334 1
+    xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+d336 1
+a336 1
+    return ( buff );
+d341 1
+a341 1
+    int stream;
+d343 3
+a345 3
+    int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+    int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+    int filesize = tw_file[file_num].size;
+d347 2
+a348 2
+    if ( char_pos >= filesize )
+        return ( EOF );
+d350 1
+a350 1
+    return ( FALSE );
+d364 3
+a366 3
+    int stream;
+    char * form;
+    int * var;
+d368 2
+a369 2
+    int file_num = xqting_ocb->sb->stream[stream-1].file_num;
+    int char_pos = xqting_ocb->sb->stream[stream-1].char_pos;
+d371 3
+a373 3
+    Byte * area;
+    int filesize = tw_file[file_num].size;
+    int i = 0;
+d375 4
+a378 4
+    if (char_pos < filesize ) 
+    	area = tw_file[file_num].area + char_pos;
+     else
+	return(EOF); /* bug. open_flag should not have been READ_S */
+d383 2
+a384 6
+    while ( *area == ' ' || *area == '\t' || *area == '\n' &&
+			( char_pos < filesize) )
+    {
+	area++;
+	char_pos++;
+	if ( char_pos >= filesize )
+d386 7
+a392 2
+		i = EOF;
+		break;
+a393 1
+    }
+d395 5
+a399 5
+    if (i != EOF) i = sscanf ( area, form, var );
+    if ( i == EOF )
+    {
+	return (EOF);
+    }
+d405 6
+a410 6
+    while ( *area != 0 && *area != ' ' && *area != '\t' && *area != '\n'
+        && char_pos < filesize )
+    {
+	area++;
+	char_pos++;
+    }
+d412 1
+a412 1
+    xqting_ocb->sb->stream[stream-1].char_pos = char_pos;
+d414 1
+a414 1
+    return ( i );
+d419 1
+a419 1
+    int stream;
+d421 1
+a421 1
+    xqting_ocb->sb->stream[stream-1].open_flag = 0;
+d428 3
+a430 3
+    char * filename;
+    char * name;
+    int * node;
+d432 1
+a432 1
+    register int i;
+d435 1
+a435 1
+    dep ();
+d438 5
+a442 5
+    for ( i = 0; i < MAX_TW_FILES; i++ )
+    {
+	if ( tw_file[i].name[0] == 0 )
+	    break;
+    }
+d444 3
+a446 3
+    if ( i == MAX_TW_FILES )
+    {
+	printf ( "too many files (%d)\n", MAX_TW_FILES );
+d448 1
+a448 1
+	indep ();
+d450 2
+a451 2
+	return;
+    }
+d453 4
+a456 4
+    /* Check to make sure that the provided name is no longer than 
+	FILE_NAME_LENGTH characters long.  Otherwise, complain and
+	return.  The equivalence part of the comparison is because
+	FILE_NAME_LENGTH includes the null, and strlen() doesn't.  */
+d458 4
+a461 4
+    if ( strlen ( name ) >= FILE_NAME_LENGTH )
+    {
+	printf("file name %s too long; shorten to %d characters\n",
+		name, FILE_NAME_LENGTH - 1 );
+d463 1
+a463 1
+	indep ();
+d465 2
+a466 2
+	return;
+    }
+d469 1
+a469 1
+    indep ();
+d472 4
+a475 4
+    strcpy ( tw_file[i].name, name );
+    strcpy ( tw_file[i].filename, filename );
+    tw_file[i].area = NULL;
+    tw_file[i].size = 0;
+d477 4
+a480 4
+    if ( miparm.me == 0 )
+    {
+	obcreate_b ( name, "stdout", *node );
+    }
+d485 2
+a486 2
+    Byte * buff;
+    int stream;
+d488 1
+a488 1
+    TW_STREAM * stream_ptr = &xqting_ocb->sb->stream[stream-1];
+d490 1
+a490 1
+    int file_num = stream_ptr->file_num;
+d492 1
+a492 1
+    char * object_name = tw_file[file_num].name;
+d494 1
+a494 1
+    int len = strlen ( buff );
+d496 1
+a496 1
+    int selector = xqting_ocb->oid + stream_ptr->sequence++;
+d498 1
+a498 1
+    schedule ( object_name, now, selector, len, buff );
+d503 2
+a504 2
+    Byte buff;
+    int stream;
+d506 1
+a506 1
+    TW_STREAM * stream_ptr = &xqting_ocb->sb->stream[stream-1];
+d508 1
+a508 1
+    int file_num = stream_ptr->file_num;
+d510 1
+a510 1
+    char * object_name = tw_file[file_num].name;
+d512 1
+a512 1
+    int len = 1;
+d514 1
+a514 1
+    int selector = xqting_ocb->oid + stream_ptr->sequence++;
+d516 1
+a516 1
+    schedule ( object_name, now, selector, len, &buff );
+d521 1
+a521 1
+*	tw_fprintf()
+d534 1
+a534 1
+    va_list xx;
+d536 3
+a538 3
+    struct _iobuf  stream;
+    unsigned char buf[MAXPKTL];
+    int len;
+d540 6
+a545 6
+    stream._ptr = buf;
+    stream._base = buf;
+    stream._cnt = 0;
+    stream._bufsiz = MAXPKTL;
+    stream._flag = 2;  /* IOWRT */
+    stream._file = 0;
+d547 3
+a549 3
+    va_start(xx);
+    _doprnt(fmt,xx,&stream);
+    va_end(xx);
+d551 2
+a552 2
+    len = MAXPKTL - stream._cnt;
+    buf[len] = 0;
+d554 1
+a554 1
+    tw_fputs ( buf, iostream );
+d560 2
+a561 2
+		arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15,
+		 arg16, arg17, arg18, arg19, arg20)
+d563 5
+a567 5
+    int stream;
+    char * form;
+    int *arg1, *arg2, *arg3, *arg4, *arg5, *arg6, *arg7, *arg8, *arg9,
+        *arg10, *arg11, *arg12, *arg13, *arg14, *arg15, *arg16, *arg17,
+	*arg18, *arg19, *arg20;
+d569 1
+a569 1
+    char buff[MAXPKTL];
+d571 5
+a575 5
+    sprintf ( buff,
+                form, arg1, arg2, arg3, arg4, arg5,
+                arg6, arg7, arg8, arg9, arg10,
+                arg11, arg12, arg13, arg14, arg15, arg16, arg17,
+		arg18, arg19, arg20 );
+d577 1
+a577 1
+    tw_fputs ( buff, stream );
+d584 1
+a584 1
+*	tw_printf()
+d597 1
+a597 1
+    va_list xx;
+d599 4
+a602 4
+    struct _iobuf  stream;
+    unsigned char buf[MAXPKTL];
+    int len;
+    long selector;
+d604 6
+a609 6
+    stream._ptr = buf;
+    stream._base = buf;
+    stream._cnt = 0;
+    stream._bufsiz = MAXPKTL;
+    stream._flag = 2;  /* IOWRT */
+    stream._file = 0;
+d611 3
+a613 3
+    va_start(xx);
+    _doprnt(fmt,xx,&stream);
+    va_end(xx);
+d615 4
+a618 4
+    len = MAXPKTL - stream._cnt;
+    buf[len] = 0;
+    selector = xqting_ocb->oid + xqting_ocb->sb->stdout_sequence++;
+    schedule ( "stdout", now, selector, len+1, buf );
+d624 2
+a625 2
+		arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15,
+		arg16, arg17, arg18, arg19, arg20)
+d627 4
+a630 4
+    char * form;
+    int *arg1, *arg2, *arg3, *arg4, *arg5, *arg6, *arg7, *arg8, *arg9,
+        *arg10, *arg11, *arg12, *arg13, *arg14, *arg15, *arg16, *arg17,
+	*arg18, *arg19, *arg20;
+d632 3
+a634 3
+    char buff[MAXPKTL];
+    int len;
+    long selector;
+d636 5
+a640 5
+    sprintf ( buff,
+                form, arg1, arg2, arg3, arg4, arg5,
+                arg6, arg7, arg8, arg9, arg10,
+                arg11, arg12, arg13, arg14, arg15, arg16, arg17,
+		arg18, arg19, arg20 );
+d642 1
+a642 1
+    len = strlen ( buff );
+d644 1
+a644 1
+    selector = xqting_ocb->oid + xqting_ocb->sb->stdout_sequence++;
+d646 1
+a646 1
+    schedule ( "stdout", now, selector, len+1, buff );
+d653 4
+a656 4
+    char * buff;
+    int size;
+    int nitems;
+    int stream;
+d658 1
+a658 1
+    TW_STREAM * stream_ptr = &xqting_ocb->sb->stream[stream-1];
+d660 1
+a660 1
+    int file_num = stream_ptr->file_num;
+d662 1
+a662 1
+    char * object_name = tw_file[file_num].name;
+d664 1
+a664 1
+    int len = size * nitems;
+d666 1
+a666 1
+    int selector = xqting_ocb->oid + stream_ptr->sequence++;
+d668 1
+a668 1
+    schedule ( object_name, now, selector, len, buff );
+d673 1
+a673 1
+    char * name;
+d675 2
+a676 2
+    FILE * fp;
+    int i;
+d678 5
+a682 5
+    for ( i = 0; i < MAX_TW_FILES; i++ )
+    {
+	if ( strcmp ( name, tw_file[i].name ) == 0 )
+	    break;
+    }
+d684 5
+a688 5
+    if ( i == MAX_TW_FILES )
+    {
+	_pprintf ( "open_output_file: %s not found\n", name );
+	return ( NULL );
+    }
+d690 1
+a690 1
+    fp = HOST_fopen ( tw_file[i].filename, "w" );
+d692 5
+a696 5
+    if ( fp == NULL )
+    {
+	_pprintf ( "can't create file %s\n", tw_file[i].filename );
+	return ( NULL );
+    }
+d698 1
+a698 1
+    _pprintf ( "open_output_file: %s %x\n", tw_file[i].filename, fp );
+d700 1
+a700 1
+    return ( fp );
+d704 1
+a704 1
+#define ALL_F 25	/* Display all streams */
+d710 10
+a719 10
+    for ( i = 0; i < MAX_TW_STREAMS; i++ )
+    {
+     if ( st == ALL_F || st == i )
+      {
+	 _pprintf("stream = %d, file_num= %d, open_flag= %d, char_pos= %d\n",
+         i+1,
+ 	 xqting_ocb->sb->stream[i].file_num,
+ 	 xqting_ocb->sb->stream[i].open_flag,
+ 	 xqting_ocb->sb->stream[i].char_pos );
+      }
+d721 2
+a722 2
+    }
+    return (0);
+@
+
+
+1.5
+log
+@	(1) fix fscanf bugs
+	(2) check file name length
+	(3) add object name to tw_fopen error message
+	(4) fix bug in closing file
+@
+text
+@d3 6
+d169 1
+a169 1
+
+d495 1
+a495 1
+    tell ( object_name, now, selector, len, buff );
+d513 1
+a513 1
+    tell ( object_name, now, selector, len, &buff );
+d615 1
+a615 1
+    tell ( "stdout", now, selector, len+1, buf );
+d643 1
+a643 1
+    tell ( "stdout", now, selector, len+1, buff );
+d665 1
+a665 1
+    tell ( object_name, now, selector, len, buff );
+@
+
+
+1.4
+log
+@fix up len bugs in tw_printf() and tw_fprint()
+@
+text
+@d3 3
+d56 15
+d172 2
+a173 1
+	_pprintf ( "tw_fopen: too many streams (%d)\n", MAX_TW_STREAMS );
+d184 8
+d213 8
+a220 1
+	if ( stream == 0 ) return ( 0 );
+d344 9
+d362 1
+a362 1
+    Byte * area = tw_file[file_num].area;
+d364 1
+a364 1
+    int i;
+d366 4
+a369 1
+    area += char_pos;
+d371 5
+a375 1
+    while ( *area == ' ' || *area == '\t' || *area == '\n' )
+d381 2
+a382 1
+	  return (EOF);
+d386 1
+a386 1
+    i = sscanf ( area, form, var );
+d391 7
+a397 1
+    while ( *area != 0 && *area != ' ' && *area != '\t' && *area != '\n' )
+d412 1
+a412 1
+    xqting_ocb->sb->stream[stream].open_flag = 0;
+d438 15
+@
+
+
+1.3
+log
+@Fix Mark3 path in tw_printf().
+@
+text
+@d3 3
+d457 1
+d470 3
+d534 2
+a535 1
+    len = strlen ( buf );
+@
+
+
+1.2
+log
+@Make tw_printf, tw_fprintf work with varargs.
+@
+text
+@d3 3
+d555 1
+a555 1
+    selector = selectval++;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d14 1
+d432 7
+a438 2
+tw_fprintf ( stream, form, arg1, arg2, arg3, arg4, arg5, arg6,
+		arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15 )
+d440 32
+d475 2
+a476 1
+        *arg10, *arg11, *arg12, *arg13, *arg14, *arg15;
+d478 1
+a478 1
+    char buff[500];
+d483 2
+a484 1
+                arg11, arg12, arg13, arg14, arg15 );
+d489 43
+a531 1
+tw_printf ( form, arg1, arg2, arg3, arg4, arg5, arg6,
+d533 1
+a533 1
+		arg16, arg17, arg18, arg19, arg20 )
+d537 2
+a538 2
+        *arg10, *arg11, *arg12, *arg13, *arg14, *arg15,
+	*arg16, *arg17, *arg18, *arg19, *arg20;
+d540 3
+a542 2
+    char buff[500];
+    int len, selector;
+d547 2
+a548 2
+                arg11, arg12, arg13, arg14, arg15,
+		arg16, arg17, arg18, arg19, arg20 );
+d550 1
+a550 1
+    len = strlen ( buff ) + 1;
+d552 1
+a552 1
+    selector = xqting_ocb->oid + xqting_ocb->sb->stdout_sequence++;
+d554 1
+a554 1
+    tell ( "stdout", now, selector, len, buff );
+d556 2
+@

@@ -1,0 +1,20 @@
+
+	This tape is a copy of twsim 2.7.1 with an additional directory
+called OBJSIZ.  Except for OBJSIZ it is an exact copy with everything
+compiled.
+
+	OBJSIZ contains two versions of tws.h (The standard one called
+tws-1500.h and a new one with the number of objects set to 2500 and
+called tws.h.  It also contains a README.objects which describes the
+changes and a shell script called Compare. read the README.objects.
+
+	The easiest procedure is to untar the OBJSIZ subdirectory
+into your regular twsim directory and then replace tws.h in that
+directory by tws.h in OBJSIZ.  You can always undo this by copying
+OBJSIZ/tws-1500.h to tws.h in the twsim directory.
+
+	The Makefiles in twsim should now make the usual libraries
+with the new tws.h definition of MAX_NUM_OBJECTS.  You can save the
+old libraries under another name before doing this if you want.
+
+

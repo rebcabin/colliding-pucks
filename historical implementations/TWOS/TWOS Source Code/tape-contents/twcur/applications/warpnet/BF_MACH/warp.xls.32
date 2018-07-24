@@ -1,0 +1,848 @@
+Version 2.7
+
+Config File ../balconfig/warp.cfg.32
+
+Elapsed time for this run was 93.45 seconds
+
+
+Node	Obj	E+FT	E-FT	E+FR	E-FR	E+FC	e starts	e cmps	e com	e zap	# ssave	# scom	E Sent	E+RT	E-RT	E+RR	E-RR	cr strts	ds strts	cm cr	cm ds	migr	stmigr	imigr	omigr	sqlen	iqlen	oqlen	sqmax,	iqmax,	oqmax	stforw	ctime	cpu	segmax
+
+0	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+0	93	755	65	855	124	731	667	579	470	124	580	471	934	0	0	0	0	0	0	1	0	0	0	0	0	5	16	8	17	28	20	0	31.836250	44.009813	0
+
+0	31-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001563	0.001563	0
+
+0	25-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001250	0.001250	0
+
+0	43	231	1	202	7	195	187	183	175	7	184	176	245	0	0	0	0	0	0	1	0	0	0	0	0	2	7	2	6	13	8	0	8.400625	8.907875	0
+
+0	131	224	35	213	8	205	249	231	190	8	232	191	257	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	9	12	9	0	7.314125	11.064375	0
+
+0	102	392	6	399	25	374	313	302	288	25	303	289	409	0	0	0	0	0	0	1	0	0	0	0	0	3	13	4	8	20	10	0	13.424812	14.415875	0
+
+Config eposfs 1
+Node 0: Cache Probes 3508, Cache Hits 3502, Cache Misses 6 Hit Ratio 99.83 percent
+Migration Count Node 0: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Page Fault Node	0:	0
+TW node	0	Cluster node	0	Mach node	36	Physical node	0xffffdc80
+Node 0: max msg buffs allocated to free pool = 500
+Node 0: num msg buffs released from free pool = 0
+Node 0: Max Local Time 42162062 for Object 93
+Node 0: No home ask needed for pending entry 0 times
+Node 0: Objects blocked 0 times
+Node 0: Homeasks sent 0 Homeasks received 15
+Node 0: Homeans sent 15 Homeans received 0
+
+1	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+2	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+4	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+5	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+3	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+6	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+23	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+15	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+17	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+31	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+8	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+19	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+7	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+18	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+16	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+27	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+21	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+20	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+10	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+24	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+9	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+25	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+11	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+12	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+22	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+29	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+13	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+28	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+14	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+26	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+30	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000	0.000000	0
+
+1	101	791	103	686	48	638	599	493	364	48	494	365	1016	0	0	0	0	0	0	1	0	0	0	0	0	5	17	10	11	29	22	0	31.149500	45.405813	0
+
+2	73	707	85	713	89	624	694	591	445	89	592	446	865	0	0	0	0	0	0	1	0	0	0	0	0	6	13	8	12	24	19	0	29.487375	39.890875	0
+
+4	67	730	73	766	92	674	748	654	501	92	655	502	937	0	0	0	0	0	0	1	0	0	0	0	0	7	18	8	15	31	18	0	27.255125	37.633250	0
+
+5	74	679	104	677	105	572	670	562	396	105	563	397	866	0	0	0	0	0	0	1	0	0	0	0	0	6	13	8	12	35	19	0	26.804375	40.671875	0
+
+3	71	750	68	751	75	676	784	682	501	75	683	502	999	0	0	0	0	0	0	1	0	0	0	0	0	7	18	9	16	27	18	0	29.388750	42.878250	0
+
+6	110	673	62	728	59	669	701	607	456	59	608	457	862	0	0	0	0	0	0	1	0	0	0	0	0	7	14	9	14	27	18	0	26.536438	37.884000	0
+
+23	40	462	44	436	12	424	420	388	312	12	389	313	532	0	0	0	0	0	0	1	0	0	0	0	0	5	9	6	10	20	15	0	16.889187	21.896937	0
+
+15	125	333	3	309	4	305	242	236	220	4	237	221	359	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	10	19	11	0	11.034625	12.001375	0
+
+17	20	316	10	305	16	289	280	270	240	16	271	241	347	0	0	0	0	0	0	1	0	0	0	0	0	5	12	5	15	25	16	0	11.155313	12.328125	0
+
+31	79	137	4	155	9	146	154	154	139	9	155	140	146	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	7	10	7	0	3.076563	3.248375	0
+
+8	66	634	66	645	69	576	629	543	393	69	544	394	797	0	0	0	0	0	0	1	0	0	0	0	0	6	14	8	16	26	20	0	26.154250	34.427875	0
+
+19	94	551	68	547	62	485	680	609	400	62	610	401	781	0	0	0	0	0	0	1	0	0	0	0	0	6	13	8	16	22	18	0	21.593375	31.699125	0
+
+7	69	668	79	684	107	577	690	576	416	107	577	417	870	0	0	0	0	0	0	1	0	0	0	0	0	6	14	8	12	26	21	0	26.452813	39.499500	0
+
+18	89	220	6	206	3	203	217	211	186	3	212	187	254	0	0	0	0	0	0	1	0	0	0	0	0	3	8	3	10	16	9	0	6.774563	7.553000	0
+
+16	100	277	5	243	10	233	245	239	214	10	240	215	303	0	0	0	0	0	0	1	0	0	0	0	0	4	8	4	8	15	10	0	11.021625	12.055250	0
+
+27	23	532	67	523	77	446	573	514	357	77	515	358	637	0	0	0	0	0	0	1	0	0	0	0	0	7	17	8	14	30	16	0	19.994688	27.329937	0
+
+21	21	288	19	311	18	293	292	279	234	18	280	235	325	0	0	0	0	0	0	1	0	0	0	0	0	4	7	4	9	20	13	0	11.473062	13.919625	0
+
+20	37	465	42	485	48	437	480	421	317	48	422	318	565	0	0	0	0	0	0	1	0	0	0	0	0	5	9	6	10	20	14	0	16.641250	22.416500	0
+
+10	70	688	110	680	87	593	752	637	438	87	638	439	873	0	0	0	0	0	0	1	0	0	0	0	0	6	13	8	13	23	19	0	25.802750	39.071688	0
+
+24	84	78	0	75	1	74	81	81	72	1	82	73	93	0	0	0	0	0	0	1	0	0	0	0	0	2	2	1	6	7	7	0	1.509500	1.631875	0
+
+9	130	218	5	244	19	225	220	219	192	19	220	193	236	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	8	13	9	0	7.220313	7.722313	0
+
+25	36	578	54	520	23	497	544	495	351	23	496	352	747	0	0	0	0	0	0	1	0	0	0	0	0	6	14	7	12	28	17	0	20.213250	27.402250	0
+
+11	72	623	55	637	66	571	686	592	423	66	593	424	810	0	0	0	0	0	0	1	0	0	0	0	0	6	11	8	14	22	17	0	25.790813	36.265313	0
+
+12	35	421	14	463	40	423	402	368	317	40	369	318	494	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	10	19	13	0	15.564687	18.069813	0
+
+22	99	315	7	333	12	321	310	288	248	12	289	249	350	0	0	0	0	0	0	1	0	0	0	0	0	4	7	5	10	17	12	0	11.994750	13.613125	0
+
+29	38	487	41	485	39	446	490	449	350	39	450	351	584	0	0	0	0	0	0	1	0	0	0	0	0	5	9	6	12	19	14	0	17.929063	23.290187	0
+
+13	97	637	47	584	53	531	506	466	364	53	467	365	747	0	0	0	0	0	0	1	0	0	0	0	0	5	15	8	13	32	15	0	23.898500	30.460125	0
+
+14	53	460	27	419	11	408	447	425	325	11	426	326	574	0	0	0	0	0	0	1	0	0	0	0	0	5	15	7	14	25	17	0	15.962188	20.494312	0
+
+28	39	460	20	489	45	444	424	382	341	45	383	342	531	0	0	0	0	0	0	1	0	0	0	0	0	5	9	5	11	20	15	0	17.750937	22.458063	0
+
+26	98	342	20	336	6	330	337	316	269	6	317	270	406	0	0	0	0	0	0	1	0	0	0	0	0	5	8	5	12	18	14	0	11.681625	15.166250	0
+
+30	80	128	7	128	3	125	134	130	121	3	131	122	139	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	6	8	7	0	2.425500	2.683125	0
+
+1	64	325	5	309	35	274	282	277	248	35	278	249	355	0	0	0	0	0	0	1	0	0	0	0	0	4	11	4	9	17	11	0	13.453938	14.125250	0
+
+2	132	244	15	256	23	233	253	244	205	23	245	206	293	0	0	0	0	0	0	1	0	0	0	0	0	3	4	3	9	11	12	0	8.112500	9.503813	0
+
+4	3-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001938	0.001938	0
+
+5	126	328	7	323	7	316	311	297	258	7	298	259	375	0	0	0	0	0	0	1	0	0	0	0	0	5	8	5	12	15	11	0	10.652062	12.369063	0
+
+3	20-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001250	0.001250	0
+
+6	5	138	2	145	1	144	143	143	128	1	144	129	158	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	6	9	7	0	4.302437	4.658563	0
+
+23	82	76	1	79	1	78	76	74	72	1	75	73	79	0	0	0	0	0	0	1	0	0	0	0	0	2	2	1	5	7	5	0	1.375750	1.405437	0
+
+15	105	664	99	692	65	627	823	724	468	65	725	469	896	0	0	0	0	0	0	1	0	0	0	0	0	7	17	8	14	29	19	0	23.081813	37.445125	0
+
+17	24	543	78	527	63	464	450	397	320	63	398	321	608	0	0	0	0	0	0	1	0	0	0	0	0	5	11	7	11	20	16	0	22.010250	29.493063	0
+
+31	85	86	0	85	0	85	85	85	83	0	86	84	86	0	0	0	0	0	0	1	0	0	0	0	0	2	2	1	5	8	6	0	1.679688	1.682000	0
+
+8	14	375	28	406	40	366	386	355	267	40	356	268	478	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	10	22	13	0	15.199188	19.325625	0
+
+19	15	297	35	282	25	257	315	289	216	25	290	217	388	0	0	0	0	0	0	1	0	0	0	0	0	4	7	5	11	17	18	0	11.223812	14.607062	0
+
+7	133	283	9	294	20	274	255	246	223	20	247	224	302	0	0	0	0	0	0	1	0	0	0	0	0	3	6	3	10	15	11	0	10.273000	11.048438	0
+
+18	34	443	32	444	23	421	438	416	343	23	417	344	513	0	0	0	0	0	0	1	0	0	0	0	0	5	9	6	11	18	16	0	16.351063	20.225375	0
+
+16	62	206	14	237	10	227	251	234	191	10	235	192	258	0	0	0	0	0	0	1	0	0	0	0	0	3	4	3	9	11	12	0	6.575125	8.844062	0
+
+27	1	146	2	151	7	144	144	142	136	7	143	137	152	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	8	14	9	0	4.278313	4.454250	0
+
+21	113	586	49	587	36	551	585	521	390	36	522	391	716	0	0	0	0	0	0	1	0	0	0	0	0	6	13	8	12	22	15	0	21.335438	28.722562	0
+
+20	108	543	68	447	52	395	545	487	348	52	488	349	684	0	0	0	0	0	0	1	0	0	0	0	0	6	10	8	12	16	15	0	21.369937	30.162250	0
+
+10	8	178	1	183	3	180	176	172	158	3	173	159	196	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	8	12	11	0	5.631125	5.996125	0
+
+24	88	139	1	129	1	128	125	121	116	1	122	117	144	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	9	12	13	0	3.159438	3.196563	0
+
+9	124	440	9	456	23	433	356	346	321	23	347	322	470	0	0	0	0	0	0	1	0	0	0	0	0	4	10	5	9	24	17	0	15.319187	16.923938	0
+
+25	81	99	1	103	3	100	100	99	94	3	100	95	101	0	0	0	0	0	0	1	0	0	0	0	0	2	3	1	5	7	7	0	2.064687	2.082125	0
+
+11	91	294	11	290	9	281	302	293	246	9	294	247	349	0	0	0	0	0	0	1	0	0	0	0	0	4	6	4	9	14	12	0	8.876375	10.790938	0
+
+12	68	680	96	655	68	587	740	651	473	68	652	474	865	0	0	0	0	0	0	1	0	0	0	0	0	6	14	8	12	25	23	0	25.559750	36.997875	0
+
+22	25	417	60	401	49	352	393	353	274	49	354	275	452	0	0	0	0	0	0	1	0	0	0	0	0	5	8	6	9	16	12	0	16.715875	21.738875	0
+
+29	29	504	60	452	40	412	533	486	325	40	487	326	661	0	0	0	0	0	0	1	0	0	0	0	0	6	17	8	17	27	16	0	19.828250	27.283938	0
+
+13	6	156	1	154	1	153	149	147	142	1	148	143	160	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	7	12	7	0	5.073437	5.307688	0
+
+14	28	605	69	635	80	555	575	515	383	80	516	384	739	0	0	0	0	0	0	1	0	0	0	0	0	7	13	8	15	24	21	0	23.667500	31.933625	0
+
+28	92	577	43	658	66	592	554	500	391	66	501	392	733	0	0	0	0	0	0	1	0	0	0	0	0	5	14	7	10	27	13	0	19.836875	27.804813	0
+
+26	3	151	12	140	1	139	146	141	124	1	142	125	164	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	8	13	10	0	4.507750	5.561687	0
+
+30	86	106	0	112	1	111	112	111	100	1	112	101	124	0	0	0	0	0	0	1	0	0	0	0	0	2	3	2	7	10	10	0	2.312125	2.487875	0
+
+1	16-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001250	0.001250	0
+
+2	50	340	15	354	28	326	247	232	197	28	233	198	381	0	0	0	0	0	0	1	0	0	0	0	0	3	8	4	9	17	15	0	13.640937	15.368875	0
+
+4	54	164	4	151	8	143	151	143	125	8	144	126	186	0	0	0	0	0	0	1	0	0	0	0	0	2	3	2	9	11	11	0	5.535312	6.239500	0
+
+5	0	161	7	159	2	157	176	170	146	2	171	147	183	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	8	10	9	0	4.540188	5.483937	0
+
+3	27-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001313	0.001313	0
+
+6	119	275	25	284	17	267	299	273	227	17	274	228	318	0	0	0	0	0	0	1	0	0	0	0	0	4	5	3	11	17	12	0	10.803750	13.820562	0
+
+23	78	153	5	142	7	135	144	142	130	7	143	131	160	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	7	9	7	0	3.455875	3.578750	0
+
+15	111	426	14	422	19	403	425	404	367	19	405	368	465	0	0	0	0	0	0	1	0	0	0	0	0	6	12	6	12	20	12	0	16.100250	18.724625	0
+
+17	112	441	24	429	33	396	494	453	354	33	454	355	544	0	0	0	0	0	0	1	0	0	0	0	0	6	12	6	12	21	14	0	16.303062	21.784625	0
+
+31	107	455	15	352	21	331	367	350	319	21	351	320	497	0	0	0	0	0	0	1	0	0	0	0	0	6	8	7	12	16	15	0	18.665750	21.346375	0
+
+8	13-init	6	0	1	0	1	1	1	1	0	2	2	6	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001563	0.001563	0
+
+19	18-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001438	0.001438	0
+
+7	129	176	2	180	8	172	159	157	143	8	158	144	197	0	0	0	0	0	0	1	0	0	0	0	0	2	3	2	9	13	9	0	6.232750	7.013813	0
+
+18	17	278	9	280	16	264	248	242	224	16	243	225	299	0	0	0	0	0	0	1	0	0	0	0	0	4	7	4	10	15	11	0	11.407250	12.384750	0
+
+16	26	542	58	579	79	500	523	471	356	79	472	357	614	0	0	0	0	0	0	1	0	0	0	0	0	6	12	8	12	24	17	0	22.595312	28.994875	0
+
+27	120	461	41	439	42	397	440	397	285	42	398	286	588	0	0	0	0	0	0	1	0	0	0	0	0	5	18	7	13	33	22	0	17.683500	25.147125	0
+
+21	9	183	1	192	2	190	173	172	164	2	173	165	190	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	7	15	9	0	5.617063	5.797625	0
+
+1	30-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001188	0.001188	0
+
+20	51	316	38	306	17	289	281	256	198	17	257	199	370	0	0	0	0	0	0	1	0	0	0	0	0	3	7	5	8	15	15	0	11.533687	14.805687	0
+
+10	10	295	17	298	9	289	284	265	225	9	266	226	349	0	0	0	0	0	0	1	0	0	0	0	0	4	6	4	10	16	12	0	10.349875	12.031500	0
+
+24	46	352	24	340	5	335	277	255	198	5	256	199	388	0	0	0	0	0	0	1	0	0	0	0	0	3	7	5	7	16	14	0	12.461187	14.652188	0
+
+9	106	699	88	782	124	658	712	614	439	124	615	440	909	0	0	0	0	0	0	1	0	0	0	0	0	6	15	8	14	27	17	0	26.118000	39.358500	0
+
+25	87	131	1	133	0	133	132	130	124	0	131	125	140	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	9	11	9	0	2.917063	3.167063	0
+
+11	58	224	14	247	23	224	227	208	161	23	209	162	250	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	9	16	14	0	8.349562	9.877187	0
+
+12	61	176	7	178	20	158	176	165	133	20	166	134	231	0	0	0	0	0	0	1	0	0	0	0	0	2	4	2	8	11	10	0	5.920063	7.193437	0
+
+22	27	568	70	567	83	484	637	556	341	83	557	342	763	0	0	0	0	0	0	1	0	0	0	0	0	6	19	9	17	31	17	0	20.911687	31.228938	0
+
+29	4	139	0	148	8	140	129	129	125	8	130	126	143	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	7	9	7	0	4.428438	4.435625	0
+
+13	52	399	26	405	43	362	346	317	259	43	318	260	450	0	0	0	0	0	0	1	0	0	0	0	0	4	8	5	9	18	12	0	15.809375	19.396812	0
+
+14	13	255	11	244	11	233	234	219	194	11	220	195	290	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	8	14	11	0	10.812938	13.185875	0
+
+28	83	73	1	72	1	71	68	68	67	1	69	68	73	0	0	0	0	0	0	1	0	0	0	0	0	2	2	1	5	7	6	0	1.458938	1.461625	0
+
+2	56	237	5	267	19	248	216	207	182	19	208	183	279	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	8	15	13	0	9.069812	10.026813	0
+
+26	117	553	87	463	21	442	512	455	335	21	456	336	676	0	0	0	0	0	0	1	0	0	0	0	0	6	19	8	11	35	17	0	20.142563	29.624813	0
+
+30	65	508	63	509	30	479	529	467	352	30	468	353	607	0	0	0	0	0	0	1	0	0	0	0	0	5	10	7	10	18	15	0	18.785937	25.482937	0
+
+1	30	223	2	192	3	189	191	188	173	3	189	174	238	0	0	0	0	0	0	1	0	0	0	0	0	3	11	3	7	20	10	0	8.506687	8.674625	0
+
+2	29-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001313	0.001313	0
+
+4	123	403	29	377	13	364	352	330	272	13	331	273	511	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	16	19	17	0	14.581687	20.118188	0
+
+5	1-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001750	0.001750	0
+
+3	90	256	5	266	8	258	254	244	220	8	245	221	282	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	9	14	10	0	7.555750	8.578125	0
+
+6	134	23	0	27	0	27	32	31	27	0	32	28	33	0	0	0	0	0	0	1	0	0	0	0	0	1	0	0	3	4	4	0	0.214750	0.288750	0
+
+23	109	548	32	643	33	610	644	601	451	33	602	452	693	0	0	0	0	0	0	1	0	0	0	0	0	7	14	8	13	29	17	0	20.681313	27.261750	0
+
+15	7	172	2	168	0	168	158	156	146	0	157	147	185	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	8	14	11	0	5.232563	5.912625	0
+
+17	127	208	9	225	15	210	220	208	181	15	209	182	230	0	0	0	0	0	0	1	0	0	0	0	0	3	4	2	7	15	9	0	6.944813	8.016687	0
+
+4	103	334	7	364	8	356	430	400	297	8	401	298	452	0	0	0	0	0	0	1	0	0	0	0	0	4	8	5	11	20	13	0	10.370938	13.637125	0
+
+31	121	378	49	349	16	333	427	399	277	16	400	278	510	0	0	0	0	0	0	1	0	0	0	0	0	5	8	5	14	18	13	0	12.685438	20.672687	0
+
+8	128	203	20	184	5	179	223	207	156	5	208	157	286	0	0	0	0	0	0	1	0	0	0	0	0	3	4	4	11	14	20	0	6.383375	9.141063	0
+
+19	23-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001125	0.001125	0
+
+7	122	389	14	409	42	367	368	350	307	42	351	308	445	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	11	22	16	0	15.081563	17.063750	0
+
+18	11-init	6	0	1	0	1	1	1	1	0	2	2	6	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001688	0.001688	0
+
+16	114	432	37	423	29	394	483	449	349	29	450	350	526	0	0	0	0	0	0	1	0	0	0	0	0	6	11	6	11	22	12	0	16.235875	21.875250	0
+
+27	31	312	10	337	11	326	322	305	265	11	306	266	346	0	0	0	0	0	0	1	0	0	0	0	0	4	6	4	9	14	12	0	11.886437	13.643375	0
+
+21	2-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.002500	0.002500	0
+
+1	60	244	36	224	7	217	245	222	162	7	223	163	281	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	9	17	16	0	7.993500	11.010563	0
+
+20	5-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001875	0.001875	0
+
+10	14-init	6	0	1	0	1	1	1	1	0	2	2	6	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001625	0.001625	0
+
+24	12	398	22	436	42	394	355	328	269	42	329	270	450	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	11	22	15	0	17.091188	20.593250	0
+
+5	15-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001250	0.001250	0
+
+9	47	264	2	291	27	264	211	205	187	27	206	188	272	0	0	0	0	0	0	1	0	0	0	0	0	3	6	3	8	14	9	0	9.841125	10.096687	0
+
+25	77	300	13	283	28	255	402	367	229	28	368	230	443	0	0	0	0	0	0	1	0	0	0	0	0	5	15	6	17	23	21	0	12.540688	15.473750	0
+
+11	26-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001250	0.001250	0
+
+12	49	254	7	293	25	268	214	207	177	25	208	178	281	0	0	0	0	0	0	1	0	0	0	0	0	3	6	3	6	14	10	0	10.244125	11.234000	0
+
+22	2	139	6	145	6	139	148	142	123	6	143	124	154	0	0	0	0	0	0	1	0	0	0	0	0	3	3	2	7	11	11	0	4.091750	4.694875	0
+
+29	11	262	9	260	11	249	238	224	198	11	225	199	297	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	9	12	12	0	11.740875	14.149938	0
+
+13	42	318	19	319	8	311	308	287	247	8	288	248	357	0	0	0	0	0	0	1	0	0	0	0	0	4	5	3	10	16	12	0	10.879188	13.307500	0
+
+14	59	159	7	162	15	147	137	127	115	15	128	116	170	0	0	0	0	0	0	1	0	0	0	0	0	2	3	2	6	11	9	0	5.481750	6.429625	0
+
+28	63	116	0	104	1	103	103	103	101	1	104	102	118	0	0	0	0	0	0	1	0	0	0	0	0	2	2	1	5	6	7	0	3.418375	3.443188	0
+Node 2: Cache Probes 3358, Cache Hits 3339, Cache Misses 19 Hit Ratio 99.43 percent
+
+26	6-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001875	0.001875	0
+
+3	45	274	17	263	16	247	265	251	212	16	252	213	307	0	0	0	0	0	0	1	0	0	0	0	0	3	5	3	9	14	13	0	8.718188	10.337000	0
+
+30	22	495	65	506	58	448	502	452	320	58	453	321	607	0	0	0	0	0	0	1	0	0	0	0	0	6	12	8	12	24	24	0	18.133750	24.136312	0
+Node 1: Cache Probes 3198, Cache Hits 3176, Cache Misses 22 Hit Ratio 99.31 percent
+Migration Count Node 2: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Node 4: Cache Probes 3487, Cache Hits 3465, Cache Misses 22 Hit Ratio 99.37 percent
+
+5	116	381	15	408	44	364	360	323	267	44	324	268	447	0	0	0	0	0	0	1	0	0	0	0	0	4	9	5	9	19	13	0	14.584437	17.841875	0
+
+3	96	357	11	343	33	310	341	329	281	33	330	282	387	0	0	0	0	0	0	1	0	0	0	0	0	4	11	4	10	17	11	0	14.142375	15.561813	0
+
+6	41	388	13	410	26	384	376	344	294	26	345	295	446	0	0	0	0	0	0	1	0	0	0	0	0	4	7	5	10	19	11	0	14.725375	17.179437	0
+
+23	118	288	13	299	27	272	268	252	228	27	253	229	320	0	0	0	0	0	0	1	0	0	0	0	0	4	6	4	9	16	12	0	12.032687	13.687750	0
+
+15	8-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001875	0.001875	0
+
+17	19-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001125	0.001125	0
+Migration Count Node 4: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+
+31	76	511	65	547	42	505	702	638	397	42	639	398	693	0	0	0	0	0	0	1	0	0	0	0	0	7	16	8	18	27	24	0	18.370125	25.858187	0
+Node 6: Cache Probes 3241, Cache Hits 3226, Cache Misses 15 Hit Ratio 99.54 percent
+
+8	104	292	10	274	1	273	427	396	251	1	397	252	483	0	0	0	0	0	0	1	0	0	0	0	0	4	13	6	17	19	23	0	10.329750	15.203750	0
+
+19	33	434	31	421	22	399	448	408	317	22	409	318	555	0	0	0	0	0	0	1	0	0	0	0	0	5	8	7	13	17	16	0	16.540063	21.590438	0
+
+7	9-init	6	0	1	0	1	1	1	1	0	2	2	6	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001813	0.001813	0
+
+18	18	523	49	537	56	481	467	418	321	56	419	322	621	0	0	0	0	0	0	1	0	0	0	0	0	6	11	7	12	22	15	0	21.676562	27.853562	0
+
+16	10-init	6	0	1	0	1	1	1	1	0	2	2	6	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001813	0.001813	0
+
+27	135	23	0	28	0	28	28	28	28	0	29	29	23	0	0	0	0	0	0	1	0	0	0	0	0	1	0	0	4	4	2	0	0.250875	0.250875	0
+
+21	19	445	47	460	44	416	490	446	321	44	447	322	555	0	0	0	0	0	0	1	0	0	0	0	0	6	11	7	11	20	15	0	16.683563	22.919563	0
+Migration Count Node 1: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+
+20	55	160	11	145	3	142	150	146	125	3	147	126	179	0	0	0	0	0	0	1	0	0	0	0	0	2	3	2	6	11	8	0	5.113625	5.900437	0
+
+10	32	389	14	408	26	382	346	329	290	26	330	291	426	0	0	0	0	0	0	1	0	0	0	0	0	4	8	5	10	15	12	0	15.334750	17.278000	0
+
+24	75	557	88	551	81	470	755	654	356	81	655	357	848	0	0	0	0	0	0	1	0	0	0	0	0	7	11	8	19	27	25	0	20.372375	30.645125	0
+Node 5: Cache Probes 3376, Cache Hits 3351, Cache Misses 25 Hit Ratio 99.26 percent
+Node 23: Cache Probes 3246, Cache Hits 3230, Cache Misses 16 Hit Ratio 99.51 percent
+
+9	17-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001188	0.001188	0
+
+25	16	420	34	440	42	398	379	353	288	42	354	289	477	0	0	0	0	0	0	1	0	0	0	0	0	5	10	6	14	23	17	0	17.161062	20.981188	0
+
+11	22-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001250	0.001250	0
+
+12	12-init	6	0	1	0	1	1	1	1	0	2	2	6	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001625	0.001625	0
+
+22	136	77	0	79	1	78	80	78	76	1	79	77	82	0	0	0	0	0	0	1	0	0	0	0	0	1	1	0	5	7	6	0	1.169125	1.281125	0
+
+29	0-init	8	0	1	0	1	1	1	1	0	2	2	8	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	1	0	0	0.001875	0.001875	0
+
+13	7-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001938	0.001938	0
+
+14	4-init	7	0	1	0	1	1	1	1	0	2	2	7	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001938	0.001938	0
+
+28	44	379	10	389	20	369	345	329	281	20	330	282	434	0	0	0	0	0	0	1	0	0	0	0	0	4	11	5	10	23	14	0	12.098500	13.762187	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+
+26	21-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001313	0.001313	0
+Node 3: Cache Probes 3459, Cache Hits 3436, Cache Misses 23 Hit Ratio 99.34 percent
+Node 15: Cache Probes 3356, Cache Hits 3333, Cache Misses 23 Hit Ratio 99.31 percent
+
+30	48	365	46	336	10	326	273	256	189	10	257	190	405	0	0	0	0	0	0	1	0	0	0	0	0	4	7	5	7	17	13	0	13.108438	16.804813	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Page Fault Node	2:	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Migration Count Node 5: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 3: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 6: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 23: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 15: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+
+17	28-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001563	0.001563	0
+Page Fault Node	4:	0
+Node 31: Cache Probes 3221, Cache Hits 3206, Cache Misses 15 Hit Ratio 99.53 percent
+Node 17: Cache Probes 3207, Cache Hits 3185, Cache Misses 22 Hit Ratio 99.31 percent
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 8: Cache Probes 3215, Cache Hits 3195, Cache Misses 20 Hit Ratio 99.38 percent
+
+19	57	192	19	170	6	164	182	174	136	6	175	137	237	0	0	0	0	0	0	1	0	0	0	0	0	3	4	3	8	11	12	0	6.964375	8.909562	0
+Node 7: Cache Probes 3327, Cache Hits 3308, Cache Misses 19 Hit Ratio 99.43 percent
+Node 18: Cache Probes 2785, Cache Hits 2768, Cache Misses 17 Hit Ratio 99.39 percent
+Node 16: Cache Probes 3144, Cache Hits 3123, Cache Misses 21 Hit Ratio 99.33 percent
+Node 27: Cache Probes 2860, Cache Hits 2845, Cache Misses 15 Hit Ratio 99.48 percent
+Node 21: Cache Probes 3052, Cache Hits 3033, Cache Misses 19 Hit Ratio 99.38 percent
+Page Fault Node	1:	0
+Node 20: Cache Probes 3110, Cache Hits 3089, Cache Misses 21 Hit Ratio 99.32 percent
+Node 10: Cache Probes 3349, Cache Hits 3328, Cache Misses 21 Hit Ratio 99.37 percent
+Node 24: Cache Probes 3265, Cache Hits 3248, Cache Misses 17 Hit Ratio 99.48 percent
+Migration Count Node 31: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+
+9	24-init	4	0	1	0	1	1	1	1	0	2	2	4	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	1	0	0	0	0.001313	0.001313	0
+
+11	115	413	29	417	28	389	350	329	277	28	330	278	471	0	0	0	0	0	0	1	0	0	0	0	0	4	9	6	11	19	16	0	15.504687	18.924625	0
+Node 25: Cache Probes 3151, Cache Hits 3134, Cache Misses 17 Hit Ratio 99.46 percent
+Node 12: Cache Probes 3359, Cache Hits 3343, Cache Misses 16 Hit Ratio 99.52 percent
+Node 22: Cache Probes 3280, Cache Hits 3263, Cache Misses 17 Hit Ratio 99.48 percent
+Node 29: Cache Probes 2910, Cache Hits 2889, Cache Misses 21 Hit Ratio 99.28 percent
+Node 13: Cache Probes 3134, Cache Hits 3112, Cache Misses 22 Hit Ratio 99.30 percent
+Node 14: Cache Probes 3134, Cache Hits 3109, Cache Misses 25 Hit Ratio 99.20 percent
+Node 28: Cache Probes 3469, Cache Hits 3450, Cache Misses 19 Hit Ratio 99.45 percent
+TW node	2	Cluster node	2	Mach node	44	Physical node	0xffffdc80
+Migration Count Node 8: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+
+26	95	485	66	481	32	449	601	538	373	32	539	374	632	0	0	0	0	0	0	1	0	0	0	0	0	6	10	7	13	19	13	0	17.639125	26.067563	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 30: Cache Probes 3421, Cache Hits 3404, Cache Misses 17 Hit Ratio 99.50 percent
+TW node	1	Cluster node	1	Mach node	38	Physical node	0xffffdc80
+Node 2: max msg buffs allocated to free pool = 500
+TW node	4	Cluster node	4	Mach node	50	Physical node	0xffffdc80
+Page Fault Node	5:	0
+Page Fault Node	3:	0
+Page Fault Node	6:	0
+Page Fault Node	23:	0
+Page Fault Node	15:	0
+Node 19: Cache Probes 3127, Cache Hits 3108, Cache Misses 19 Hit Ratio 99.39 percent
+Migration Count Node 17: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Node 4: max msg buffs allocated to free pool = 500
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+TW node	6	Cluster node	6	Mach node	244	Physical node	0xffffdc80
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Migration Count Node 19: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 7: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 18: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 16: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Migration Count Node 27: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 21: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Node 1: max msg buffs allocated to free pool = 500
+Migration Count Node 20: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 10: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 24: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Page Fault Node	31:	0
+TW node	5	Cluster node	5	Mach node	188	Physical node	0xffffdc80
+TW node	23	Cluster node	23	Mach node	162	Physical node	0xffffdc80
+Node 9: Cache Probes 3657, Cache Hits 3631, Cache Misses 26 Hit Ratio 99.29 percent
+Node 11: Cache Probes 3345, Cache Hits 3324, Cache Misses 21 Hit Ratio 99.37 percent
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Migration Count Node 25: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 12: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 22: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 29: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 13: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 14: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 28: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Node 2: num msg buffs released from free pool = 0
+Page Fault Node	8:	0
+Node 26: Cache Probes 3165, Cache Hits 3139, Cache Misses 26 Hit Ratio 99.18 percent
+TW node	3	Cluster node	3	Mach node	48	Physical node	0xffffdc80
+TW node	15	Cluster node	15	Mach node	112	Physical node	0xffffdc80
+Migration Count Node 30: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 1: num msg buffs released from free pool = 0
+Node 2: Max Local Time 42123187 for Object 73
+Node 4: num msg buffs released from free pool = 0
+Node 5: max msg buffs allocated to free pool = 500
+Node 3: max msg buffs allocated to free pool = 500
+Node 6: max msg buffs allocated to free pool = 500
+Node 23: max msg buffs allocated to free pool = 500
+Node 15: max msg buffs allocated to free pool = 500
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Page Fault Node	17:	0
+Node 4: Max Local Time 42085187 for Object 67
+TW node	31	Cluster node	31	Mach node	18	Physical node	0xffffdc80
+TW node	17	Cluster node	17	Mach node	246	Physical node	0xffffdc80
+Node 6: num msg buffs released from free pool = 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+TW node	8	Cluster node	8	Mach node	220	Physical node	0xffffdc80
+Page Fault Node	19:	0
+Page Fault Node	7:	0
+Page Fault Node	18:	0
+Page Fault Node	16:	0
+TW node	7	Cluster node	7	Mach node	144	Physical node	0xffffdc80
+Page Fault Node	27:	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 1: Max Local Time 42137312 for Object 101
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Page Fault Node	21:	0
+Node 31: max msg buffs allocated to free pool = 500
+Node 5: num msg buffs released from free pool = 0
+Node 23: num msg buffs released from free pool = 0
+Migration Count Node 9: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Migration Count Node 11: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+TW node	18	Cluster node	18	Mach node	196	Physical node	0xffffdc80
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Page Fault Node	20:	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 2: No home ask needed for pending entry 0 times
+Node 8: max msg buffs allocated to free pool = 500
+Migration Count Node 26: Migrations In 0, Migrations Out 0, Routing Faults 0, States Out 0, States In 0, States Not Sent 0
+Node 3: num msg buffs released from free pool = 0
+Node 15: num msg buffs released from free pool = 0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+TW node	16	Cluster node	16	Mach node	52	Physical node	0xffffdc80
+Node 1: No home ask needed for pending entry 0 times
+Node 2: Objects blocked 0 times
+Page Fault Node	10:	0
+Node 4: No home ask needed for pending entry 0 times
+Node 5: Max Local Time 42145625 for Object 74
+Node 3: Max Local Time 42064687 for Object 71
+Node 6: Max Local Time 41942125 for Object 5
+Node 23: Max Local Time 42512500 for Object 82
+Node 15: Max Local Time 41933375 for Object 7
+TW node	19	Cluster node	19	Mach node	124	Physical node	0xffffdc80
+Node 17: max msg buffs allocated to free pool = 500
+Node 4: Objects blocked 0 times
+Node 31: num msg buffs released from free pool = 0
+Node 17: num msg buffs released from free pool = 0
+Node 6: No home ask needed for pending entry 0 times
+Page Fault Node	24:	0
+TW node	27	Cluster node	27	Mach node	200	Physical node	0xffffdc80
+Node 8: num msg buffs released from free pool = 0
+Node 19: max msg buffs allocated to free pool = 500
+Node 7: max msg buffs allocated to free pool = 500
+Node 18: max msg buffs allocated to free pool = 500
+Node 16: max msg buffs allocated to free pool = 500
+Node 7: num msg buffs released from free pool = 0
+Node 27: max msg buffs allocated to free pool = 500
+TW node	21	Cluster node	21	Mach node	168	Physical node	0xffffdc80
+Node 1: Objects blocked 0 times
+TW node	20	Cluster node	20	Mach node	176	Physical node	0xffffdc80
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+TW node	10	Cluster node	10	Mach node	214	Physical node	0xffffdc80
+TW node	24	Cluster node	24	Mach node	152	Physical node	0xffffdc80
+Node 21: max msg buffs allocated to free pool = 500
+Node 31: Max Local Time 42505000 for Object 79
+Node 5: No home ask needed for pending entry 0 times
+Node 23: No home ask needed for pending entry 0 times
+Page Fault Node	9:	0
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 18: num msg buffs released from free pool = 0
+Page Fault Node	25:	0
+Page Fault Node	12:	0
+Page Fault Node	22:	0
+TW node	25	Cluster node	25	Mach node	160	Physical node	0xffffdc80
+Page Fault Node	29:	0
+Page Fault Node	13:	0
+Node 20: max msg buffs allocated to free pool = 500
+Page Fault Node	14:	0
+Page Fault Node	28:	0
+Node 2: Homeasks sent 14 Homeasks received 13
+Node 8: Max Local Time 41943625 for Object 104
+Load Stats: Cycles 0, Imbalances 0, Phase Not Chosen 0
+Node 3: No home ask needed for pending entry 0 times
+Node 15: No home ask needed for pending entry 0 times
+Page Fault Node	30:	0
+Node 16: num msg buffs released from free pool = 0
+TW node	29	Cluster node	29	Mach node	22	Physical node	0xffffdc80
+Node 1: Homeasks sent 16 Homeasks received 16
+Node 2: Homeans sent 13 Homeans received 14
+Node 10: max msg buffs allocated to free pool = 500
+Node 4: Homeasks sent 17 Homeasks received 18
+Node 5: Objects blocked 0 times
+Node 3: Objects blocked 0 times
+Node 6: Objects blocked 0 times
+Node 23: Objects blocked 0 times
+Node 15: Objects blocked 0 times
+Page Fault Node	11:	0
+Node 19: num msg buffs released from free pool = 0
+Node 17: Max Local Time 42637000 for Object 20
+Node 4: Homeans sent 18 Homeans received 17
+Node 31: No home ask needed for pending entry 0 times
+Node 17: No home ask needed for pending entry 0 times
+Node 6: Homeasks sent 9 Homeasks received 14
+Node 24: max msg buffs allocated to free pool = 500
+Node 27: num msg buffs released from free pool = 0
+Node 8: No home ask needed for pending entry 0 times
+Node 19: Max Local Time 41153312 for Object 94
+Node 7: Max Local Time 42030562 for Object 69
+Node 18: Max Local Time 38779437 for Object 17
+TW node	12	Cluster node	12	Mach node	210	Physical node	0xffffdc80
+Node 16: Max Local Time 42600687 for Object 26
+Node 7: No home ask needed for pending entry 0 times
+Node 27: Max Local Time 42629062 for Object 23
+Node 21: num msg buffs released from free pool = 0
+Node 1: Homeans sent 16 Homeans received 16
+Node 20: num msg buffs released from free pool = 0
+TW node	9	Cluster node	9	Mach node	216	Physical node	0xffffdc80
+Node 10: num msg buffs released from free pool = 0
+Node 24: num msg buffs released from free pool = 0
+Node 21: Max Local Time 42636312 for Object 21
+Node 31: Objects blocked 0 times
+Node 5: Homeasks sent 18 Homeasks received 18
+TW node	22	Cluster node	22	Mach node	164	Physical node	0xffffdc80
+Node 23: Homeasks sent 10 Homeasks received 17
+Node 9: max msg buffs allocated to free pool = 500
+TW node	11	Cluster node	11	Mach node	212	Physical node	0xffffdc80
+Node 18: No home ask needed for pending entry 0 times
+Node 25: max msg buffs allocated to free pool = 500
+Node 12: max msg buffs allocated to free pool = 500
+Node 22: max msg buffs allocated to free pool = 500
+Node 25: num msg buffs released from free pool = 0
+Node 29: max msg buffs allocated to free pool = 500
+TW node	13	Cluster node	13	Mach node	208	Physical node	0xffffdc80
+Node 20: Max Local Time 42238625 for Object 37
+Node 13: max msg buffs allocated to free pool = 500
+TW node	14	Cluster node	14	Mach node	204	Physical node	0xffffdc80
+TW node	28	Cluster node	28	Mach node	24	Physical node	0xffffdc80
+Node 8: Objects blocked 0 times
+Page Fault Node	26:	0
+Node 3: Homeasks sent 15 Homeasks received 19
+Node 15: Homeasks sent 18 Homeasks received 4
+TW node	30	Cluster node	30	Mach node	194	Physical node	0xffffdc80
+Node 16: No home ask needed for pending entry 0 times
+Node 29: num msg buffs released from free pool = 0
+Node 28: max msg buffs allocated to free pool = 500
+Node 10: Max Local Time 42028062 for Object 70
+Node 5: Homeans sent 18 Homeans received 18
+Node 3: Homeans sent 19 Homeans received 15
+Node 6: Homeans sent 14 Homeans received 9
+Node 23: Homeans sent 17 Homeans received 10
+Node 15: Homeans sent 4 Homeans received 18
+Node 11: max msg buffs allocated to free pool = 500
+Node 19: No home ask needed for pending entry 0 times
+Node 17: Objects blocked 0 times
+Node 31: Homeasks sent 10 Homeasks received 15
+Node 14: max msg buffs allocated to free pool = 500
+Node 17: Homeasks sent 14 Homeasks received 10
+Node 24: Max Local Time 42472062 for Object 75
+Node 27: No home ask needed for pending entry 0 times
+Node 8: Homeasks sent 15 Homeasks received 13
+Node 19: Objects blocked 0 times
+Node 7: Objects blocked 0 times
+Node 18: Objects blocked 0 times
+Node 12: num msg buffs released from free pool = 0
+Node 16: Objects blocked 0 times
+Node 7: Homeasks sent 13 Homeasks received 15
+TW node	26	Cluster node	26	Mach node	28	Physical node	0xffffdc80
+Node 27: Objects blocked 0 times
+Node 21: No home ask needed for pending entry 0 times
+Node 20: No home ask needed for pending entry 0 times
+Node 9: num msg buffs released from free pool = 0
+Node 10: No home ask needed for pending entry 0 times
+Node 24: No home ask needed for pending entry 0 times
+Node 21: Objects blocked 0 times
+Node 31: Homeans sent 15 Homeans received 10
+Node 22: num msg buffs released from free pool = 0
+Node 30: max msg buffs allocated to free pool = 500
+Node 9: Max Local Time 40547312 for Object 124
+Node 11: num msg buffs released from free pool = 0
+Node 18: Homeasks sent 12 Homeasks received 11
+Node 25: Max Local Time 42511625 for Object 81
+Node 12: Max Local Time 42240312 for Object 35
+Node 22: Max Local Time 42613000 for Object 25
+Node 25: No home ask needed for pending entry 0 times
+Node 29: Max Local Time 42536437 for Object 29
+Node 13: num msg buffs released from free pool = 0
+Node 20: Objects blocked 0 times
+Node 13: Max Local Time 42197500 for Object 97
+Node 14: num msg buffs released from free pool = 0
+Node 28: num msg buffs released from free pool = 0
+Node 8: Homeans sent 13 Homeans received 15
+Node 26: max msg buffs allocated to free pool = 500
+Node 30: num msg buffs released from free pool = 0
+Node 16: Homeasks sent 16 Homeasks received 11
+Node 29: No home ask needed for pending entry 0 times
+Node 28: Max Local Time 42243562 for Object 39
+Node 10: Objects blocked 0 times
+Node 11: Max Local Time 42096562 for Object 72
+Node 19: Homeasks sent 13 Homeasks received 15
+Node 17: Homeans sent 10 Homeans received 14
+Node 14: Max Local Time 42562062 for Object 28
+Node 24: Objects blocked 0 times
+Node 27: Homeasks sent 10 Homeasks received 19
+Node 19: Homeans sent 15 Homeans received 13
+Node 7: Homeans sent 15 Homeans received 13
+Node 18: Homeans sent 11 Homeans received 12
+Node 12: No home ask needed for pending entry 0 times
+Node 16: Homeans sent 11 Homeans received 16
+Node 26: num msg buffs released from free pool = 0
+Node 27: Homeans sent 19 Homeans received 10
+Node 21: Homeasks sent 14 Homeasks received 17
+Node 20: Homeasks sent 15 Homeasks received 11
+Node 9: No home ask needed for pending entry 0 times
+Node 10: Homeasks sent 16 Homeasks received 9
+Node 24: Homeasks sent 12 Homeasks received 18
+Node 21: Homeans sent 17 Homeans received 14
+Node 22: No home ask needed for pending entry 0 times
+Node 30: Max Local Time 42633937 for Object 22
+Node 9: Objects blocked 0 times
+Node 11: No home ask needed for pending entry 0 times
+Node 25: Objects blocked 0 times
+Node 12: Objects blocked 0 times
+Node 22: Objects blocked 0 times
+Node 25: Homeasks sent 12 Homeasks received 26
+Node 29: Objects blocked 0 times
+Node 13: No home ask needed for pending entry 0 times
+Node 20: Homeans sent 11 Homeans received 15
+Node 13: Objects blocked 0 times
+Node 14: No home ask needed for pending entry 1 times
+Node 28: No home ask needed for pending entry 0 times
+Node 26: Max Local Time 42212875 for Object 98
+Node 30: No home ask needed for pending entry 0 times
+Node 29: Homeasks sent 15 Homeasks received 19
+Node 28: Objects blocked 0 times
+Node 10: Homeans sent 9 Homeans received 16
+Node 11: Objects blocked 0 times
+Node 14: Objects blocked 0 times
+Node 24: Homeans sent 18 Homeans received 12
+Node 12: Homeasks sent 11 Homeasks received 4
+Node 26: No home ask needed for pending entry 0 times
+Node 9: Homeasks sent 19 Homeasks received 10
+Node 22: Homeasks sent 11 Homeasks received 19
+Node 30: Objects blocked 0 times
+Node 9: Homeans sent 10 Homeans received 19
+Node 11: Homeasks sent 15 Homeasks received 8
+Node 25: Homeans sent 26 Homeans received 12
+Node 12: Homeans sent 4 Homeans received 11
+Node 22: Homeans sent 19 Homeans received 11
+Node 29: Homeans sent 19 Homeans received 15
+Node 13: Homeasks sent 17 Homeasks received 6
+Node 13: Homeans sent 6 Homeans received 17
+Node 14: Homeasks sent 19 Homeasks received 4
+Node 28: Homeasks sent 13 Homeasks received 15
+Node 26: Objects blocked 0 times
+Node 30: Homeasks sent 11 Homeasks received 14
+Node 28: Homeans sent 15 Homeans received 13
+Node 11: Homeans sent 8 Homeans received 15
+Node 14: Homeans sent 4 Homeans received 19
+Node 26: Homeasks sent 19 Homeasks received 16
+Node 30: Homeans sent 14 Homeans received 11
+Node 26: Homeans sent 16 Homeans received 19
+
+
+
+@(#)brkpt.c 1.7	9/26/89	15:40:41	TIMEWARP
+@(#)buglib2.c     1.67	10/23/89	11:02:54	TIMEWARP
+@(#)cmp.c     1.18	6/2/89	12:43:16	TIMEWARP
+@(#)comdtab.c     1.53	10/2/89	14:12:10	TIMEWARP
+@(#)command.c     1.52	9/26/89	15:38:16	TIMEWARP
+@(#)commit.c       1.20	9/26/89	16:48:05	TIMEWARP
+@(#)cubeio.c       1.47	10/2/89	14:15:56	TIMEWARP
+@(#)deliver.c     $Revision: 1.7 $	$Date: 91/11/01 09:19:43 $	TIMEWARP
+@(#)fileio.c       $Revision: 1.9 $	$Date: 91/11/01 09:22:53 $	TIMEWARP
+@(#)format.c       1.21	9/27/89	14:03:48	TIMEWARP
+@(#)getime.c       1.16	6/2/89	12:43:47	TIMEWARP
+@(#)gvt2.c    1.9	10/23/89	08:53:45	TIMEWARP
+@(#)hostifc.c     1.47	9/12/89	17:08:43	TIMEWARP
+@(#)int.c     $Revision: 1.5 $	$Date: 91/12/27 09:05:55 $	TIMEWARP
+@(#)idlist.c       $Revision: 1.4 $	$Date: 91/08/07 16:36:14 $	TIMEWARP
+@(#)list.c   $Revision: 1.7 $	$Date: 91/12/27 08:42:32 $	TIMEWARP
+@(#)loadman.c     1.1	10/2/89	17:00:55	TIMEWARP
+@(#)machdep.c     1.58	10/2/89	14:45:42	TIMEWARP
+@(#)machifc.c     $Revision: 1.8 $	$Date: 91/11/01 09:41:12 $	TIMEWARP
+@(#)make.c   $Revision	$Date	TIMEWARP
+@(#)mem.c     $Revision: 1.7 $	$Date: 91/12/27 09:08:13 $	TIMEWARP
+@(#)migr.c 1.31	10/6/89	14:25:23	TIMEWARP
+@(#)mkmsg.c 1.9	6/2/89	12:44:35	TIMEWARP
+@(#)moninit.c     1.23	6/2/89	12:44:37	TIMEWARP
+@(#)monitor.c     1.12	6/2/89	12:44:41	TIMEWARP
+@(#)mproc.c 1.55	9/28/89	15:05:09	TIMEWARP
+@(#)msgcntl.c     1.48	10/2/89	15:02:31	TIMEWARP
+@(#)nq.c       1.67	10/2/89	15:05:42	TIMEWARP
+@(#)objend.c       1.42	9/26/89	16:44:32	TIMEWARP
+@(#)objhead.c     $Revision: 1.10 $	$Date: 91/12/27 08:47:35 $	TIMEWARP
+@(#)objifc.c       $Revision: 1.12 $	$Date: 91/12/27 09:10:27 $	TIMEWARP
+@(#)rollback.c   1.58	10/6/89	14:23:00	TIMEWARP
+@(#)save.c   $Revision: 1.4 $	$Date: 91/11/01 10:06:24 $	TIMEWARP
+@(#)sched.c $Revision: 1.10 $	$Date: 91/12/27 08:48:44 $	TIMEWARP
+@(#)sendback.c   $Revision: 1.10 $	$Date: 91/11/06 11:12:34 $	TIMEWARP
+@(#)serve.c 1.65	9/26/89	16:40:59	TIMEWARP
+@(#)services.c   $Revision: 1.5 $	$Date: 91/11/01 12:36:56 $	TIMEWARP
+@(#)start.c $Revision: 1.6 $	$Date: 91/11/01 12:38:51 $	TIMEWARP
+@(#)state.c $Revision: 1.15 $	$Date: 91/12/27 09:57:34 $	TIMEWARP
+@(#)stats.c 1.29	8/8/89	13:21:20	TIMEWARP
+@(#)storage.c     1.49	10/2/89	16:23:20	TIMEWARP
+@(#)tester.c       $Revision: 1.13 $	$Date: 91/12/27 09:18:24 $	TIMEWARP
+@(#)timewarp.c   $Revision: 1.22 $	$Date: 91/12/31 08:28:02 $	TIMEWARP
+@(#)tlib.c   1.4	6/2/89	12:46:24	TIMEWARP
+@(#)toupper.c     1.5	6/2/89	12:46:26	TIMEWARP
+@(#)tstrinit.c   1.44	10/2/89	16:28:12	TIMEWARP
+@(#)turboq2.c     1.25	6/2/89	12:46:32	TIMEWARP
+@(#)objloc.c       1.30	10/2/89	15:42:10	TIMEWARP
+@(#)vtime.c 1.5	9/27/89	15:54:23	TIMEWARP

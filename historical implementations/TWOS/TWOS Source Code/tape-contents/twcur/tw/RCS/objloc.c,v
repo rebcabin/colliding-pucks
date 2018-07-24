@@ -1,0 +1,3590 @@
+head     1.8;
+branch   ;
+access   ;
+symbols  TW2_7:1.8 TW2_6:1.8 TW2_5_1:1.6 TW2_5:1.5 TW2_4_2:1.2 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.8
+date     91.11.04.10.20.53;  author pls;  state Rel;
+branches ;
+next     1.7;
+
+1.7
+date     91.11.01.09.49.15;  author reiher;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.07.17.15.11.34;  author judy;  state Rel;
+branches ;
+next     1.5;
+
+1.5
+date     91.06.07.13.48.29;  author configtw;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     91.06.03.12.25.57;  author configtw;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.05.31.15.05.53;  author pls;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.12.10.10.51.58;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.42;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@locate an object on a node
+@
+
+
+1.8
+log
+@Add sequence times to pending list display.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	objloc.c,v $
+ * Revision 1.7  91/11/01  09:49:15  reiher
+ * Statistics code, an optimization to minimize the number of HOMEASKS sent,
+ * and all occurrences of miparm.me changed to tw_node_num (PLR)
+ * 
+ * Revision 1.6  91/07/17  15:11:34  judy
+ * New copyright notice.
+ * 
+ * Revision 1.5  91/06/07  13:48:29  configtw
+ * Use m_create instead of l_create.
+ * 
+ * Revision 1.4  91/06/03  12:25:57  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.3  91/05/31  15:05:53  pls
+ * 1.  Allow for case where object is not stored locally when
+ *     its phase is completed.
+ * 2.  GVT calculation checks send time for messages in pending list.
+ * 
+ * Revision 1.2  90/12/10  10:51:58  configtw
+ * fix PARANOID call to FindInCache()
+ * 
+ * Revision 1.1  90/08/07  15:40:42  configtw
+ * Initial revision
+ * 
+*/
+char objloc_id [] = "@@(#)objloc.c       1.30\t10/2/89\t15:42:10\tTIMEWARP";
+
+
+/*
+
+Purpose:
+
+		objloc.c contains the basic routines for finding objects in 
+		the Time Warp Operating System.  The method used is a variant on
+		forward addressing.  Every nameable object in the system has
+		a home node, whose identity can be found by hashing the object's
+		name.  The home node always keeps track of the location of the
+		object.  If a message is to be sent to the object, the sending
+		node consults the home node to find the object's current location.      
+		Each node keeps a cache of object location data, so that not all
+		message sends require consulting the home node.  The scheme requires
+		that, in some cases, the sending node defer the actual sending of
+		a message until it gets a response from the destination object's
+		home node.  While not yet implemented, this object location
+		facility should work well in the face of both dynamic creation
+		and destruction of objects, and object movement.
+
+		This object location scheme replaces the old world map data
+		structure.  Any references to the world map should be deleted
+		from the rest of the Time Warp system code.
+
+Functions:
+
+		GetLocation(name,time,message,restart) - Respond to a object location
+						request
+				Parameters - Name *name,VTime time,Msgh *message, 
+								Int (*restart) ()
+				Return - A pointer to the right cache entry, or to NULL, if 
+								not found
+
+		FindInCache(name,time,bucket) - Look in the cache for an object location
+						record
+				Parameters -  Name *name, VTime time, Int bucket
+				Return - A pointer to the cache entry, or to NULL, if not found
+
+		CacheReplace(name,phase_begin,phase_end,node,ocb,bucket) - Put an entry
+						into the cache
+				Parameters - Name *name,VTime phase_begin, VTime phase_end,
+								Int node, Ocb *ocb, Int bucket
+				Return - A pointer to the new entry
+
+		RemoveFromCache(name,time) - Remove an entry from the cache and put
+						it into the free pool of cache entries
+				Parameters - Name *name, VTime time
+				Return - 1 on success, 0 if the entry isn't in the cache
+
+		FindObject(name,time,message,restart,HomeNode) - Send an inquiry to
+						the home node about an object's location
+				Parameters - Name *name,VTime time, Msgh *message, 
+						Int (*restart) (), Int HomeNode
+				Return - Always returns 0
+
+		ChoosePosition() - Find the cache entry to be replaced when a new entry
+						must be loaded
+				Parameters - None
+				Return - A pointer to an entry that can be used, or a NULL
+						pointer if no entry is available (the latter case should
+						never happen)
+
+		name_hash_function(name,hashtype) - Hash a name into an offset in one
+						of several types of table
+				Parameters - Name *name, char hashtype
+				Return - The correct offset for that name and table type
+
+		HomeInit() - Initialize a node's as yet empty home list
+				Parameters - None
+				Return - Always returns 0
+
+		FindInHomeList(name,time) - Find a phase of an object in its home list
+				Parameters - Name *name, VTime time
+				Return - A pointer to the home list entry, or a NULL pointer if
+						the requested phase isn't found
+
+		AddToHomeList(name,phase_begin,phase_end,node) - Add an entry to the 
+						home list
+				Parameters - Name *name,VTime phase_begin, VTime phase_end,
+						Int node
+				Return - Always returns 0
+
+		RemoveFromHomeList(name) - Remove an entry from the home list of the
+						local node
+				Parameters - Name *name
+				Return - Returns 0 on success, traps to tester if name cannot
+						be found
+
+		RemoteRemoveFromHomeList(name,node) - Request that another node remove
+						an entry from its home list
+				Parameters - Name *name, Int node
+				Return - Always returns 0
+
+		RemoteSplitHomeListEntry(name,time,node) - Request that another node
+						split one of its homw list entries
+				Parameters - Name *name, VTime time, Int node
+				Return - Always returns 0
+
+		ChangeHLEntry(name,node) - Change the contents of a home list entry
+				Parameters - Name *name, VTime time, Int node
+				Return - Always returns 0
+
+		SplitHomeListEntry(name,time) - Divide a home list entry into two 
+						entries, in response to a temporal split
+				Parameters - Name *name, VTime time
+				Return - Always returns 0
+
+		ServiceHLRequest(message) - Handle a remote request to the local home
+						list
+				Parameters - Msgh *message
+				Return - Always returns 0
+
+		ObjectFound(message) - Handle the response to a home list request that
+						was sent to a remote node
+				Parameters - Msgh *message
+				Return - Always returns 0
+
+		DumpHomeList() - Show the contents of the local home list on the monitor
+				Parameters - None
+				Return - Always returns 0
+
+		PendingListInit() - Initialize the local list of pending requests to
+						remote node's home lists
+				Parameters - None
+				Return - Always returns 0
+
+		FindInPendingList(name,phase_begin,phase_end,StartSearch) - Look for
+						an entry in the local pending list
+				Parameters - Name *name, VTime phase_begin,VTime phase_end, 
+						Pending_entry *StartSearch
+				Return - A pointer to the requested entry in the pending list,
+						or a NULL pointer if the entry wasn't found
+
+		AddToPendingList(element) - Add an entry to the local pending list
+				Parameters - Pending_entry *element
+				Return - Always returns 0
+
+		RemoveFromPendingList(element,locptr) - Finish off the work left undone
+						for a pending list entry and remove it from the list
+				Parameters - Pending_entry *element, Objloc *locptr
+				Return - Always returns 0
+
+		DumpPendingList() - Show the contents of the local pending list on the
+						monitor
+				Parameters - None
+				Return - Always returns 0 
+
+		CacheInit() - Initialize the local node's cache
+				Parameters - None
+				Return - Always returns 0 
+
+		DumpCache() - Show the contents of the local cache on the monitor
+				Parameters - None
+				Return - Always returns 0 
+
+		NullRestart(message) - Does nothing; for testing purposes
+				Parameters - Msgh *message
+				Return - Always returns 0 
+
+		ChooseNode() - Choose a node on which to locate a newly created object
+				Parameters - None
+				Return - The node's number
+
+		MakeObject(name,node,time) - Dynamically create an object on the 
+						specified node
+				Parameters - Name *name, Int node, VTime time
+				Return - A pointer to the new object's ocb, or a pointer to 
+						NULL if the request failed
+
+		wm_hash_function(name) - A currently unused set of hash functions
+				Parameters - Name *name
+				Return - An integer hashed from the name
+
+
+Implementation:
+
+*/
+
+#include "twcommon.h"
+#include "twsys.h"
+
+
+#define CACHE_SIZE 63
+#define CACHE_POOL 356
+#define HOMELISTSIZE 31
+
+
+Cache_entry     *objloc_cache[CACHE_SIZE];
+Pending_entry *PendingListHeader;
+struct HomeList_str *HomeListHeader[HOMELISTSIZE];
+
+Cache_entry     *CacheFreePool;
+static Ulong    rcount;
+Ulong   chit;
+Ulong   cmiss;
+int homeListSize;
+int pendingEntries = 0;
+int totHomeAns = 0;
+int totHomeAsks = 0;
+int totHomeAsksRecv = 0;
+int totHomeAnsRecv = 0;
+
+extern int tw_num_nodes;
+
+/*  GetLocation() is the function used to find an object's location in the
+		system.  All access to object location information by other parts of 
+		the system should go through this function.  GetLocation() checks the 
+		local cache, to see if the object in question has an entry there.  If 
+		not, it calls FindObject() to fetch an entry and to put that entry 
+		into the cache.  If restart is NULL, then GetLocation() is being called
+		from debugging mode, and the system will not call FindObject().  
+		(Messages don't work from tester, anyway.)
+*/
+
+FUNCTION Objloc *GetLocation(name,time)
+	Name        *name;
+	VTime       time;
+{
+		Int HomeNode;
+		Int CacheBucket;
+		Ocb     *o;
+		Cache_entry *position, *CachePtr;
+		VTime   Ctime;
+		VTime   phase_begin;
+		VTime   phase_end;
+
+/* Look for the object in the cache, returning a pointer to the cache entry
+		if it is there. */
+
+  Debug
+
+		/* get cache address for object */
+		CacheBucket = name_hash_function(name,CACHE);
+
+		position = FindInCache(name,time,CacheBucket);
+
+		if (position != (Cache_entry *) NULL)
+		{  /* object w/ correct phase found */
+				position->replace = rcount++;   /* LRU clock */
+				chit++;                         /* cache hit */
+				return( &(position->cache_entry));              
+		}
+
+/*  Next, check to see if the object is stored locally, in which case, simply
+		put it into the cache and return its location in the cache. */
+
+		cmiss++;        /* cache miss */
+
+		o = FindInSchedQueue(name,time);
+		if (o != (Ocb *) NULL)
+		{  /* local match found in prqhd, so put info in cache */
+				position = CacheReplace(name,o->phase_begin,
+						o->phase_end,tw_node_num,o,CacheBucket);
+				return (&(position->cache_entry));
+		}
+
+		/* The object did not have a cache entry, and is not stored locally.
+				Check to see if the object's home node is this node. */
+
+		HomeNode = name_hash_function(name,HOME_NODE);
+
+		if (HomeNode == tw_node_num)
+		{  /* this is home node */
+				Int Hnode;
+
+				struct HomeList_str *HLEntry;
+
+				HLEntry = FindInHomeList(name,time);    /* search home list */
+				if (HLEntry != (struct HomeList_str *) NULL)
+				{  /* object was found */
+						Hnode = HLEntry->node;
+
+/* We need a special check here for the case when the home node is equal to
+		the local node.  We already know that the object isn't in our 
+		scheduler queue, so if we, the home node, say that it's here, there
+		is some kind of problem.  Perhaps the notification that it is being
+		sent to this node hasn't gotten here yet, but the change in the home
+		node message has. */
+
+						if ((Hnode == tw_node_num) &&
+						(ltVTime(HLEntry->phase_end,gvt)))
+						{
+							return ((Objloc *) NULL);
+						}
+
+						phase_begin = HLEntry->phase_begin;
+						phase_end = HLEntry->phase_end;
+				}
+				else
+						Hnode = -1;
+
+				if (Hnode == -1)
+				{
+				/* If the home node doesn't know about the object's location,
+						then the object doesn't exist yet.  Create it. */
+
+						Ctime = time;
+						Hnode = ChooseNode();   /* node for new object */
+						o = MakeObject(name,Hnode,Ctime);       /* make it */
+
+						/* Objects are created with a single phase covering
+								the entire period from NEGINF to POSINF. */
+						phase_begin = neginf;
+						phase_end = posinfPlus1;
+
+						/* put it in this node's home list */
+						AddToHomeList ( name, phase_begin, phase_end, Hnode);
+				}
+
+				/* now put this in the cache */
+				CachePtr = CacheReplace(name,phase_begin,phase_end,Hnode,o,
+									    CacheBucket);
+				return (&(CachePtr->cache_entry));
+		}
+
+		return ((Objloc *) NULL);       /* don't know where object is */
+}
+
+/* FindInCache() searches the cache for a particular entry.  It calls the hash
+		function to determine which cache bucket the entry would sit in, then
+		searches that bucket to determine if it is actually there.  */
+
+FUNCTION Cache_entry   *FindInCache (name,time,bucket)
+	Name       *name;
+	VTime       time;
+	Int         bucket;
+{
+	register Cache_entry  * position ;
+	register int n = 0;
+
+  Debug
+
+	if ( objloc_cache[bucket] )
+	{
+		for (position=(Cache_entry *) l_next_macro(objloc_cache[bucket]);
+				!l_ishead_macro (position);
+				position =  (Cache_entry *) l_next_macro (position))
+		{       /* search through this bucket's list */
+				if (namecmp (position->cache_entry.name, name) == 0 &&
+						leVTime (position->cache_entry.phase_begin, time ) &&
+						ltVTime (time, position->cache_entry.phase_end ) )
+				{ /* name's the same, and it's in this phase */
+				/* move record around so next search will be faster */
+
+						if ( n > 2 )    /* ???MAD */
+						{ /* if not close, move closer to front */
+							l_remove ( (List_hdr *) position);
+							l_insert ((List_hdr *) objloc_cache[bucket], 
+									  (List_hdr *) position);
+						}
+						return position;
+				}
+				n++;
+		}
+	}
+	return ((Cache_entry *) NULL);
+}
+
+/*  CacheReplace() puts a new entry into the cache.  It returns a pointer to
+		the new cache entry. */
+
+FUNCTION Cache_entry *CacheReplace(name,phase_begin,phase_end,node,ocb,bucket)
+		Name *name;
+		VTime phase_begin;
+		VTime phase_end;
+		Int node;
+		Ocb *ocb;
+		Int bucket;
+{
+	Cache_entry    * new_entry;
+
+  Debug
+
+	new_entry = ChoosePosition();       /* get an element to use */
+
+	/* set up the fields */
+	strcpy(new_entry->cache_entry.name,name);
+	new_entry->cache_entry.node = node;
+	new_entry->cache_entry.phase_begin = phase_begin;
+	new_entry->cache_entry.phase_end = phase_end;
+	new_entry->cache_entry.po = ocb;
+	new_entry->replace = rcount++;      /* LRU counter value */
+
+	/* link in the element at the beginning */
+	l_insert((List_hdr *) objloc_cache[bucket],(List_hdr *) new_entry);
+
+	return (new_entry);
+}
+
+/* RemoveFromCache() clears an invalid entry out of the cache.  Since it is
+		called only to get rid of an old entry, not to replace it, the entry
+		that was removed is returned to the free pool of unused cache entries.
+*/
+
+int noHomeAskNeeded = 0;
+
+RemoveFromCache(name,time)
+	Name *name;
+	VTime time;
+{
+		Int CacheBucket;
+		Cache_entry *position;
+
+		CacheBucket = name_hash_function(name,CACHE);
+
+		position = FindInCache(name,time,CacheBucket);
+
+		if (position == (Cache_entry *) NULL)
+		{
+			return 0;
+		}
+
+		l_remove( (List_hdr *) position);
+		l_insert ((List_hdr *) CacheFreePool, (List_hdr *) position);
+
+		return 1;
+}
+
+/* FindObject() finds the location of an object that is not in the cache, puts 
+		it into the cache, and returns.  The object is found by putting an
+		entry for this request into the pending list, allocating and formatting
+		a message to send to the home node making the location request, and
+		then sending the message.
+*/
+
+FUNCTION FindObject(name,time,message,restart,isAMsg)
+		Name    *name;
+		VTime   time;
+		Msgh    *message;
+		Int     (*restart) ();
+		Int     isAMsg;
+{
+	Msgh * objlocmsg;
+	HLmsg  * locmsg;
+	Pending_entry  *pending, *searchPending;
+	Int         HomeNode;
+    VTime       gvtContrib;
+
+  Debug
+
+	/* One way or another, we'll need a pending list entry.  Set one up. */
+
+    if ( isAMsg )
+        gvtContrib = message->sndtim;
+    else
+        gvtContrib = time;
+
+    pending = ( Pending_entry * ) m_create ( sizeof ( Pending_entry ),
+                gvtContrib, NONCRITICAL );
+
+	if (pending == (Pending_entry *) NULL)
+	{  /* no room in the pending queue */
+
+		twerror("unable to create pending list entry for time %f, msg %x\n",
+				time.simtime, message);
+
+		/*  As an emergency measure, we could try sending the message back,
+			if there is a message.  However, some care is necessary to
+			permit that sendback to work reliably.  It's possible that
+			there is no object location information cached for either the
+			sender or receiver of a message, in which case we might enter
+			an infinite loop of reversing the message and trying to send
+			it, failing due to unavailable location information and no 
+			memory for a pending list entry, and yet again reversing and
+			trying to send. */
+
+		tester();
+	}
+
+	strcpy(pending->object,name);
+	pending->Message = message; /* message to be sent */
+	pending->restart = restart; /* pending action routine */
+	pending->time = time;
+	pending->isMsg = isAMsg;
+
+#define PENDING_SEARCH
+#ifdef PENDING_SEARCH
+	/* Check the pending list for an exact duplicate of the name and
+		virtual time of this request.  If such a duplicate exists, we
+		want to still put this request in the pending list, but we don't
+		want to send off a HOMEASK to the home node, since one is already
+		on the way.  Most often, if there is a duplicate, it's just been
+		put in the pending list, and is at the end, so start the search
+		there and work backwards.  */
+
+	for ( searchPending = l_prev ( PendingListHeader ) ; 
+			!l_ishead_macro ( searchPending ) ; 
+			searchPending = l_prev ( ( List_hdr * ) searchPending ) )
+	{
+		if ( eqVTime ( time, searchPending->time ) &&
+			 strcmp ( name, searchPending->object ) == 0 )
+		{
+
+			/* We have an exact match already in the pending list.  Just
+				add the new entry without generating another HOMEASK. */
+
+			AddToPendingList(pending);  /* put this in the queue */
+			noHomeAskNeeded++;
+			return;
+		}
+
+	}
+#endif PENDING_SEARCH
+
+	AddToPendingList(pending);  /* put this in the queue */
+
+	/* There is no pending list entry yet for this object, so we'd better
+		go look for one. */
+
+	HomeNode = name_hash_function(name,HOME_NODE);
+
+	/* This happens when weird timing conditions mess things up temporarily
+		during an object migration.  This pending list entry will be cleared
+		by code in migr.c, rather than by the arrival of a system message
+		from the home node. */
+
+	if (HomeNode == tw_node_num)
+	{
+		twerror("Home node request for an object not here yet,%s\n",name);
+		tester();
+		l_remove ( (List_hdr * ) pending);
+		l_destroy((List_hdr *) pending);
+		return;
+	}
+
+	objlocmsg = sysbuf();       /* get a system buffer even if we wait */
+	locmsg = (HLmsg *) (objlocmsg+1);
+
+	/* fill in the blanks */
+	locmsg->sender = tw_node_num;
+	strcpy(locmsg->object,name);
+	locmsg->time = time;
+
+	/* fill in the times */
+    if ( isAMsg )
+    {
+        objlocmsg->sndtim = message->rcvtim;
+        objlocmsg->rcvtim = message->rcvtim;
+    }
+    else
+    {
+        objlocmsg->sndtim = time;
+        objlocmsg->rcvtim = time;
+    }
+
+	/* fiddle with the snder & rcver fields */
+	sprintf ( objlocmsg->snder, "HOMEASK%d", tw_node_num );
+	sprintf ( objlocmsg->rcver, "HOMEANS%d", HomeNode );
+
+	/* send out a system message */
+
+	totHomeAsks++;
+	sysmsg(HOMEASK, objlocmsg, sizeof (HLmsg), HomeNode );
+
+}
+
+/* ChoosePosition() chooses the cache entry that will be replaced, when
+		replacement is necessary.  The current replacement algorithm is LRU.
+		LRU is implemented by keeping a monotonically increasing counter that
+		is incremented once for each cache probe.  The cache entry used in the
+		probe gets the value of the counter as its replacement value.  When
+		something in the cache must be replaced, the lowest replacement value in
+		the cache is chosen.  The replacement algorithm is dependent on this
+		routine, plus on the parts of FindObject() and GetLocation() that deal 
+		with updating the replacement field in the cache entry. */
+
+FUNCTION Cache_entry *ChoosePosition()
+{
+		Int  cindex,min;
+		Cache_entry *CachePtr, *MinPtr;
+
+  Debug
+
+		/* If there are still entries in the free pool, use one of those. */
+
+		CachePtr = (Cache_entry *) l_next_macro(CacheFreePool);
+
+		if (CachePtr && !l_ishead_macro(CachePtr))
+		{  /* found a legit entry in the pool */
+				l_remove((List_hdr *) CachePtr);        /* remove from pool */
+				return (CachePtr);                      /* use it */
+		}
+
+		/* Otherwise, something will have to be swapped out. */
+
+		cindex = 0;
+
+		/* Find the first actual entry in the cache, and set the minimum
+				replacement value to its replacement value. Since we have
+				no guarantee that any given bucket will contain any entries
+				at all, the code is a bit complex.*/
+
+
+		for (cindex = 0;cindex < CACHE_SIZE;cindex++)
+		{
+			 CachePtr = (Cache_entry *) l_next_macro( 
+								(List_hdr *) objloc_cache[cindex]);
+			 if (!l_ishead_macro(CachePtr))
+			 {  /* cache entry found--make it the initial candidate */
+				min = CachePtr->replace;        /* LRU counter value */
+				MinPtr = CachePtr;
+				break;
+			 }
+		} 
+
+		if (cindex == CACHE_SIZE)
+		{
+				_pprintf("no entries in free pool or in cache\n");
+				return ( (Cache_entry *) NULL);
+		}
+
+		/* Now search the entire cache for the least recently used entry. */
+
+		for (; cindex < CACHE_SIZE; cindex++)
+		{
+
+				CachePtr = (Cache_entry *) 
+						l_next_macro((List_hdr *) objloc_cache[cindex]);
+				while (!l_ishead_macro(CachePtr))
+				{
+					if (CachePtr->replace < min)
+					{   /* new candidate found */
+						min = CachePtr->replace;
+						MinPtr = CachePtr;
+					}
+
+					/* check the next one in the queue */
+					CachePtr = (Cache_entry *) 
+						l_next_macro((List_hdr *) CachePtr);
+				}
+
+		}
+
+/* Now remove the chosen entry from its current position in the cache, so that
+		it can be put into the new position.  */
+
+		l_remove((List_hdr *) MinPtr);
+		return(MinPtr); /* reuse this element */
+}
+
+
+/* name_hash_function() hashes a name to a number in a range specified by
+		the choice of hashtype, allowing the function to be used for hashing
+		for several purposes.  */
+
+#define MULTHASH
+int    name_hash_function (name,hashtype)
+	Name           *name;
+	char            hashtype;
+{
+#ifdef MULTHASH
+	register unsigned int i , j ;
+	register char * s ;
+
+	j = 0 ;
+	i = 1 ;
+	s = (char *) name ;
+
+	for ( ; *s ; i++ , s++ )
+	{   /* add the ascii values of "name" */
+		j += (*s) * i ; 
+	} 
+
+	switch (hashtype)
+		{
+				case HOME_NODE:
+								return j % tw_num_nodes;
+				case CACHE:     /* hash to cache */
+								return j % CACHE_SIZE;
+				case HOMELIST:
+								return j % homeListSize;
+				default:
+								_pprintf("error in hash switch\n");
+		}
+
+#else
+	register unsigned int j ;
+	register char * s ;
+
+	j = 0 ; 
+	for ( s = name ; *s ; s++ ) 
+	{
+		j <<= 4 ;
+		j += *s ;
+		if ( ( j & 0xf000 ) != 0 ) 
+		{
+			j = j ^ ( j >> 12 ) ;
+			j &= 0x0fff ;
+		}
+	}
+	switch (hashtype)
+		{
+				case HOME_NODE:
+								return ( j & 0x7fff ) % tw_num_nodes ;
+				case CACHE:
+								return ( j & 0x7fff ) % CACHE_SIZE ;
+				case HOMELIST:
+								return ( j & 0x7fff ) % homeListSize ;
+				default:
+								_pprintf("error in hash switch\n");
+		}
+#endif MULTHASH
+
+return 0;
+
+}
+
+
+/* HomeInit() initializes a node's home list, ie the list of objects
+   which call this node home. */
+
+HomeInit()
+{
+   int i;
+
+	/* If the number of nodes is equal to the number of buckets in the home 
+		list, change the variable controlling the hashing to buckets.  
+		Otherwise, all home list entries would appear in one bucket on each
+		node, for that number of nodes.  */
+
+	if ( tw_num_nodes != HOMELISTSIZE )
+		homeListSize = HOMELISTSIZE;
+	else
+		homeListSize = HOMELISTSIZE - 1;
+
+	for (i = 0;i < HOMELISTSIZE; i++)
+	{
+
+		HomeListHeader[i] = (struct HomeList_str *) l_hcreate();
+	}
+
+}
+
+/* FindInHomeList () finds an object in the home list, if it is there.  It
+		returns the object's node number, if found, and -1 otherwise. */
+
+FUNCTION  struct HomeList_str *FindInHomeList(name,time)
+		Name    *name;
+		VTime   time;
+{
+	struct HomeList_str *ListElem;
+	Int         bucket;
+
+  Debug
+
+	/* first determine which home list queue to search */
+	bucket = name_hash_function (name,HOMELIST);
+
+	for (ListElem = (struct HomeList_str *) 
+						l_next_macro(HomeListHeader[bucket]);
+		 !l_ishead_macro(ListElem);
+		 ListElem = (struct HomeList_str *) l_next_macro(ListElem))
+	{  /* do the comparison */
+		if (namecmp(ListElem->name,name) == 0 &&
+				leVTime (ListElem->phase_begin, time) &&
+				ltVTime (time, ListElem->phase_end) )
+			return(ListElem);   /* if found */
+	}
+
+	return ((struct HomeList_str *) NULL); /* not found */
+}
+
+/* AddToHomeList () adds a name to the home list. */
+
+FUNCTION struct HomeList_str *AddToHomeList ( name,phase_begin,phase_end,node )
+	Name        *name;
+	VTime       phase_begin;
+	VTime       phase_end;
+	Int         node;
+{
+	struct HomeList_str *NewPtr;
+	Int         bucket;
+
+  Debug
+
+	/* make a home list element */
+	NewPtr =  (struct HomeList_str *) m_create (sizeof (struct HomeList_str), 
+									    neginf, CRITICAL);
+
+	entcpy ( NewPtr->name, name, sizeof (Name) );       /* copy the name */
+
+	/* fill in the blanks */
+	NewPtr->phase_begin = phase_begin;
+	NewPtr->phase_end = phase_end;
+	NewPtr->node = node;
+	NewPtr->generation = 0;
+
+	bucket = name_hash_function ( NewPtr->name, HOMELIST );
+
+	/* put it in the proper queue */
+	l_insert ( HomeListHeader[bucket], NewPtr );
+
+	return ( NewPtr );
+}
+
+/* When an object is destroyed, and that destruction is committed, its home
+		list entry should be removed.  (Unless, of course, the destroyed
+		object is re-created or otherwise has active messages.)  Otherwise,
+		requests to the home site for the object's location would be answered
+		improperly.  In addition, the home site's cache entry for the object
+		should be cleared.  
+*/ 
+
+FUNCTION RemoveFromHomeList(name,time)
+	Name *name;
+	VTime time;
+{
+	struct HomeList_str *ListElem;
+	Int         bucket;
+
+  Debug
+
+	bucket = name_hash_function (name,HOMELIST);
+
+	for (ListElem = (struct HomeList_str *) 
+				l_next_macro(HomeListHeader[bucket]);
+		 !l_ishead_macro(ListElem);
+		 ListElem = (struct HomeList_str *) l_next_macro(ListElem))
+	{
+		if (namecmp(ListElem->name,name) == 0) 
+		{
+			break;
+		}
+	}
+
+	if (!l_ishead_macro(ListElem))
+	{
+		l_remove((List_hdr *) ListElem);
+		l_destroy((List_hdr *) ListElem);
+
+		RemoveFromCache(name,time);
+	}
+	else
+	{
+		twerror("RemoveFromHomeList: no home list entry for %s\n",name);
+		tester();
+	}
+}
+
+/* RemoteRemoveFromHomeList() sends a message to another node, asking it
+		to remove an object from its home list. 
+*/
+
+FUNCTION RemoteRemoveFromHomeList(name,time,node)
+	Name *name;
+	VTime time;
+	Int node;
+{
+	Msgh * objlocmsg;
+	HLmsg  * locmsg;
+
+  Debug
+
+	objlocmsg = sysbuf();
+	locmsg = (HLmsg *) (objlocmsg+1);
+	locmsg->sender = tw_node_num;
+	if (node != -1)
+	{
+		locmsg->response = node;
+	}
+	else
+	{
+		locmsg->response = -1;
+	}
+
+	locmsg->time = time;
+	/* A location of -1 means remove the object from the home list. */
+	locmsg->newloc = -1;
+	strcpy(locmsg->object,name);
+
+	sysmsg(HOMECHANGE, objlocmsg, sizeof (HLmsg), node);
+}
+
+
+/* RemoteSplitHomeListEntry() requests a split of a home list entry at a 
+		remote site.  It packages the request and sends a message to the
+		home node, asking for that node to call ChangeHLEntry(), which
+		will, in turn, call SplitHomeListEntry().
+*/
+
+FUNCTION RemoteSplitHomeListEntry(name,time,node)
+	Name *name;
+	VTime time;
+	Int node;
+{
+	Msgh * objlocmsg;
+	HLmsg  * locmsg;
+	Int   there;
+
+  Debug
+
+	objlocmsg = sysbuf();
+	locmsg = (HLmsg *) (objlocmsg+1);
+	locmsg->sender = tw_node_num;
+	locmsg->time = time;
+
+	/* A location of -2 means split the home list entry as of the time in
+		this message. */
+
+	locmsg->newloc = -2;
+	strcpy(locmsg->object,name);
+
+	there = RemoveFromCache(name,time);
+	if (!there)
+	{
+		/* There was no entry in the local cache for the split phase. 
+				We may want to keep statistics on this, or not.  At any
+				rate, it isn't an error. */
+	}
+
+	sysmsg(HOMECHANGE, objlocmsg, sizeof (HLmsg), node);
+}
+
+/* RemoteChangeHListEntry() sends a message to an object's home node, asking
+		it to change the entry for one of the object's phase to indicate that
+		the phase is on a new node.
+*/
+
+FUNCTION RemoteChangeHListEntry(name,time,HomeNode,node,generation)
+	Name *name;
+	VTime time;
+	Int HomeNode;
+	Int node;
+	int generation;
+{
+	Msgh * objlocmsg;
+	HLmsg  * locmsg;
+	Int there;
+
+  Debug
+
+	objlocmsg = sysbuf();
+	locmsg = (HLmsg *) (objlocmsg+1);
+	locmsg->sender = tw_node_num;
+	locmsg->time = time;
+	locmsg->newloc = node;
+	locmsg->generation = generation;
+	strcpy(locmsg->object,name);
+
+	there = RemoveFromCache(name,time);
+	if (!there)
+	{
+		/* There was no entry in the local cache for the split phase. 
+				We may want to keep statistics on this, or not.  At any
+				rate, it isn't an error. */
+	}
+
+	sysmsg(HOMECHANGE, objlocmsg, sizeof (HLmsg), HomeNode);
+}
+
+/* SendCacheInvalidate() sends a system message to a node requesting that
+		it remove a particular entry from its cache.  This routine is called
+		when one node has reason to believe that another node has an invalid
+		cache entry.
+*/
+
+FUNCTION SendCacheInvalidate(name,time,node)
+	Name *name;
+	VTime time;
+	Int node;
+{
+	Msgh * objlocmsg;
+	HLmsg  * locmsg;
+
+  Debug
+
+	objlocmsg = sysbuf();       /* grab a buffer, even if we have to wait */
+	locmsg = (HLmsg *) (objlocmsg+1);
+
+	/* create the message */
+	locmsg->sender = tw_node_num;
+	locmsg->time = time;
+	locmsg->newloc = node;
+	strcpy(locmsg->object,name);
+
+	/* send it out as a system message */
+	sysmsg(CACHEINVAL, objlocmsg, sizeof (HLmsg), node);
+}
+
+/* ChangeHLEntry() is called when a home list entry must be changed because
+		an object has been moved to another node, or because its deletion
+		has been committed.  (The latter is the case if the new location is
+		-1.)  Also, if the object is being split, a message must be sent 
+		detailing the split.  The new location is -2, in such a case.  The
+		time field is set with the time of the split, with the understanding
+		being that the existing home list entry will be found and divided in
+		two.
+*/
+FUNCTION ChangeHLEntry(name,time,node,generation)
+	Name *name;
+	VTime time;
+	Int node;
+	int generation;
+{
+	struct HomeList_str *ListElem;
+	Int there;
+
+  Debug
+
+	if (node == -1)
+	{
+		RemoveFromHomeList(name,time);
+	}
+	else
+	{
+		/* Try to find this phase in the home list.  If it's not there, then
+				we may need to split the object.  If it is there, go ahead
+				and change it.  If not, try to find a phase containing this
+				time.  If there is one, split it. */
+
+		struct HomeList_str     *ListElem;
+		Int             bucket;
+
+		bucket = name_hash_function (name,HOMELIST);
+
+		for (ListElem = (struct HomeList_str *)
+				l_next_macro(HomeListHeader[bucket]);
+				!l_ishead_macro(ListElem);
+				 ListElem = (struct HomeList_str *) l_next_macro(ListElem))
+		{
+				if (namecmp(ListElem->name,name) == 0 &&
+						eqVTime (ListElem->phase_begin, time) )
+				{
+						break;
+				}
+		}
+
+		if (l_ishead_macro(ListElem))
+		{
+				ListElem = FindInHomeList(name,time);
+
+				if (ListElem == (struct HomeList_str *) NULL)
+				{
+						twerror("Phase(%s , %f) not in home list\n to change",
+								name,time.simtime);
+						tester();
+				}
+				else
+				{
+						ListElem = SplitHomeListEntry(ListElem,time);
+#ifdef PARANOID
+						if (ListElem == NULL)
+						{
+								twerror("Failed attempt to split home list entry for %s\n",name);
+								tester();
+						}
+#endif PARANOID
+						ListElem->generation = generation;
+/*
+						_pprintf("New phase %s, %f\n",ListElem->name,
+								ListElem->phase_begin.simtime);
+*/
+				}
+
+		}
+
+		if (ListElem->generation > generation)
+		{
+				_pprintf("Old home list change rejected, obj %s, time %f, generation %d\n",
+						name,time,generation);
+				tester();
+				return;
+		}
+		else
+		{
+				ListElem->node = node;
+				ListElem->generation = generation;
+		}
+	}
+
+	there = RemoveFromCache(name,time);
+	if (!there)
+	{
+		/* There was no entry in the local cache for the split phase. 
+				We may want to keep statistics on this, or not.  At any
+				rate, it isn't an error. */
+	}
+}
+
+
+/* SplitHomeListEntry() splits an existing home list entry into two parts, as
+		the result of a temporal split of the existing phase of the object.
+		The home list is searched for the phase that currently handles the
+		time of the split.  A new home list entry is allocated for the new
+		phase.  The old entry handles the earlier phase, the new entry handles 
+		the later phase.  If the requested phase could not be found, the
+		routine calls twerror().
+*/
+
+struct HomeList_str * SplitHomeListEntry ( ListElem, time )
+
+	struct HomeList_str *ListElem;
+	VTime time;
+{
+	Name * name;
+	struct HomeList_str *NewElem;
+	Int         there;
+
+	name = (Name *) ListElem->name;
+
+	there = RemoveFromCache(name,time);
+	if (!there)
+	{
+		/* There was no entry in the local cache for the split phase. 
+				We may want to keep statistics on this, or not.  At any
+				rate, it isn't an error. */
+	}
+
+	NewElem = AddToHomeList(name,time,ListElem->phase_end,ListElem->node);
+	ListElem->phase_end = time;
+
+	return (NewElem);
+}
+
+
+/* ServiceHLRequest () is called whenever a HOMEASK message comes in.  The
+		home node looks up the name of the requested object in its home node
+		list, and extracts the object's host node.  It then allocates a system
+		message, and sends it back to the requesting node.  */
+
+FUNCTION ServiceHLRequest ( inmsg, Ctime )
+	HLmsg  *inmsg;
+	VTime  Ctime;
+{
+	Name        *name;
+	Int         node;
+	Msgh * objlocmsg;
+	HLmsg  * locmsg;
+	VTime  time;
+	struct HomeList_str *HLPtr;
+
+  Debug
+
+	totHomeAsksRecv++;
+	name = (Name *) inmsg -> object;
+	time = inmsg-> time;
+	HLPtr = FindInHomeList(name,time);
+
+	if (HLPtr == (struct HomeList_str *) NULL)
+	{
+		/* Create the needed object. */
+
+		node = ChooseNode();
+		MakeObject(name,node,Ctime);
+		HLPtr = AddToHomeList ( name, neginf, posinfPlus1, node );
+	}
+
+	node = HLPtr->node;
+
+	objlocmsg = sysbuf();
+	locmsg = (HLmsg *) (objlocmsg+1);
+	locmsg->sender = tw_node_num;
+	if (node != -1)
+	{
+		/* Either the entry should have been there, or the object should
+				have been created, so this branch should always be taken. */
+
+		locmsg->response = node;
+		locmsg->phase_begin = HLPtr->phase_begin;
+		locmsg->phase_end = HLPtr->phase_end;
+	}
+	else
+	{
+		twerror("Failure of object creation in ServiceHLRequest\n");
+		locmsg->response = -1;
+	}
+
+	strcpy(locmsg->object,name);
+
+	objlocmsg->sndtim = Ctime;
+	objlocmsg->rcvtim = Ctime;
+
+	sprintf ( objlocmsg->snder, "HOMEANS%d", tw_node_num );
+	sprintf ( objlocmsg->rcver, "HOMEASK%d", inmsg->sender );
+
+	totHomeAns++;
+	sysmsg(HOMEANS, objlocmsg, sizeof (HLmsg), inmsg -> sender);
+}
+
+/* ObjectFound() handles incoming responses from home nodes.  These are 
+		contained in HOMEANS messages.  ObjectFound() looks for the request 
+		that caused the message, fulfills it, and updates the cache.
+*/
+
+FUNCTION ObjectFound(message)
+	HLmsg           *message;   
+{
+	Pending_entry *request,*next;
+	Name        *name;
+	Cache_entry *position;
+	VTime       phase_begin;
+	VTime       phase_end;
+	Ocb         *o;
+
+  Debug
+
+	totHomeAnsRecv++;
+	name = (Name *) message->object;
+	phase_begin = message->phase_begin;
+	phase_end = message->phase_end;
+
+	request = FindInPendingList(name,phase_begin,phase_end,
+				(Pending_entry *) l_next_macro(PendingListHeader));
+
+/* If there is no entry in the pending list, a previous response probably
+		cleared it out.  Just ignore this request. */
+
+	if (request != NULL)
+	{
+		Int CacheBucket;
+
+/* If we are doing migration, in some cases we may be told that we have an
+		object when we no longer do, or do not yet have it.  Therefore, here
+		we must test for home node responses that indicate that the object
+		is on this node. */
+
+	if (message->response == tw_node_num)
+	{
+		o = FindInSchedQueue(name,phase_begin);
+		if (o == (Ocb *) NULL)
+		{
+			/* We were told we had it, and we don't.  Let's ask again, in
+				the hope of getting better information.  We don't really
+				have to put a new entry in the pending list, but FindObject() 
+				is going to do so, anyway, and it also contains all
+				of the code to send the home ask message, so it's easier to
+				reuse its code.*/
+
+			FindObject(name,request->time,request->Message,request->restart,
+				request->isMsg);
+
+			/* Now remove the old request from the pending list, so we don't
+				have two of them. */
+
+			l_remove((List_hdr *) request);
+			l_destroy((List_hdr *) request);
+
+		   /* We can go no further, since the information that the home node
+				gave us was bum, so return. */
+
+			return;
+		}
+	}
+	else
+	{
+		/* The home node gave us a plausible, off-node answer. */
+		o = (Ocb *) NULL;
+	}
+		/* Put the new entry into the cache. */
+
+		CacheBucket = name_hash_function(name,CACHE);
+
+#ifdef PARANOID
+		if (FindInCache(name,phase_begin,CacheBucket) != NULL)
+		{
+				_pprintf("About to make 2nd cache entry for %s, %f\n",
+						name, phase_begin.simtime);
+				tester();
+		}
+#endif
+		position = CacheReplace(name,phase_begin,phase_end,message->response,
+								o,CacheBucket);
+	}
+
+	/* Find all entries in the pending list that match this return value. */
+
+	while (request != NULL)
+	{
+		/*Remove this entry from the pending list. */
+		next = (Pending_entry *) l_next_macro(request);
+		RemoveFromPendingList(request,&(position->cache_entry));
+
+		request = FindInPendingList(name,phase_begin,phase_end,next);
+	}
+}
+
+
+DumpHomeList ()
+{
+	struct HomeList_str *DumpPtr;
+	Int i;
+
+	_pprintf("Dumping home list\n");
+
+	for (i = 0; i < homeListSize; i++)
+	{
+		if (!l_ishead_macro( l_next_macro (HomeListHeader[i])))
+		{
+			_pprintf("Bucket %d:\n",i);
+		}
+		else
+			continue;
+
+		for ( DumpPtr = (struct HomeList_str *) l_next_macro(HomeListHeader[i]);
+				!l_ishead_macro(DumpPtr);
+				DumpPtr =(struct HomeList_str *) l_next_macro(DumpPtr))
+		{
+			DumpHomeListEntry(DumpPtr);
+		}
+	}
+}
+
+DumpHomeListEntry ( DumpPtr )
+
+	struct HomeList_str *DumpPtr;
+{
+	_pprintf("  Object %s, Phase Start %f, Phase End %f,Node %d,generation  = %d\n",
+				DumpPtr->name,DumpPtr->phase_begin.simtime,
+				DumpPtr->phase_end.simtime, DumpPtr->node, DumpPtr->generation);}
+
+/* PendingListInit() initializes the list of requests pending responses from
+		home sites.  */
+
+FUNCTION PendingListInit()
+{
+	PendingListHeader = (Pending_entry *) l_hcreate();
+}
+
+/* FindInPendingList() finds a particular entry, by object name, in a node's
+		list of requests pending responses from home sites.  It returns a
+		pointer to the entry, if found, and a NULL pointer, otherwise. */
+
+FUNCTION Pending_entry *FindInPendingList(name,phase_begin,phase_end,
+									    StartSearch)
+	Name        *name;
+	VTime       phase_begin;
+	VTime       phase_end;
+	Pending_entry *StartSearch;
+{
+	Pending_entry       *current;
+
+  Debug
+
+	for (current = StartSearch; !l_ishead_macro(current); 
+				current = (Pending_entry *) l_next_macro(current))
+	{
+		if (namecmp(name,current->object) == 0 &&
+				leVTime (phase_begin, current->time) &&
+				ltVTime (current->time, phase_end) )
+		{
+			break;
+		}
+	}   
+
+	if (current == PendingListHeader)
+	{
+		return( (Pending_entry *) NULL);
+	}
+	else
+	{
+		return (current);
+	}
+}
+
+
+/* AddToPendingList() puts a new element at the end of the current pending
+		list. */
+
+FUNCTION AddToPendingList(element)
+	Pending_entry *element;
+{
+	Pending_entry       *position;
+
+  Debug
+
+	position = (Pending_entry *) l_prev((List_hdr *) PendingListHeader);
+	l_insert((List_hdr *) position, (List_hdr *) element);
+	pendingEntries++;
+}
+
+FUNCTION RemoveFromPendingList(element,locptr)
+	Pending_entry *element;
+	Objloc *locptr;
+{
+  Debug
+
+	/* Call the function that resumes the job that was being
+		done when the home site request was generated. */
+
+	l_remove((List_hdr *) element);
+
+	(*(element->restart)) (element->Message,locptr);
+
+	l_destroy((List_hdr *) element);
+
+	pendingEntries--;
+}
+
+/*  Find the minimum time in the pending action queue */
+
+VTime FUNCTION MinPendingList ()
+{
+	VTime min;
+	VTime thisTime;
+	Pending_entry * pending;
+
+  Debug
+
+	min = posinfPlus1;  /* init to the max */
+
+	for ( pending = (Pending_entry *) l_next_macro ( PendingListHeader );
+				  ! l_ishead_macro ( pending );
+		  pending = (Pending_entry *) l_next_macro ( pending ) )
+	{   /* use a message's send time */
+		thisTime = pending->isMsg ? pending->Message->sndtim : pending->time;
+		if ( gtVTime ( min, thisTime) )
+			min = thisTime;     /* found an earlier time */
+	}
+
+	return ( min );
+}
+
+
+/* FindInSchedQueue() looks for an object by name and time in the local
+		scheduler queue.  It returns an ocb pointer, if found, and a NULL
+		pointer, otherwise. */
+
+FUNCTION Ocb *FindInSchedQueue(name,time)
+	Name *name;
+	VTime time;
+{
+	Ocb *o;
+
+  Debug
+
+	for (o = fstocb_macro; o; o = nxtocb_macro (o))
+	{  /* look in prqhd */
+		if (namecmp(name,o->name) == 0 &&
+				leVTime (o->phase_begin, time) &&
+				ltVTime (time, o->phase_end) )
+			return o;
+	}
+	return ((Ocb *) NULL);
+}
+
+/* DumpPendingList() dumps the pending list for examination. */
+
+DumpPendingList()
+{
+	Pending_entry *DumpPtr;
+
+	_pprintf("Dumping pending list\n");
+
+	for(DumpPtr = (Pending_entry *) l_next_macro(PendingListHeader); 
+		!l_ishead_macro(DumpPtr);
+		DumpPtr = (Pending_entry *) l_next_macro(DumpPtr))
+	{
+		_pprintf("Object %s, Time %f, %d, %d\n",DumpPtr->object,
+			DumpPtr->time.simtime,DumpPtr->time.sequence1,
+			DumpPtr->time.sequence2);
+	}
+}
+
+/*  CacheInit() is called once at the beginning of a run to initialize the
+		object location cache.  It zeroes all cache replacement fields and 
+		nulls out the cache entry pointers.  In addition, it initializes the 
+		replacement counter (a monotonically increasing counter used to assign 
+		cache entries a LRU status) and zeroes the number of cache hits and 
+		misses that have occurred.  */
+
+FUNCTION CacheInit()
+{
+		Int cindex,poolsize;
+		Cache_entry *buf;
+
+  Debug
+
+/* Create a queue header for each bucket in the cache table. */
+
+		for (cindex = 0; cindex < CACHE_SIZE; cindex++)
+		{
+				objloc_cache[cindex] = (Cache_entry *) l_hcreate ();
+		}
+
+/* Create a header for the pool of unused cache entries. */
+
+		CacheFreePool= (Cache_entry *) l_hcreate ();
+
+/* Create a pool of unused cache entries. */
+
+		for (poolsize = 0; poolsize < CACHE_POOL; poolsize++)
+		{
+
+				buf =  (Cache_entry *) m_create ( sizeof (Cache_entry), 
+								neginf, CRITICAL );
+				l_insert ((List_hdr *) CacheFreePool, (List_hdr *) buf);
+		}
+		rcount = 0;
+		chit = 0;
+		cmiss = 0;
+}
+
+DumpCache ()
+{
+	Cache_entry  * DumpPtr ;
+	Int i;
+
+	_pprintf("Dumping cache\n");
+
+	for (i = 0; i < CACHE_SIZE; i++)
+	{
+		DumpPtr = (Cache_entry *) l_next_macro(objloc_cache[i]);
+		if (!l_ishead_macro(DumpPtr))
+				_pprintf("Bucket %d:\n",i);
+		else
+				continue;
+		for(;!l_ishead_macro(DumpPtr); 
+				DumpPtr = (Cache_entry *) l_next_macro(DumpPtr))
+		{
+			_pprintf("  Object %s,Phase Start %f Phase End %f, Node %d, Ocb Ptr %d, Replace %d\n",
+				DumpPtr->cache_entry.name, DumpPtr->cache_entry.phase_begin.simtime, 
+				DumpPtr->cache_entry.phase_end.simtime, DumpPtr->cache_entry.node, 
+				DumpPtr->cache_entry.po, DumpPtr->replace);
+		}
+	}
+
+}
+
+FUNCTION ShowCacheEntry(name)
+	Name        *name;
+{
+	Int bucket;
+	register Cache_entry  * position ;
+
+	bucket = name_hash_function(name,CACHE);
+
+	if ( objloc_cache[bucket] )
+	{
+		for (position=(Cache_entry *) l_next_macro(objloc_cache[bucket]);
+				!l_ishead_macro (position);
+				position =  (Cache_entry *) l_next_macro (position))
+		{
+				if (namecmp (position->cache_entry.name, name) == 0)
+				{
+			_pprintf("  Object %s,Phase Start %f Phase End %f, Node %d, Ocb Ptr %d, Replace %d\n",
+				position->cache_entry.name, position->cache_entry.phase_begin.simtime,
+				position->cache_entry.phase_end.simtime, position->cache_entry.node,
+				position->cache_entry.po, position->replace);
+				}
+		}
+	}
+}
+
+ShowHomeListEntry(name)
+	Name        *name;
+{
+	struct HomeList_str *DumpPtr;
+	int bucket;
+
+	bucket = name_hash_function (name,HOMELIST);
+
+	if (HomeListHeader[bucket])
+	{
+		for (DumpPtr = (struct HomeList_str *) l_next_macro(HomeListHeader[bucket]);
+				!l_ishead_macro(DumpPtr);
+				DumpPtr = (struct HomeList_str *) l_next_macro(DumpPtr))
+		{
+			if (namecmp (DumpPtr->name, name) == 0)
+				DumpHomeListEntry(DumpPtr);
+		}
+	}     
+}
+
+/* NullRestart() is just a temporary function used to pass to the object
+		finding routine to test the code used to handle replies to home
+		node requests.  It does nothing. */
+
+NullRestart(message)
+	Msgh        *message;
+{
+}
+
+ChooseNode()
+{
+	return (tw_node_num); /* put the object on this node */
+}
+
+
+FUNCTION Ocb * MakeObject(name,node,time)
+	Name        *name;
+	Int         node;
+	VTime       time;
+{
+  Debug
+
+	if (node == tw_node_num)
+	{  /* create object on this node */
+		return (createproc(name,"NULL",time));
+	}
+	else
+	{
+		_pprintf("remote create not yet implemented; object %s, node %d\n",
+						name,node);
+		return ((Ocb *) NULL);
+	}
+
+}
+
+/*
+
+#define TRACE_MODE
+#define ASCII_ADD_HASH_FUNC
+#define PJW_HASH_FUNC
+
+#define ASCII_SCRAMBLE_HASH_FUNC
+*/
+
+
+/* This function isn't used, but we may want the hashing algorithms described
+		here for later use.  (PLR)
+*/
+
+#define HASH_TABLE_SIZE 0
+
+int    wm_hash_function (name)
+	Name           *name;
+{
+
+#ifdef ASCII_ADD_HASH_FUNC
+
+	register unsigned int    i; 
+	register char  *s; 
+
+	for (i = 0, s = name; *s; s++) 
+	{ 
+		i += *s;
+	}
+
+	return i % HASH_TABLE_SIZE ;
+
+#endif
+
+#ifdef ASCII_SCRAMBLE_HASH_FUNC
+
+	register unsigned int i , j ;
+	register char * s ;
+
+	j = 0 ;
+	i = 1 ;
+	s = name ;
+
+	for ( ; *s ; i++ , s++ )
+	{
+		j += (*s) * i ; 
+	}
+
+	return j % HASH_TABLE_SIZE ;
+
+#endif
+
+#ifdef PJW_HASH_FUNC
+
+	register unsigned int j ;
+	register char * s ;
+
+	j = 0 ; 
+	for ( s = name ; *s ; s++ ) 
+	{
+		j <<= 4 ;
+		j += *s ;
+		if ( ( j & 0xf000 ) != 0 ) 
+		{
+			j = j ^ ( j >> 12 ) ;
+			j &= 0x0fff ;
+		}
+	}
+
+	return ( j & 0x7fff ) % HASH_TABLE_SIZE ;
+
+#endif
+}
+@
+
+
+1.7
+log
+@Statistics code, an optimization to minimize the number of HOMEASKS sent,
+and all occurrences of miparm.me changed to tw_node_num (PLR)
+@
+text
+@d7 4
+d542 1
+a542 1
+	
+d1481 3
+a1483 1
+		_pprintf("Object %s, Time %f\n",DumpPtr->object,DumpPtr->time.simtime);
+@
+
+
+1.6
+log
+@New copyright notice.
+@
+text
+@d7 3
+d226 5
+d282 1
+a282 1
+						o->phase_end,miparm.me,o,CacheBucket);
+d291 1
+a291 1
+		if (HomeNode == miparm.me)
+d309 1
+a309 1
+						if ((Hnode == miparm.me) &&
+d424 2
+d464 1
+a464 1
+	Pending_entry  *pending;
+d470 69
+d541 1
+a541 1
+/* This happens when weird timing conditions mess things up temporarily
+d546 1
+a546 1
+	if (HomeNode == miparm.me)
+d550 2
+d559 1
+a559 1
+	locmsg->sender = miparm.me;
+a562 20
+    if ( isAMsg )
+        gvtContrib = message->sndtim;
+    else
+        gvtContrib = time;
+
+    pending = ( Pending_entry * ) m_create ( sizeof ( Pending_entry ),
+                gvtContrib, NONCRITICAL );
+	if (pending == (Pending_entry *) NULL)
+	{  /* no room in the pending queue */
+		twerror("unable to create pending list entry\n");
+		tester();
+		/* Should crash here, or call message sendback, if l_create() doesn't.*/
+	}
+	strcpy(pending->object,name);
+	pending->Message = message; /* message to be sent */
+	pending->restart = restart; /* pending action routine */
+	pending->time = time;
+	pending->isMsg = isAMsg;
+	AddToPendingList(pending);  /* put this in the queue */
+
+d576 1
+a576 1
+	sprintf ( objlocmsg->snder, "HOMEASK%d", miparm.me );
+d580 2
+d885 1
+a885 1
+	locmsg->sender = miparm.me;
+d923 1
+a923 1
+	locmsg->sender = miparm.me;
+d963 1
+a963 1
+	locmsg->sender = miparm.me;
+d1000 1
+a1000 1
+	locmsg->sender = miparm.me;
+d1163 1
+d1181 1
+a1181 1
+	locmsg->sender = miparm.me;
+d1202 1
+a1202 1
+	sprintf ( objlocmsg->snder, "HOMEANS%d", miparm.me );
+d1205 1
+d1226 1
+d1246 1
+a1246 1
+	if (message->response == miparm.me)
+d1397 1
+d1415 1
+d1602 1
+a1602 1
+	return (miparm.me); /* put the object on this node */
+d1613 1
+a1613 1
+	if (node == miparm.me)
+@
+
+
+1.5
+log
+@Use m_create instead of l_create.
+@
+text
+@d1 4
+d7 3
+a26 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.4
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        objloc.c,v $
+d452 1
+d478 7
+a484 1
+	pending = (Pending_entry *) l_create(sizeof (Pending_entry));
+d499 10
+a508 2
+	objlocmsg->sndtim = message->rcvtim;
+	objlocmsg->rcvtim = message->rcvtim;
+@
+
+
+1.3
+log
+@1.  Allow for case where object is not stored locally when
+    its phase is completed.
+2.  GVT calculation checks send time for messages in pending list.
+@
+text
+@d2 6
+a7 1
+ * $Log:	objloc.c,v $
+d15 1
+a15 1
+char objloc_id [] = "@@(#)objloc.c	1.30\t10/2/89\t15:42:10\tTIMEWARP";
+d17 3
+a19 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d25 14
+a38 14
+	objloc.c contains the basic routines for finding objects in 
+	the Time Warp Operating System.  The method used is a variant on
+	forward addressing.  Every nameable object in the system has
+	a home node, whose identity can be found by hashing the object's
+	name.  The home node always keeps track of the location of the
+	object.  If a message is to be sent to the object, the sending
+	node consults the home node to find the object's current location.	
+	Each node keeps a cache of object location data, so that not all
+	message sends require consulting the home node.  The scheme requires
+	that, in some cases, the sending node defer the actual sending of
+	a message until it gets a response from the destination object's
+	home node.  While not yet implemented, this object location
+	facility should work well in the face of both dynamic creation
+	and destruction of objects, and object movement.
+d40 3
+a42 3
+	This object location scheme replaces the old world map data
+	structure.  Any references to the world map should be deleted
+	from the rest of the Time Warp system code.
+d46 6
+a51 6
+	GetLocation(name,time,message,restart) - Respond to a object location
+			request
+		Parameters - Name *name,VTime time,Msgh *message, 
+				Int (*restart) ()
+		Return - A pointer to the right cache entry, or to NULL, if 
+				not found
+d53 4
+a56 4
+	FindInCache(name,time,bucket) - Look in the cache for an object location
+			record
+		Parameters -  Name *name, VTime time, Int bucket
+		Return - A pointer to the cache entry, or to NULL, if not found
+d58 5
+a62 5
+	CacheReplace(name,phase_begin,phase_end,node,ocb,bucket) - Put an entry
+			into the cache
+		Parameters - Name *name,VTime phase_begin, VTime phase_end,
+				Int node, Ocb *ocb, Int bucket
+		Return - A pointer to the new entry
+d64 4
+a67 4
+	RemoveFromCache(name,time) - Remove an entry from the cache and put
+			it into the free pool of cache entries
+		Parameters - Name *name, VTime time
+		Return - 1 on success, 0 if the entry isn't in the cache
+d69 5
+a73 5
+	FindObject(name,time,message,restart,HomeNode) - Send an inquiry to
+			the home node about an object's location
+		Parameters - Name *name,VTime time, Msgh *message, 
+			Int (*restart) (), Int HomeNode
+		Return - Always returns 0
+d75 6
+a80 6
+	ChoosePosition() - Find the cache entry to be replaced when a new entry
+			must be loaded
+		Parameters - None
+		Return - A pointer to an entry that can be used, or a NULL
+			pointer if no entry is available (the latter case should
+			never happen)
+d82 4
+a85 4
+	name_hash_function(name,hashtype) - Hash a name into an offset in one
+			of several types of table
+		Parameters - Name *name, char hashtype
+		Return - The correct offset for that name and table type
+d87 3
+a89 3
+	HomeInit() - Initialize a node's as yet empty home list
+		Parameters - None
+		Return - Always returns 0
+d91 4
+a94 4
+	FindInHomeList(name,time) - Find a phase of an object in its home list
+		Parameters - Name *name, VTime time
+		Return - A pointer to the home list entry, or a NULL pointer if
+			the requested phase isn't found
+d96 5
+a100 5
+	AddToHomeList(name,phase_begin,phase_end,node) - Add an entry to the 
+			home list
+		Parameters - Name *name,VTime phase_begin, VTime phase_end,
+			Int node
+		Return - Always returns 0
+d102 5
+a106 5
+	RemoveFromHomeList(name) - Remove an entry from the home list of the
+			local node
+		Parameters - Name *name
+		Return - Returns 0 on success, traps to tester if name cannot
+			be found
+d108 4
+a111 4
+	RemoteRemoveFromHomeList(name,node) - Request that another node remove
+			an entry from its home list
+		Parameters - Name *name, Int node
+		Return - Always returns 0
+d113 4
+a116 4
+	RemoteSplitHomeListEntry(name,time,node) - Request that another node
+			split one of its homw list entries
+		Parameters - Name *name, VTime time, Int node
+		Return - Always returns 0
+d118 3
+a120 3
+	ChangeHLEntry(name,node) - Change the contents of a home list entry
+		Parameters - Name *name, VTime time, Int node
+		Return - Always returns 0
+d122 4
+a125 4
+	SplitHomeListEntry(name,time) - Divide a home list entry into two 
+			entries, in response to a temporal split
+		Parameters - Name *name, VTime time
+		Return - Always returns 0
+d127 4
+a130 4
+	ServiceHLRequest(message) - Handle a remote request to the local home
+			list
+		Parameters - Msgh *message
+		Return - Always returns 0
+d132 4
+a135 4
+	ObjectFound(message) - Handle the response to a home list request that
+			was sent to a remote node
+		Parameters - Msgh *message
+		Return - Always returns 0
+d137 3
+a139 3
+	DumpHomeList() - Show the contents of the local home list on the monitor
+		Parameters - None
+		Return - Always returns 0
+d141 4
+a144 4
+	PendingListInit() - Initialize the local list of pending requests to
+			remote node's home lists
+		Parameters - None
+		Return - Always returns 0
+d146 6
+a151 6
+	FindInPendingList(name,phase_begin,phase_end,StartSearch) - Look for
+			an entry in the local pending list
+		Parameters - Name *name, VTime phase_begin,VTime phase_end, 
+			Pending_entry *StartSearch
+		Return - A pointer to the requested entry in the pending list,
+			or a NULL pointer if the entry wasn't found
+d153 3
+a155 3
+	AddToPendingList(element) - Add an entry to the local pending list
+		Parameters - Pending_entry *element
+		Return - Always returns 0
+d157 4
+a160 4
+	RemoveFromPendingList(element,locptr) - Finish off the work left undone
+			for a pending list entry and remove it from the list
+		Parameters - Pending_entry *element, Objloc *locptr
+		Return - Always returns 0
+d162 4
+a165 4
+	DumpPendingList() - Show the contents of the local pending list on the
+			monitor
+		Parameters - None
+		Return - Always returns 0 
+d167 3
+a169 3
+	CacheInit() - Initialize the local node's cache
+		Parameters - None
+		Return - Always returns 0 
+d171 3
+a173 3
+	DumpCache() - Show the contents of the local cache on the monitor
+		Parameters - None
+		Return - Always returns 0 
+d175 3
+a177 3
+	NullRestart(message) - Does nothing; for testing purposes
+		Parameters - Msgh *message
+		Return - Always returns 0 
+d179 3
+a181 3
+	ChooseNode() - Choose a node on which to locate a newly created object
+		Parameters - None
+		Return - The node's number
+d183 5
+a187 5
+	MakeObject(name,node,time) - Dynamically create an object on the 
+			specified node
+		Parameters - Name *name, Int node, VTime time
+		Return - A pointer to the new object's ocb, or a pointer to 
+			NULL if the request failed
+d189 3
+a191 3
+	wm_hash_function(name) - A currently unused set of hash functions
+		Parameters - Name *name
+		Return - An integer hashed from the name
+d211 4
+a214 4
+Cache_entry	*CacheFreePool;
+static Ulong 	rcount;
+Ulong	chit;
+Ulong	cmiss;
+d220 7
+a226 7
+	system.  All access to object location information by other parts of 
+	the system should go through this function.  GetLocation() checks the 
+	local cache, to see if the object in question has an entry there.  If 
+	not, it calls FindObject() to fetch an entry and to put that entry 
+	into the cache.  If restart is NULL, then GetLocation() is being called
+	from debugging mode, and the system will not call FindObject().  
+	(Messages don't work from tester, anyway.)
+d230 2
+a231 2
+    Name	*name;
+    VTime	time;
+d233 7
+a239 7
+	Int HomeNode;
+	Int CacheBucket;
+	Ocb	*o;
+	Cache_entry *position, *CachePtr;
+	VTime	Ctime;
+	VTime   phase_begin;
+	VTime   phase_end;
+d242 1
+a242 1
+	if it is there. */
+d246 2
+a247 2
+	/* get cache address for object */
+	CacheBucket = name_hash_function(name,CACHE);
+d249 1
+a249 1
+        position = FindInCache(name,time,CacheBucket);
+d251 6
+a256 6
+	if (position != (Cache_entry *) NULL)
+	{  /* object w/ correct phase found */
+		position->replace = rcount++;	/* LRU clock */
+		chit++;				/* cache hit */
+		return( &(position->cache_entry));		
+	}
+d259 1
+a259 1
+	put it into the cache and return its location in the cache. */
+d261 1
+a261 1
+	cmiss++;	/* cache miss */
+d263 7
+a269 7
+	o = FindInSchedQueue(name,time);
+	if (o != (Ocb *) NULL)
+	{  /* local match found in prqhd, so put info in cache */
+		position = CacheReplace(name,o->phase_begin,
+			o->phase_end,miparm.me,o,CacheBucket);
+		return (&(position->cache_entry));
+	}
+d271 2
+a272 2
+	/* The object did not have a cache entry, and is not stored locally.
+		Check to see if the object's home node is this node. */
+d274 1
+a274 1
+	HomeNode = name_hash_function(name,HOME_NODE);
+d276 3
+a278 3
+    	if (HomeNode == miparm.me)
+    	{  /* this is home node */
+		Int Hnode;
+d280 1
+a280 1
+		struct HomeList_str *HLEntry;
+d282 4
+a285 4
+		HLEntry = FindInHomeList(name,time);	/* search home list */
+		if (HLEntry != (struct HomeList_str *) NULL)
+		{  /* object was found */
+			Hnode = HLEntry->node;
+d288 5
+a292 5
+	the local node.  We already know that the object isn't in our 
+	scheduler queue, so if we, the home node, say that it's here, there
+	is some kind of problem.  Perhaps the notification that it is being
+	sent to this node hasn't gotten here yet, but the change in the home
+	node message has. */
+d294 5
+a298 5
+			if ((Hnode == miparm.me) &&
+			(ltVTime(HLEntry->phase_end,gvt)))
+			{
+			    return ((Objloc *) NULL);
+			}
+d300 5
+a304 5
+			phase_begin = HLEntry->phase_begin;
+			phase_end = HLEntry->phase_end;
+		}
+		else
+			Hnode = -1;
+d306 4
+a309 4
+    		if (Hnode == -1)
+    		{
+		/* If the home node doesn't know about the object's location,
+			then the object doesn't exist yet.  Create it. */
+d311 3
+a313 3
+			Ctime = time;
+			Hnode = ChooseNode();	/* node for new object */
+			o = MakeObject(name,Hnode,Ctime);	/* make it */
+d315 4
+a318 4
+			/* Objects are created with a single phase covering
+				the entire period from NEGINF to POSINF. */
+			phase_begin = neginf;
+			phase_end = posinfPlus1;
+d320 3
+a322 3
+			/* put it in this node's home list */
+			AddToHomeList ( name, phase_begin, phase_end, Hnode);
+    		}
+d324 5
+a328 5
+		/* now put this in the cache */
+		CachePtr = CacheReplace(name,phase_begin,phase_end,Hnode,o,
+					CacheBucket);
+		return (&(CachePtr->cache_entry));
+	}
+d330 1
+a330 1
+	return ((Objloc *) NULL);	/* don't know where object is */
+d334 2
+a335 2
+	function to determine which cache bucket the entry would sit in, then
+	searches that bucket to determine if it is actually there.  */
+d338 3
+a340 3
+    Name       *name;
+    VTime	time;
+    Int		bucket;
+d342 2
+a343 2
+    register Cache_entry  * position ;
+    register int n = 0;
+d347 11
+a357 11
+    if ( objloc_cache[bucket] )
+    {
+    	for (position=(Cache_entry *) l_next_macro(objloc_cache[bucket]);
+		!l_ishead_macro (position);
+	 	position =  (Cache_entry *) l_next_macro (position))
+    	{	/* search through this bucket's list */
+		if (namecmp (position->cache_entry.name, name) == 0 &&
+			leVTime (position->cache_entry.phase_begin, time ) &&
+			ltVTime (time, position->cache_entry.phase_end ) )
+		{ /* name's the same, and it's in this phase */
+	    	/* move record around so next search will be faster */
+d359 9
+a367 7
+	    		if ( n > 2 )	/* ???MAD */
+	    		{ /* if not close, move closer to front */
+			    l_remove ( (List_hdr *) position);
+			    l_insert ((List_hdr *) objloc_cache[bucket], 
+			    	      (List_hdr *) position);
+	    		}
+	    		return position;
+d369 2
+a370 4
+		n++;
+    	}
+    }
+    return ((Cache_entry *) NULL);
+d374 1
+a374 1
+	the new cache entry. */
+d377 6
+a382 6
+	Name *name;
+	VTime phase_begin;
+	VTime phase_end;
+	Int node;
+	Ocb *ocb;
+	Int bucket;
+d384 1
+a384 1
+    Cache_entry    * new_entry;
+d388 1
+a388 1
+    new_entry = ChoosePosition();	/* get an element to use */
+d390 7
+a396 7
+    /* set up the fields */
+    strcpy(new_entry->cache_entry.name,name);
+    new_entry->cache_entry.node = node;
+    new_entry->cache_entry.phase_begin = phase_begin;
+    new_entry->cache_entry.phase_end = phase_end;
+    new_entry->cache_entry.po = ocb;
+    new_entry->replace = rcount++;	/* LRU counter value */
+d398 2
+a399 2
+    /* link in the element at the beginning */
+    l_insert((List_hdr *) objloc_cache[bucket],(List_hdr *) new_entry);
+d401 1
+a401 1
+    return (new_entry);
+d405 2
+a406 2
+	called only to get rid of an old entry, not to replace it, the entry
+	that was removed is returned to the free pool of unused cache entries.
+d410 2
+a411 2
+    Name *name;
+    VTime time;
+d413 2
+a414 2
+	Int CacheBucket;
+	Cache_entry *position;
+d416 1
+a416 1
+	CacheBucket = name_hash_function(name,CACHE);
+d418 1
+a418 1
+        position = FindInCache(name,time,CacheBucket);
+d420 4
+a423 4
+	if (position == (Cache_entry *) NULL)
+	{
+	    return 0;
+	}
+d425 2
+a426 2
+	l_remove( (List_hdr *) position);
+    	l_insert ((List_hdr *) CacheFreePool, (List_hdr *) position);
+d428 1
+a428 1
+	return 1;
+d432 4
+a435 4
+	it into the cache, and returns.  The object is found by putting an
+	entry for this request into the pending list, allocating and formatting
+	a message to send to the home node making the location request, and
+	then sending the message.
+d439 5
+a443 5
+	Name 	*name;
+	VTime   time;
+	Msgh	*message;
+	Int	(*restart) ();
+	Int	isAMsg;
+d445 4
+a448 4
+    Msgh * objlocmsg;
+    HLmsg  * locmsg;
+    Pending_entry  *pending;
+    Int 	HomeNode;
+d452 1
+a452 1
+    HomeNode = name_hash_function(name,HOME_NODE);
+d455 3
+a457 3
+        during an object migration.  This pending list entry will be cleared
+        by code in migr.c, rather than by the arrival of a system message
+        from the home node. */
+d459 6
+a464 6
+    if (HomeNode == miparm.me)
+    {
+        twerror("Home node request for an object not here yet,%s\n",name);
+        tester();
+        return;
+    }
+d466 2
+a467 2
+    objlocmsg = sysbuf();	/* get a system buffer even if we wait */
+    locmsg = (HLmsg *) (objlocmsg+1);
+d469 4
+a472 4
+    /* fill in the blanks */
+    locmsg->sender = miparm.me;
+    strcpy(locmsg->object,name);
+    locmsg->time = time;
+d474 13
+a486 13
+    pending = (Pending_entry *) l_create(sizeof (Pending_entry));
+    if (pending == (Pending_entry *) NULL)
+    {  /* no room in the pending queue */
+        twerror("unable to create pending list entry\n");
+        tester();
+	/* Should crash here, or call message sendback, if l_create() doesn't.*/
+    }
+    strcpy(pending->object,name);
+    pending->Message = message;	/* message to be sent */
+    pending->restart = restart;	/* pending action routine */
+    pending->time = time;
+    pending->isMsg = isAMsg;
+    AddToPendingList(pending);	/* put this in the queue */
+d488 3
+a490 3
+    /* fill in the times */
+    objlocmsg->sndtim = message->rcvtim;
+    objlocmsg->rcvtim = message->rcvtim;
+d492 3
+a494 3
+    /* fiddle with the snder & rcver fields */
+    sprintf ( objlocmsg->snder, "HOMEASK%d", miparm.me );
+    sprintf ( objlocmsg->rcver, "HOMEANS%d", HomeNode );
+d496 2
+a497 2
+    /* send out a system message */
+    sysmsg(HOMEASK, objlocmsg, sizeof (HLmsg), HomeNode );
+d502 8
+a509 8
+	replacement is necessary.  The current replacement algorithm is LRU.
+	LRU is implemented by keeping a monotonically increasing counter that
+	is incremented once for each cache probe.  The cache entry used in the
+	probe gets the value of the counter as its replacement value.  When
+	something in the cache must be replaced, the lowest replacement value in
+	the cache is chosen.  The replacement algorithm is dependent on this
+	routine, plus on the parts of FindObject() and GetLocation() that deal 
+	with updating the replacement field in the cache entry. */
+d513 2
+a514 2
+	Int  cindex,min;
+ 	Cache_entry *CachePtr, *MinPtr;
+d518 1
+a518 1
+	/* If there are still entries in the free pool, use one of those. */
+d520 1
+a520 1
+	CachePtr = (Cache_entry *) l_next_macro(CacheFreePool);
+d522 5
+a526 5
+	if (CachePtr && !l_ishead_macro(CachePtr))
+	{  /* found a legit entry in the pool */
+		l_remove((List_hdr *) CachePtr);	/* remove from pool */
+		return (CachePtr);			/* use it */
+	}
+d528 1
+a528 1
+	/* Otherwise, something will have to be swapped out. */
+d530 1
+a530 1
+	cindex = 0;
+d532 4
+a535 4
+	/* Find the first actual entry in the cache, and set the minimum
+		replacement value to its replacement value. Since we have
+		no guarantee that any given bucket will contain any entries
+		at all, the code is a bit complex.*/
+d538 11
+a548 11
+	for (cindex = 0;cindex < CACHE_SIZE;cindex++)
+	{
+	     CachePtr = (Cache_entry *) l_next_macro( 
+	     			(List_hdr *) objloc_cache[cindex]);
+	     if (!l_ishead_macro(CachePtr))
+	     {  /* cache entry found--make it the initial candidate */
+		min = CachePtr->replace;	/* LRU counter value */
+		MinPtr = CachePtr;
+		break;
+	     }
+	} 
+d550 5
+a554 5
+	if (cindex == CACHE_SIZE)
+	{
+		_pprintf("no entries in free pool or in cache\n");
+		return ( (Cache_entry *) NULL);
+	}
+d556 1
+a556 1
+	/* Now search the entire cache for the least recently used entry. */
+d558 1
+a558 6
+	for (; cindex < CACHE_SIZE; cindex++)
+	{
+
+		CachePtr = (Cache_entry *) 
+			l_next_macro((List_hdr *) objloc_cache[cindex]);
+		while (!l_ishead_macro(CachePtr))
+a559 5
+		    if (CachePtr->replace < min)
+		    {	/* new candidate found */
+			min = CachePtr->replace;
+			MinPtr = CachePtr;
+		    }
+d561 15
+a575 3
+		    /* check the next one in the queue */
+		    CachePtr = (Cache_entry *) 
+		    	l_next_macro((List_hdr *) CachePtr);
+a577 2
+	}
+
+d579 1
+a579 1
+	it can be put into the new position.  */
+d581 2
+a582 2
+	l_remove((List_hdr *) MinPtr);
+	return(MinPtr);	/* reuse this element */
+d587 2
+a588 2
+	the choice of hashtype, allowing the function to be used for hashing
+	for several purposes.  */
+d592 2
+a593 2
+    Name           *name;
+    char 	    hashtype;
+d596 2
+a597 2
+    register unsigned int i , j ;
+    register char * s ;
+d599 3
+a601 3
+    j = 0 ;
+    i = 1 ;
+    s = (char *) name ;
+d603 4
+a606 4
+    for ( ; *s ; i++ , s++ )
+    {	/* add the ascii values of "name" */
+	j += (*s) * i ; 
+    } 
+d608 11
+a618 11
+    switch (hashtype)
+	{
+		case HOME_NODE:
+				return j % tw_num_nodes;
+		case CACHE:	/* hash to cache */
+				return j % CACHE_SIZE;
+		case HOMELIST:
+				return j % homeListSize;
+		default:
+				_pprintf("error in hash switch\n");
+	}
+d621 2
+a622 2
+    register unsigned int j ;
+    register char * s ;
+d624 2
+a625 6
+    j = 0 ; 
+    for ( s = name ; *s ; s++ ) 
+    {
+	j <<= 4 ;
+	j += *s ;
+	if ( ( j & 0xf000 ) != 0 ) 
+d627 7
+a633 2
+	    j = j ^ ( j >> 12 ) ;
+	    j &= 0x0fff ;
+d635 11
+a645 12
+    }
+    switch (hashtype)
+	{
+		case HOME_NODE:
+    				return ( j & 0x7fff ) % tw_num_nodes ;
+		case CACHE:
+    				return ( j & 0x7fff ) % CACHE_SIZE ;
+		case HOMELIST:
+				return ( j & 0x7fff ) % homeListSize ;
+		default:
+				_pprintf("error in hash switch\n");
+	}
+d660 4
+a663 4
+    /* If the number of nodes is equal to the number of buckets in the home 
+	list, change the variable controlling the hashing to buckets.  
+	Otherwise, all home list entries would appear in one bucket on each
+	node, for that number of nodes.  */
+d665 4
+a668 4
+    if ( tw_num_nodes != HOMELISTSIZE )
+	homeListSize = HOMELISTSIZE;
+    else
+	homeListSize = HOMELISTSIZE - 1;
+d670 2
+a671 2
+    for (i = 0;i < HOMELISTSIZE; i++)
+    {
+d673 2
+a674 2
+	HomeListHeader[i] = (struct HomeList_str *) l_hcreate();
+    }
+d679 1
+a679 1
+	returns the object's node number, if found, and -1 otherwise. */
+d682 2
+a683 2
+	Name	*name;
+	VTime   time;
+d685 2
+a686 2
+    struct HomeList_str	*ListElem;
+    Int		bucket;
+d690 2
+a691 2
+    /* first determine which home list queue to search */
+    bucket = name_hash_function (name,HOMELIST);
+d693 10
+a702 10
+    for (ListElem = (struct HomeList_str *) 
+    			l_next_macro(HomeListHeader[bucket]);
+	 !l_ishead_macro(ListElem);
+	 ListElem = (struct HomeList_str *) l_next_macro(ListElem))
+    {  /* do the comparison */
+	if (namecmp(ListElem->name,name) == 0 &&
+		leVTime (ListElem->phase_begin, time) &&
+		ltVTime (time, ListElem->phase_end) )
+	    return(ListElem);	/* if found */
+    }
+d704 1
+a704 1
+    return ((struct HomeList_str *) NULL); /* not found */
+d710 4
+a713 4
+    Name	*name;
+    VTime	phase_begin;
+    VTime	phase_end;
+    Int		node;
+d715 2
+a716 2
+    struct HomeList_str *NewPtr;
+    Int		bucket;
+d720 3
+a722 3
+    /* make a home list element */
+    NewPtr =  (struct HomeList_str *) m_create (sizeof (struct HomeList_str), 
+					neginf, CRITICAL);
+d724 1
+a724 1
+    entcpy ( NewPtr->name, name, sizeof (Name) );	/* copy the name */
+d726 5
+a730 5
+    /* fill in the blanks */
+    NewPtr->phase_begin = phase_begin;
+    NewPtr->phase_end = phase_end;
+    NewPtr->node = node;
+    NewPtr->generation = 0;
+d732 1
+a732 1
+    bucket = name_hash_function ( NewPtr->name, HOMELIST );
+d734 2
+a735 2
+    /* put it in the proper queue */
+    l_insert ( HomeListHeader[bucket], NewPtr );
+d737 1
+a737 1
+    return ( NewPtr );
+d741 5
+a745 5
+	list entry should be removed.  (Unless, of course, the destroyed
+	object is re-created or otherwise has active messages.)  Otherwise,
+	requests to the home site for the object's location would be answered
+	improperly.  In addition, the home site's cache entry for the object
+	should be cleared.  
+d749 2
+a750 2
+    Name *name;
+    VTime time;
+d752 2
+a753 2
+    struct HomeList_str	*ListElem;
+    Int		bucket;
+d757 1
+a757 1
+    bucket = name_hash_function (name,HOMELIST);
+d759 4
+a762 6
+    for (ListElem = (struct HomeList_str *) 
+    		l_next_macro(HomeListHeader[bucket]);
+	 !l_ishead_macro(ListElem);
+	 ListElem = (struct HomeList_str *) l_next_macro(ListElem))
+    {
+	if (namecmp(ListElem->name,name) == 0) 
+d764 4
+a767 1
+	    break;
+a768 1
+    }
+d770 4
+a773 4
+    if (!l_ishead_macro(ListElem))
+    {
+	l_remove((List_hdr *) ListElem);
+	l_destroy((List_hdr *) ListElem);
+d775 7
+a781 7
+	RemoveFromCache(name,time);
+    }
+    else
+    {
+	twerror("RemoveFromHomeList: no home list entry for %s\n",name);
+	tester();
+    }
+d785 1
+a785 1
+	to remove an object from its home list. 
+d789 3
+a791 3
+    Name *name;
+    VTime time;
+    Int node;
+d793 2
+a794 2
+    Msgh * objlocmsg;
+    HLmsg  * locmsg;
+d798 11
+a808 11
+    objlocmsg = sysbuf();
+    locmsg = (HLmsg *) (objlocmsg+1);
+    locmsg->sender = miparm.me;
+    if (node != -1)
+    {
+    	locmsg->response = node;
+    }
+    else
+    {
+	locmsg->response = -1;
+    }
+d810 4
+a813 4
+    locmsg->time = time;
+    /* A location of -1 means remove the object from the home list. */
+    locmsg->newloc = -1;
+    strcpy(locmsg->object,name);
+d815 1
+a815 1
+    sysmsg(HOMECHANGE, objlocmsg, sizeof (HLmsg), node);
+d820 3
+a822 3
+	remote site.  It packages the request and sends a message to the
+	home node, asking for that node to call ChangeHLEntry(), which
+	will, in turn, call SplitHomeListEntry().
+d826 3
+a828 3
+    Name *name;
+    VTime time;
+    Int node;
+d830 3
+a832 3
+    Msgh * objlocmsg;
+    HLmsg  * locmsg;
+    Int   there;
+d836 4
+a839 4
+    objlocmsg = sysbuf();
+    locmsg = (HLmsg *) (objlocmsg+1);
+    locmsg->sender = miparm.me;
+    locmsg->time = time;
+d841 2
+a842 2
+    /* A location of -2 means split the home list entry as of the time in
+	this message. */
+d844 2
+a845 2
+    locmsg->newloc = -2;
+    strcpy(locmsg->object,name);
+d847 7
+a853 7
+    there = RemoveFromCache(name,time);
+    if (!there)
+    {
+	/* There was no entry in the local cache for the split phase. 
+		We may want to keep statistics on this, or not.  At any
+		rate, it isn't an error. */
+    }
+d855 1
+a855 1
+    sysmsg(HOMECHANGE, objlocmsg, sizeof (HLmsg), node);
+d859 2
+a860 2
+	it to change the entry for one of the object's phase to indicate that
+	the phase is on a new node.
+d864 5
+a868 5
+    Name *name;
+    VTime time;
+    Int HomeNode;
+    Int node;
+    int generation;
+d870 3
+a872 3
+    Msgh * objlocmsg;
+    HLmsg  * locmsg;
+    Int there;
+d876 7
+a882 7
+    objlocmsg = sysbuf();
+    locmsg = (HLmsg *) (objlocmsg+1);
+    locmsg->sender = miparm.me;
+    locmsg->time = time;
+    locmsg->newloc = node;
+    locmsg->generation = generation;
+    strcpy(locmsg->object,name);
+d884 7
+a890 7
+    there = RemoveFromCache(name,time);
+    if (!there)
+    {
+	/* There was no entry in the local cache for the split phase. 
+		We may want to keep statistics on this, or not.  At any
+		rate, it isn't an error. */
+    }
+d892 1
+a892 1
+    sysmsg(HOMECHANGE, objlocmsg, sizeof (HLmsg), HomeNode);
+d896 3
+a898 3
+	it remove a particular entry from its cache.  This routine is called
+	when one node has reason to believe that another node has an invalid
+	cache entry.
+d902 3
+a904 3
+    Name *name;
+    VTime time;
+    Int node;
+d906 2
+a907 2
+    Msgh * objlocmsg;
+    HLmsg  * locmsg;
+d911 2
+a912 2
+    objlocmsg = sysbuf();	/* grab a buffer, even if we have to wait */
+    locmsg = (HLmsg *) (objlocmsg+1);
+d914 5
+a918 5
+    /* create the message */
+    locmsg->sender = miparm.me;
+    locmsg->time = time;
+    locmsg->newloc = node;
+    strcpy(locmsg->object,name);
+d920 2
+a921 2
+    /* send it out as a system message */
+    sysmsg(CACHEINVAL, objlocmsg, sizeof (HLmsg), node);
+d925 7
+a931 7
+	an object has been moved to another node, or because its deletion
+	has been committed.  (The latter is the case if the new location is
+	-1.)  Also, if the object is being split, a message must be sent 
+	detailing the split.  The new location is -2, in such a case.  The
+	time field is set with the time of the split, with the understanding
+	being that the existing home list entry will be found and divided in
+	two.
+d934 4
+a937 4
+    Name *name;
+    VTime time;
+    Int node;
+    int generation;
+d939 2
+a940 2
+    struct HomeList_str	*ListElem;
+    Int there;
+d944 10
+a953 10
+    if (node == -1)
+    {
+	RemoveFromHomeList(name,time);
+    }
+    else
+    {
+        /* Try to find this phase in the home list.  If it's not there, then
+                we may need to split the object.  If it is there, go ahead
+                and change it.  If not, try to find a phase containing this
+                time.  If there is one, split it. */
+d955 2
+a956 2
+        struct HomeList_str     *ListElem;
+        Int             bucket;
+d958 1
+a958 1
+        bucket = name_hash_function (name,HOMELIST);
+d960 11
+a970 11
+        for (ListElem = (struct HomeList_str *)
+                l_next_macro(HomeListHeader[bucket]);
+                !l_ishead_macro(ListElem);
+                 ListElem = (struct HomeList_str *) l_next_macro(ListElem))
+        {
+                if (namecmp(ListElem->name,name) == 0 &&
+                        eqVTime (ListElem->phase_begin, time) )
+                {
+                        break;
+                }
+        }
+d972 3
+a974 3
+        if (l_ishead_macro(ListElem))
+        {
+                ListElem = FindInHomeList(name,time);
+d976 9
+a984 9
+                if (ListElem == (struct HomeList_str *) NULL)
+                {
+                        twerror("Phase(%s , %f) not in home list\n to change",
+                                name,time.simtime);
+                        tester();
+                }
+                else
+                {
+                        ListElem = SplitHomeListEntry(ListElem,time);
+d986 5
+a990 5
+                        if (ListElem == NULL)
+                        {
+                                twerror("Failed attempt to split home list entry for %s\n",name);
+                                tester();
+                        }
+d992 1
+a992 1
+                        ListElem->generation = generation;
+d994 2
+a995 2
+                        _pprintf("New phase %s, %f\n",ListElem->name,
+                                ListElem->phase_begin.simtime);
+d997 1
+a997 1
+                }
+d999 1
+a999 1
+        }
+d1001 13
+a1013 13
+        if (ListElem->generation > generation)
+        {
+                _pprintf("Old home list change rejected, obj %s, time %f, generation %d\n",
+                        name,time,generation);
+                tester();
+                return;
+        }
+        else
+        {
+                ListElem->node = node;
+                ListElem->generation = generation;
+        }
+    }
+d1015 7
+a1021 7
+    there = RemoveFromCache(name,time);
+    if (!there)
+    {
+	/* There was no entry in the local cache for the split phase. 
+		We may want to keep statistics on this, or not.  At any
+		rate, it isn't an error. */
+    }
+d1026 6
+a1031 6
+	the result of a temporal split of the existing phase of the object.
+	The home list is searched for the phase that currently handles the
+	time of the split.  A new home list entry is allocated for the new
+	phase.  The old entry handles the earlier phase, the new entry handles 
+	the later phase.  If the requested phase could not be found, the
+	routine calls twerror().
+d1036 2
+a1037 2
+    struct HomeList_str *ListElem;
+    VTime time;
+d1039 3
+a1041 3
+    Name * name;
+    struct HomeList_str	*NewElem;
+    Int		there;
+d1043 1
+a1043 1
+    name = (Name *) ListElem->name;
+d1045 7
+a1051 7
+    there = RemoveFromCache(name,time);
+    if (!there)
+    {
+	/* There was no entry in the local cache for the split phase. 
+		We may want to keep statistics on this, or not.  At any
+		rate, it isn't an error. */
+    }
+d1053 2
+a1054 2
+    NewElem = AddToHomeList(name,time,ListElem->phase_end,ListElem->node);
+    ListElem->phase_end = time;
+d1056 1
+a1056 1
+    return (NewElem);
+d1061 3
+a1063 3
+	home node looks up the name of the requested object in its home node
+	list, and extracts the object's host node.  It then allocates a system
+	message, and sends it back to the requesting node.  */
+d1066 2
+a1067 2
+    HLmsg  *inmsg;
+    VTime  Ctime;
+d1069 6
+a1074 6
+    Name    	*name;
+    Int		node;
+    Msgh * objlocmsg;
+    HLmsg  * locmsg;
+    VTime  time;
+    struct HomeList_str *HLPtr;
+d1078 3
+a1080 3
+    name = (Name *) inmsg -> object;
+    time = inmsg-> time;
+    HLPtr = FindInHomeList(name,time);
+d1082 3
+a1084 3
+    if (HLPtr == (struct HomeList_str *) NULL)
+    {
+	/* Create the needed object. */
+d1086 4
+a1089 4
+	node = ChooseNode();
+	MakeObject(name,node,Ctime);
+	HLPtr = AddToHomeList ( name, neginf, posinfPlus1, node );
+    }
+d1091 1
+a1091 1
+    node = HLPtr->node;
+d1093 7
+a1099 7
+    objlocmsg = sysbuf();
+    locmsg = (HLmsg *) (objlocmsg+1);
+    locmsg->sender = miparm.me;
+    if (node != -1)
+    {
+	/* Either the entry should have been there, or the object should
+		have been created, so this branch should always be taken. */
+d1101 9
+a1109 9
+    	locmsg->response = node;
+	locmsg->phase_begin = HLPtr->phase_begin;
+	locmsg->phase_end = HLPtr->phase_end;
+    }
+    else
+    {
+	twerror("Failure of object creation in ServiceHLRequest\n");
+	locmsg->response = -1;
+    }
+d1111 1
+a1111 1
+    strcpy(locmsg->object,name);
+d1113 2
+a1114 2
+    objlocmsg->sndtim = Ctime;
+    objlocmsg->rcvtim = Ctime;
+d1116 2
+a1117 2
+    sprintf ( objlocmsg->snder, "HOMEANS%d", miparm.me );
+    sprintf ( objlocmsg->rcver, "HOMEASK%d", inmsg->sender );
+d1119 1
+a1119 1
+    sysmsg(HOMEANS, objlocmsg, sizeof (HLmsg), inmsg -> sender);
+d1123 2
+a1124 2
+	contained in HOMEANS messages.  ObjectFound() looks for the request 
+	that caused the message, fulfills it, and updates the cache.
+d1128 1
+a1128 1
+    HLmsg           *message;	
+d1130 6
+a1135 6
+    Pending_entry *request,*next;
+    Name	*name;
+    Cache_entry *position;
+    VTime	phase_begin;
+    VTime	phase_end;
+    Ocb		*o;
+d1139 3
+a1141 3
+    name = (Name *) message->object;
+    phase_begin = message->phase_begin;
+    phase_end = message->phase_end;
+d1143 2
+a1144 2
+    request = FindInPendingList(name,phase_begin,phase_end,
+		(Pending_entry *) l_next_macro(PendingListHeader));
+d1147 1
+a1147 1
+	cleared it out.  Just ignore this request. */
+d1149 3
+a1151 3
+    if (request != NULL)
+    {
+    	Int CacheBucket;
+d1154 3
+a1156 3
+	object when we no longer do, or do not yet have it.  Therefore, here
+	we must test for home node responses that indicate that the object
+	is on this node. */
+d1158 1
+a1158 4
+    if (message->response == miparm.me)
+    {
+	o = FindInSchedQueue(name,phase_begin);
+	if (o == (Ocb *) NULL)
+d1160 9
+a1168 6
+	    /* We were told we had it, and we don't.  Let's ask again, in
+		the hope of getting better information.  We don't really
+		have to put a new entry in the pending list, but FindObject() 
+		is going to do so, anyway, and it also contains all
+		of the code to send the home ask message, so it's easier to
+		reuse its code.*/
+d1170 2
+a1171 2
+	    FindObject(name,request->time,request->Message,request->restart,
+		request->isMsg);
+d1173 2
+a1174 2
+	    /* Now remove the old request from the pending list, so we don't
+		have two of them. */
+d1176 2
+a1177 2
+    	    l_remove((List_hdr *) request);
+    	    l_destroy((List_hdr *) request);
+d1179 2
+a1180 2
+	   /* We can go no further, since the information that the home node
+		gave us was bum, so return. */
+d1182 2
+a1183 1
+	    return;
+d1185 6
+a1190 7
+    }
+    else
+    {
+	/* The home node gave us a plausible, off-node answer. */
+	o = (Ocb *) NULL;
+    }
+	/* Put the new entry into the cache. */
+d1192 1
+a1192 1
+	CacheBucket = name_hash_function(name,CACHE);
+d1195 6
+a1200 6
+        if (FindInCache(name,phase_begin,CacheBucket) != NULL)
+        {
+                _pprintf("About to make 2nd cache entry for %s, %f\n",
+                        name, phase_begin.simtime);
+                tester();
+        }
+d1202 3
+a1204 3
+        position = CacheReplace(name,phase_begin,phase_end,message->response,
+				o,CacheBucket);
+    }
+d1206 1
+a1206 1
+    /* Find all entries in the pending list that match this return value. */
+d1208 5
+a1212 5
+    while (request != NULL)
+    {
+	/*Remove this entry from the pending list. */
+	next = (Pending_entry *) l_next_macro(request);
+    	RemoveFromPendingList(request,&(position->cache_entry));
+d1214 2
+a1215 2
+        request = FindInPendingList(name,phase_begin,phase_end,next);
+    }
+d1221 2
+a1222 2
+    struct HomeList_str *DumpPtr;
+    Int i;
+d1224 1
+a1224 1
+    _pprintf("Dumping home list\n");
+d1226 1
+a1226 3
+    for (i = 0; i < homeListSize; i++)
+    {
+	if (!l_ishead_macro( l_next_macro (HomeListHeader[i])))
+d1228 13
+a1240 1
+	    _pprintf("Bucket %d:\n",i);
+a1241 10
+	else
+	    continue;
+
+    	for ( DumpPtr = (struct HomeList_str *) l_next_macro(HomeListHeader[i]);
+    		!l_ishead_macro(DumpPtr);
+		DumpPtr =(struct HomeList_str *) l_next_macro(DumpPtr))
+    	{
+	    DumpHomeListEntry(DumpPtr);
+    	}
+    }
+d1246 1
+a1246 1
+    struct HomeList_str *DumpPtr;
+d1248 3
+a1250 3
+    _pprintf("  Object %s, Phase Start %f, Phase End %f,Node %d,generation  = %d\n",
+                DumpPtr->name,DumpPtr->phase_begin.simtime,
+                DumpPtr->phase_end.simtime, DumpPtr->node, DumpPtr->generation);}
+d1253 1
+a1253 1
+	home sites.  */
+d1257 1
+a1257 1
+    PendingListHeader = (Pending_entry *) l_hcreate();
+d1261 2
+a1262 2
+	list of requests pending responses from home sites.  It returns a
+	pointer to the entry, if found, and a NULL pointer, otherwise. */
+d1265 5
+a1269 5
+					StartSearch)
+    Name	*name;
+    VTime	phase_begin;
+    VTime	phase_end;
+    Pending_entry *StartSearch;
+d1271 1
+a1271 1
+    Pending_entry	*current;
+d1275 2
+a1276 6
+    for (current = StartSearch; !l_ishead_macro(current); 
+		current = (Pending_entry *) l_next_macro(current))
+    {
+	if (namecmp(name,current->object) == 0 &&
+		leVTime (phase_begin, current->time) &&
+		ltVTime (current->time, phase_end) )
+d1278 11
+a1288 1
+	    break;
+d1290 4
+a1293 10
+    }	
+
+    if (current == PendingListHeader)
+    {
+	return( (Pending_entry *) NULL);
+    }
+    else
+    {
+	return (current);
+    }
+d1298 1
+a1298 1
+	list. */
+d1301 1
+a1301 1
+    Pending_entry *element;
+d1303 1
+a1303 1
+    Pending_entry	*position;
+d1307 2
+a1308 2
+    position = (Pending_entry *) l_prev((List_hdr *) PendingListHeader);
+    l_insert((List_hdr *) position, (List_hdr *) element);
+d1312 2
+a1313 2
+    Pending_entry *element;
+    Objloc *locptr;
+d1317 2
+a1318 2
+    /* Call the function that resumes the job that was being
+    	done when the home site request was generated. */
+d1320 1
+a1320 1
+    l_remove((List_hdr *) element);
+d1322 1
+a1322 1
+    (*(element->restart)) (element->Message,locptr);
+d1324 1
+a1324 1
+    l_destroy((List_hdr *) element);
+d1332 3
+a1334 3
+    VTime min;
+    VTime thisTime;
+    Pending_entry * pending;
+d1338 1
+a1338 1
+    min = posinfPlus1;	/* init to the max */
+d1340 8
+a1347 8
+    for ( pending = (Pending_entry *) l_next_macro ( PendingListHeader );
+		  ! l_ishead_macro ( pending );
+	  pending = (Pending_entry *) l_next_macro ( pending ) )
+    {	/* use a message's send time */
+	thisTime = pending->isMsg ? pending->Message->sndtim : pending->time;
+	if ( gtVTime ( min, thisTime) )
+	    min = thisTime;	/* found an earlier time */
+    }
+d1349 1
+a1349 1
+    return ( min );
+d1354 2
+a1355 2
+	scheduler queue.  It returns an ocb pointer, if found, and a NULL
+	pointer, otherwise. */
+d1358 2
+a1359 2
+    Name *name;
+    VTime time;
+d1361 1
+a1361 1
+    Ocb *o;
+d1365 8
+a1372 8
+    for (o = fstocb_macro; o; o = nxtocb_macro (o))
+    {  /* look in prqhd */
+	if (namecmp(name,o->name) == 0 &&
+		leVTime (o->phase_begin, time) &&
+		ltVTime (time, o->phase_end) )
+	    return o;
+    }
+    return ((Ocb *) NULL);
+d1379 1
+a1379 1
+    Pending_entry *DumpPtr;
+d1381 1
+a1381 1
+    _pprintf("Dumping pending list\n");
+d1383 6
+a1388 6
+    for(DumpPtr = (Pending_entry *) l_next_macro(PendingListHeader); 
+    	!l_ishead_macro(DumpPtr);
+	DumpPtr = (Pending_entry *) l_next_macro(DumpPtr))
+    {
+	_pprintf("Object %s, Time %f\n",DumpPtr->object,DumpPtr->time.simtime);
+    }
+d1392 5
+a1396 5
+	object location cache.  It zeroes all cache replacement fields and 
+	nulls out the cache entry pointers.  In addition, it initializes the 
+	replacement counter (a monotonically increasing counter used to assign 
+	cache entries a LRU status) and zeroes the number of cache hits and 
+	misses that have occurred.  */
+d1400 2
+a1401 2
+	Int cindex,poolsize;
+	Cache_entry *buf;
+d1407 4
+a1410 4
+	for (cindex = 0; cindex < CACHE_SIZE; cindex++)
+	{
+		objloc_cache[cindex] = (Cache_entry *) l_hcreate ();
+	}
+d1414 1
+a1414 1
+	CacheFreePool= (Cache_entry *) l_hcreate ();
+d1418 2
+a1419 2
+	for (poolsize = 0; poolsize < CACHE_POOL; poolsize++)
+	{
+d1421 7
+a1427 7
+    		buf =  (Cache_entry *) m_create ( sizeof (Cache_entry), 
+    				neginf, CRITICAL );
+    		l_insert ((List_hdr *) CacheFreePool, (List_hdr *) buf);
+	}
+	rcount = 0;
+	chit = 0;
+	cmiss = 0;
+d1432 2
+a1433 2
+    Cache_entry  * DumpPtr ;
+    Int i;
+d1435 1
+a1435 1
+    _pprintf("Dumping cache\n");
+d1437 16
+a1452 16
+    for (i = 0; i < CACHE_SIZE; i++)
+    {
+	DumpPtr = (Cache_entry *) l_next_macro(objloc_cache[i]);
+	if (!l_ishead_macro(DumpPtr))
+		_pprintf("Bucket %d:\n",i);
+	else
+		continue;
+    	for(;!l_ishead_macro(DumpPtr); 
+    		DumpPtr = (Cache_entry *) l_next_macro(DumpPtr))
+    	{
+	    _pprintf("	Object %s,Phase Start %f Phase End %f, Node %d, Ocb Ptr %d, Replace %d\n",
+		DumpPtr->cache_entry.name, DumpPtr->cache_entry.phase_begin.simtime, 
+		DumpPtr->cache_entry.phase_end.simtime, DumpPtr->cache_entry.node, 
+		DumpPtr->cache_entry.po, DumpPtr->replace);
+    	}
+    }
+d1457 1
+a1457 1
+    Name        *name;
+d1459 2
+a1460 2
+    Int bucket;
+    register Cache_entry  * position ;
+d1462 1
+a1462 1
+    bucket = name_hash_function(name,CACHE);
+d1464 1
+a1464 5
+    if ( objloc_cache[bucket] )
+    {
+	for (position=(Cache_entry *) l_next_macro(objloc_cache[bucket]);
+		!l_ishead_macro (position);
+		position =  (Cache_entry *) l_next_macro (position))
+d1466 3
+a1468 1
+		if (namecmp (position->cache_entry.name, name) == 0)
+d1470 10
+a1479 8
+	    _pprintf("  Object %s,Phase Start %f Phase End %f, Node %d, Ocb Ptr %d, Replace %d\n",
+		position->cache_entry.name, position->cache_entry.phase_begin.simtime,
+		position->cache_entry.phase_end.simtime, position->cache_entry.node,
+		position->cache_entry.po, position->replace);
+                }
+        }
+    }
+}
+d1482 1
+a1482 1
+    Name        *name;
+d1484 2
+a1485 2
+    struct HomeList_str *DumpPtr;
+    int bucket;
+d1487 1
+a1487 1
+    bucket = name_hash_function (name,HOMELIST);
+d1489 1
+a1489 5
+    if (HomeListHeader[bucket])
+    {
+	for (DumpPtr = (struct HomeList_str *) l_next_macro(HomeListHeader[bucket]);
+		!l_ishead_macro(DumpPtr);
+		DumpPtr = (struct HomeList_str *) l_next_macro(DumpPtr))
+d1491 8
+a1498 4
+	    if (namecmp (DumpPtr->name, name) == 0)
+		DumpHomeListEntry(DumpPtr);
+        }
+    }     
+d1502 2
+a1503 2
+	finding routine to test the code used to handle replies to home
+	node requests.  It does nothing. */
+d1506 1
+a1506 1
+    Msgh	*message;
+d1512 1
+a1512 1
+    return (miparm.me);	/* put the object on this node */
+d1517 3
+a1519 3
+    Name    	*name;
+    Int		node;
+    VTime	time;
+d1523 10
+a1532 10
+    if (node == miparm.me)
+    {  /* create object on this node */
+	return (createproc(name,"NULL",time));
+    }
+    else
+    {
+	_pprintf("remote create not yet implemented; object %s, node %d\n",
+			name,node);
+	return ((Ocb *) NULL);
+    }
+d1547 1
+a1547 1
+	here for later use.  (PLR)
+d1553 1
+a1553 1
+    Name           *name;
+d1558 2
+a1559 2
+    register unsigned int    i; 
+    register char  *s; 
+d1561 4
+a1564 4
+    for (i = 0, s = name; *s; s++) 
+    { 
+	i += *s;
+    }
+d1566 1
+a1566 1
+    return i % HASH_TABLE_SIZE ;
+d1572 2
+a1573 2
+    register unsigned int i , j ;
+    register char * s ;
+d1575 3
+a1577 3
+    j = 0 ;
+    i = 1 ;
+    s = name ;
+d1579 4
+a1582 4
+    for ( ; *s ; i++ , s++ )
+    {
+	j += (*s) * i ; 
+    }
+d1584 1
+a1584 1
+    return j % HASH_TABLE_SIZE ;
+d1590 2
+a1591 2
+    register unsigned int j ;
+    register char * s ;
+d1593 2
+a1594 6
+    j = 0 ; 
+    for ( s = name ; *s ; s++ ) 
+    {
+	j <<= 4 ;
+	j += *s ;
+	if ( ( j & 0xf000 ) != 0 ) 
+d1596 7
+a1602 2
+	    j = j ^ ( j >> 12 ) ;
+	    j &= 0x0fff ;
+a1603 1
+    }
+d1605 1
+a1605 1
+    return ( j & 0x7fff ) % HASH_TABLE_SIZE ;
+@
+
+
+1.2
+log
+@fix PARANOID call to FindInCache()
+@
+text
+@d3 3
+d288 3
+a290 1
+			if (Hnode == miparm.me)
+d433 1
+a433 1
+FUNCTION FindObject(name,time,message,restart)
+d438 1
+d480 1
+d1165 2
+a1166 1
+	    FindObject(name,request->time,request->Message,request->restart);
+d1328 1
+d1338 4
+a1341 3
+    {
+	if ( gtVTime ( min, pending->time ) )
+	    min = pending->time;	/* found an earlier time */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d1182 1
+a1182 1
+        if (FindInCache(name,phase_begin) != NULL)
+@

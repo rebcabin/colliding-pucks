@@ -1,0 +1,3025 @@
+head     1.10;
+branch   ;
+access   ;
+symbols  TW2_7:1.10 TW2_6:1.10 TW2_5_1:1.9 TW2_5:1.6 TW2_4_2:1.4 TW2_4_1:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.10
+date     91.11.01.10.01.17;  author reiher;  state Rel;
+branches ;
+next     1.9;
+
+1.9
+date     91.07.17.15.51.55;  author judy;  state Rel;
+branches ;
+next     1.8;
+
+1.8
+date     91.07.17.09.08.51;  author configtw;  state Dev;
+branches ;
+next     1.7;
+
+1.7
+date     91.07.09.16.25.42;  author steve;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.06.03.12.16.27;  author configtw;  state Rel;
+branches ;
+next     1.5;
+
+1.5
+date     91.03.25.16.44.33;  author csupport;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     90.12.10.11.10.48;  author configtw;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     90.11.27.10.21.24;  author csupport;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.16.11.04.23;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.06.13.52.48;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@main() and startup code
+@
+
+
+1.10
+log
+@added variables for critical path computation
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	BF_MACHrun.c,v $
+ * Revision 1.9  91/07/17  15:51:55  judy
+ * New copyright notice.
+ * 
+ * Revision 1.8  91/07/17  09:08:51  configtw
+ * Get rid of redundant defines.
+ * 
+ * Revision 1.7  91/07/09  16:25:42  steve
+ * Moved `log-ing' code to file cp_msg.c (now shared with sun version)
+ * 
+ * Revision 1.6  91/06/03  12:16:27  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.5  91/03/25  16:44:33  csupport
+ * Add support for longer names for mlog.
+ * 
+ * Revision 1.4  90/12/10  11:10:48  configtw
+ * 1.  allow tester to interrupt looping node via signals
+ * 2.  retype buff[] to double for TC2000 alignment
+ * 
+ * Revision 1.3  90/11/27  10:21:24  csupport
+ * fix tester quit bug
+ * 
+ * Revision 1.2  90/08/16  11:04:23  steve
+ * Major Revision
+ * 1. removed the Uniform System.
+ * 2. changed the large arrays from global data to malloc-ed storage
+ *      (over 1/4 Meg saved from
+ *      the data segment)
+ * 3. the command line parameter -B fixed, it now changes the number
+ *      of message buffers.
+ * 4. The loging routines work with the no data case. (The files are
+ *      created before they are closed.)
+ * 5. It prints `.' as each node is started.
+ * 
+ * Revision 1.1  90/08/06  13:52:48  configtw
+ * Initial revision
+ * 
+*/
+
+#include  <stdio.h>
+#include <sys/ioctl.h>
+#include <mach.h>
+#include <signal.h>
+#include "twcommon.h"
+#include "BBN.h"
+#include "logdefs.h"
+#include <sys/cluster.h>
+#include <sys/kern_return.h>
+
+
+
+extern  int tester();
+
+
+#define ANY -1
+
+
+#define READ_THE_CONSOLE        0
+#define EXIT                    1
+#define SIGNAL_THE_CUBE         2
+#define STDOUT_DATA             3
+#define STDOUT_TIME             4
+#define STATS_DATA              5
+#define GVT_DATA                6
+#define FLOW_DATA               7
+#define MSG_DATA                8
+#define TIME_SYNC               9
+#define ISLOG_DATA              10
+#define QLOG_DATA               11
+
+int tw_num_nodes, tw_node_num;
+int node_cputime;
+
+extern int stdout_fd;
+extern int stats_fd;
+extern int stats_fp;
+
+
+/* Global data structures that everyone will get a copy of */
+
+extern  FIFO_QUEUE **event_queue;        /* Event Queue  */
+extern  FIFO_QUEUE **recv_queue;         /* Message Queue */
+extern  FIFO_QUEUE **recv_pqueue;        /* Prioirity Message Queue */
+extern  char **buffer_pool;
+extern  MESSAGE * send_buff[];
+
+long endWhenCritDone = 0;
+long critDone = 0;
+extern long critEnabled;
+#define BLOCKSIZE 128
+
+/* This routine is here so that the CP process just stays */
+/* out of the way in terms of the interruptable tester()  */
+/* feature. This is very kludgy right now but for the     */
+/* moment it will do.                                     */
+
+CP_Tester()
+{
+
+  signal ( SIGINT, SIG_DFL);
+  return;
+
+}
+
+Main_CP_Execution_Loop()
+{
+
+MSG_STRUCT m;
+char line[100];
+/* char buff [512]; */
+double buff[64];        /* to force alignment on double boundary */
+int  iret, navail;
+int event_type;
+int  i,j,node;
+char *msg;
+static int cmd_node;
+char prompt[20];
+int  nodes;
+
+
+	butterfly_host_wait_for_nodes ();
+
+	for ( ;; )
+	{
+		for ( ;; )
+		{
+
+/* Poll the input to see if any chars are there */
+
+			ioctl ( fileno(stdin), FIONREAD, &navail );
+			if ( navail >0 )
+			{
+				gets ( line );
+				break;  
+			} 
+
+
+			event_type = check_for_events ();
+			if ( event_type )
+				break;  
+
+			m.source = ANY;
+			m.type   = ANY;
+			m.buf = buff;
+
+			iret = get_msg ( &m  );
+
+			if ( iret )
+				handle_cp_msg ( m );
+		}
+
+		if ( event_type == END_EVENT )
+		{
+			printf ( "All Done\n" );
+			break;
+		}
+
+		interrupt_nodes ();
+
+		butterfly_get_prompt ( prompt, ALL );
+
+		for ( ;; )
+		{
+			printf ( "%d--%s", cmd_node, prompt );
+
+			gets ( line );
+
+			if ( strcmp ( line, "stop" ) == 0
+			||   strcmp ( line, "quit" ) == 0 )
+			{
+				printf ( "byebye\n" );
+				broadcast_event (END_EVENT);
+				exit(0);
+			}
+
+			if ( line[0] >= '0' && line[0] <= '9' )
+			{
+				i = atoi ( line );
+
+				if ( i >= 0 && i < tw_num_nodes )
+					cmd_node = i;
+				else
+				{
+					printf ( "Max node is %d\n", tw_num_nodes-1 );
+					continue;
+				}
+			}
+
+			if ( line[0] == '*'
+			||  strcmp ( line, "go" ) == 0 )
+				node = ALL;
+			else
+				node = cmd_node;
+
+			msg = line;
+
+			if ( *msg == '*' )
+				msg++;
+			else
+			while ( *msg >= '0' && *msg <= '9' )
+				msg++;
+
+			if ( *msg == 0 )
+				continue;
+
+			butterfly_send_command ( msg, node );
+
+			if ( strcmp ( line, "go" ) == 0 )
+			 {
+				signal(SIGINT, CP_Tester);
+				break;
+			 }
+
+			if ( strcmp ( line, "*dumpqlog" ) == 0 )
+				break;
+
+			butterfly_get_prompt ( prompt, node );
+		}
+	}
+	broadcast_event (END_EVENT);
+	fclose ( stdout_fd );
+	printf ( "Nodes shutting down\n" );
+	while ( -1 != wait ( (union wait *) 0 ) )
+	{
+		printf ( "." );
+		fflush ( stdout );
+	}
+	printf ( "\n" );
+	printf ( "CP: cluster node %d exiting\n", tw_num_nodes );
+	exit (0);
+}
+
+
+
+static char  working_dir[60];
+static char zero[2] = "0";
+
+int rtc_sync;
+
+Node_Arg_Str Node_Args;
+extern int number_of_buffers;
+
+main ( argc, argv )
+
+	int argc;
+	char * argv[];
+{
+
+	char   c;
+	int nodes;
+	char * config;
+	char * stats = "XL_STATS";  /* default for -S */
+	char * usage = 
+		"usage: TW nodes config [ -S stats] [ -M memsiz ] [ -B numbuffs ]\n";
+	kern_return_t rv;
+	int nodes_requested;
+	cluster_type_t mach_type = 0;
+	cluster_id_t  cluster_id;
+	int nodes_allocated;
+	int child_pid;
+
+
+	signal (SIGINT, CP_Tester);
+
+	if ((argc < 3) || (argc > 9) || (sscanf(argv[1], "%d", &nodes) == 0))
+		{  /* wrong number of args or bad "nodes" argument */
+		printf("%s", usage);
+		exit(0);
+		}
+	Node_Args.num_nodes = tw_num_nodes = nodes;/* handle arg 1 */
+	nodes_requested = nodes + 1;
+
+	config = argv[2];   /* name of configuration file */
+
+	argc -= 2;
+	argv += 2;  /* set up for the loop */
+
+	while (--argc > 0 && (*++argv)[0] == '-')
+		{  /* loop through optional args */
+		argc--;
+		c = *++argv[0];         /* get option letter */
+		switch (c)
+			{
+			case 'S':           /* stats file name */
+				stats = *++argv;
+				break;
+			case 'M':           /* megs of memory */
+				if (sscanf(*++argv, "%lf", &Node_Args.meg ) == 0)
+					argc = -1;  /* force error exit */
+				break;
+			case 'B':           /* # of bufs */
+				if (sscanf(*++argv, "%d", &number_of_buffers ) == 0)
+					argc = -1;  /* force error exit */
+				break;
+			default:
+				argc = -1;      /* force error exit */
+				break;
+			}  /* switch (c) */
+		}  /* while (--argc ...) */
+	if (argc != 0)
+		{  /* an error in the arguments */
+			printf("%s", usage);
+			exit(0);
+		}  /* if (argc != 0) */
+
+	if ( number_of_buffers < MIN_NUM_BUFFS )
+	{
+		printf ( "Too few buffers (min is %d) --resetting to %d (default)\n",
+			MIN_NUM_BUFFS, DEFAULT_NUM_BUFFS );
+		number_of_buffers = DEFAULT_NUM_BUFFS;
+	}
+	else if ( number_of_buffers > MAX_NUM_BUFFS )
+	{
+		printf ( "Too many buffers (max is %d) --resetting to %d (default)\n",
+			MAX_NUM_BUFFS, DEFAULT_NUM_BUFFS );
+		number_of_buffers = DEFAULT_NUM_BUFFS;
+	}
+
+
+	make_path ( Node_Args.stdout_path, "STDOUT", "w" );
+	make_path ( Node_Args.config_path, config, "r" );
+
+	printf ( "Config File: %s\n", Node_Args.config_path );
+
+
+	make_path ( Node_Args.stats_path, stats, "w" );
+	printf ( "Stats File: %s\n", Node_Args.stats_path );
+	stdout_fd = 
+	   (int) fopen ( Node_Args.stdout_path, "w" );
+
+	if ( 0 != ( rv = cluster_create(nodes_requested, mach_type,
+		&cluster_id, &nodes_allocated) ) )
+	{
+		printf ( "cluster_create returned %d\n", rv );
+		if ( rv == 6 )
+		{
+			printf ( "Too few nodes in free cluster\n" );
+		}
+		exit ( 1 );
+	}
+
+	if ( 0 != ( rv = fork_and_bind( tw_num_nodes, cluster_id, &child_pid) ) )
+	{
+		printf ( "fork_and_bind returned %d\n", rv );
+		exit ( 1 );
+	}
+
+	if ( child_pid ) /* I am the parent */
+	{
+		wait ( (union wait *) 0 );
+		printf ( "Cluster creator exiting\n" );
+		exit ( 0 );
+	}
+	/* I am the child running on cluster node tw_num_nodes `the CP' */
+
+	butterfly_host_init();
+	rtc_sync = getrtc();
+
+	printf ( "Starting Nodes\n" );
+	for ( nodes = 0; nodes < tw_num_nodes; nodes++ )
+	{
+		if ( 0 != ( rv = fork_and_bind( nodes, cluster_id, &child_pid) ) )
+		{
+			printf ( "fork_and_bind returned %d\n", rv );
+			exit ( 1 );
+		}
+		if ( ! child_pid ) /* I am the child running on cluster node `nodes' */
+		{
+			Main_Node_Execution_Loop( nodes );
+			/* never returns */
+		}
+		printf ( "." );
+		fflush ( stdout );
+	}
+
+	printf ( "\n" );
+	/* cluster node: tw_num_nodes --CP stuff */
+	tw_node_num = CP;
+	Main_CP_Execution_Loop();
+	/* never returns */
+}
+
+
+global ()
+{
+	printf ( "GLOBAL\n" );
+	broadcast_event ( INTERRUPT_EVENT); 
+
+}
+
+quit ()
+{
+	butterfly_node_term ();
+}
+
+CP_ctrlc ()
+{
+	exit (0);
+}
+
+term ()
+{
+	printf ( "TERM\n" );
+	exit (0);
+}
+
+
+
+
+
+
+make_path ( path_name, file_name, mode )
+
+	char * path_name, * file_name, * mode;
+{
+	FILE * fp;
+
+	if ( *file_name == '/' )
+	{
+		strcpy ( path_name, file_name );
+	}
+	else
+	{
+		strcpy ( path_name, working_dir );
+		if ( path_name[0] != 0 )
+			strcat ( path_name, "/" );
+		strcat ( path_name, file_name );
+	}
+
+	fp = fopen ( path_name, mode );
+
+	if ( fp == 0 )
+	{
+		printf ( "Can't Open File: %s\n", path_name );
+		exit (0);
+	}
+
+	fclose ( fp );
+}
+@
+
+
+1.9
+log
+@New copyright notice.
+@
+text
+@d7 3
+d93 3
+@
+
+
+1.8
+log
+@Get rid of redundant defines.
+@
+text
+@d1 4
+d7 3
+a41 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.7
+log
+@Moved `log-ing' code to file cp_msg.c (now shared with sun version)
+@
+text
+@d3 3
+a53 2
+#define MAX_NODES 128
+#define ALL -1
+@
+
+
+1.6
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        BF_MACHrun.c,v $
+a50 2
+VTime CPposinfPlus1 = { POSINF+1, 0, 0 };
+
+a68 8
+#define HLENGTH 100
+typedef int hist_array[HLENGTH+1];
+
+/* Old Style Defintion -- Pre-Malloc
+hist_array sum_gram[20];
+*/
+hist_array * sum_gram;
+
+d72 3
+a74 4
+int sync_cnt;
+int num_times;
+int low_node;
+VTime low_time, next_low_time;
+a75 6
+/* Old Style Defintions -- Pre-Malloc
+VTime stdout_time[MAX_NODES];
+char first_time[MAX_NODES];
+*/
+VTime * stdout_time;
+char * first_time;
+a76 24
+int stdout_fd;
+int stats_fd;
+int stats_fp;
+
+
+
+/* Globals used for the assignment of object names to integers */
+
+#define MAX_OBJS 1000
+
+typedef struct
+{
+	Name name;
+	int node;
+} CP_ObjStruct;
+
+/* Old Sytle -- Pre-Malloc
+CP_ObjStruct obj[MAX_OBJS];
+*/
+CP_ObjStruct *obj;
+
+int nobjs;
+
+
+a86 173
+/* Declarations for Instantaneous Speedup logging (islog)  */
+
+int ISfile;
+int isitems;
+int IS_num_times;
+int IS_low_node;
+double IS_low_time;
+
+int * IS;
+double * IS_time;
+char * IS_first_time;
+
+/* Old Style Definitions -- Pre-Malloc
+int IS[MAX_NODES];
+double IS_time[MAX_NODES];
+char IS_first_time[MAX_NODES];
+
+IS_LOG_ENTRY * IS_logp;
+IS_LOG_ENTRY IS_log[MAX_NODES][16];
+*/
+
+IS_LOG_ENTRY * IS_logp;
+typedef IS_LOG_ENTRY x16_IS_LOG_ENTRY[16];
+x16_IS_LOG_ENTRY * IS_log;
+
+/* Declarations for queue logging (qlog)  */
+
+int Qfile;
+int Q_num_times;
+int Q_low_node;
+double Q_low_time;
+
+int * Q;
+double * Q_time;
+char * Q_first_time;
+
+/* Old Style Definitions -- Pre-Malloc
+int Q[MAX_NODES];
+double Q_time[MAX_NODES];
+char Q_first_time[MAX_NODES];
+
+Q_LOG_ENTRY * Q_logp;
+Q_LOG_ENTRY Q_log[MAX_NODES][10];
+*/
+
+Q_LOG_ENTRY * Q_logp;
+typedef Q_LOG_ENTRY x10_Q_LOG_ENTRY[10];
+x10_Q_LOG_ENTRY * Q_log;
+
+/* Declarations for event logging (flowlog)  */
+
+FILE * flow_file;
+int fno, fitems;
+int flow_num_times;
+int flow_low_node;
+int flow_low_time;
+
+int * flow_time;
+int * fx;
+char * flow_first_time;
+
+/* Old Sytle Definitions -- Pre-Malloc
+int flow_time[MAX_NODES];
+int fx[MAX_NODES];
+char flow_first_time[MAX_NODES];
+
+FLOW_LOG_ENTRY * flogp;
+FLOW_LOG_ENTRY flog[MAX_NODES][20];
+FLOW_COBJ fobj[BLOCKSIZE];
+*/
+
+FLOW_LOG_ENTRY * flogp;
+typedef FLOW_LOG_ENTRY x20_FLOW_LOG_ENTRY[20];
+x20_FLOW_LOG_ENTRY * flog;
+FLOW_COBJ * fobj;
+
+/* Declarations for message logging (msglog)  */
+
+FILE * mlog_file;
+int mno, mitems;
+int msg_num_times;
+int msg_low_node;
+int msg_low_time;
+
+int * mx;
+int * msg_time;
+char * msg_first_time;
+
+/* Old Style Definitions -- Pre-Malloc
+int mx[MAX_NODES];
+int msg_time[MAX_NODES];
+char msg_first_time[MAX_NODES];
+
+MSG_LOG_ENTRY * CPmlogp;
+MSG_LOG_ENTRY CPmlog[MAX_NODES][8];
+MSG_COBJ mobj[BLOCKSIZE];
+*/
+
+MSG_LOG_ENTRY * CPmlogp;
+typedef MSG_LOG_ENTRY x8_MSG_LOG_ENTRY[8];
+x8_MSG_LOG_ENTRY * CPmlog;
+MSG_COBJ * mobj;
+
+
+/*
+		At first glance this seems to be the hard way to make array's.
+However all these big array's were also included in the data segment
+of the tw nodes. By malloc'ing them they only take space on the CP node.
+*/
+
+malloc_logmsg_variables()
+{
+	int error = 0;
+
+	sum_gram = (hist_array *) malloc ( 20 * sizeof(hist_array) );
+
+	stdout_time = (VTime *) malloc ( tw_num_nodes * sizeof(VTime) );
+	first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+
+	obj = (CP_ObjStruct *) malloc ( MAX_OBJS * sizeof(CP_ObjStruct) );
+
+	error = error || !sum_gram || !stdout_time || !first_time || !obj;
+
+/* Allocations for Instantaneous Speedup logging (islog)  */
+
+	IS = (int *) malloc ( tw_num_nodes * sizeof(int) );
+	IS_time = (double *) malloc ( tw_num_nodes * sizeof(double) );
+	IS_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+
+	IS_log = (x16_IS_LOG_ENTRY *)
+		malloc ( tw_num_nodes * sizeof(x16_IS_LOG_ENTRY) );
+
+	error = error || !IS || !IS_time || !IS_first_time || !IS_log;
+
+/* Allocations for queue logging (qlog)  */
+
+	Q = (int *) malloc ( tw_num_nodes * sizeof(int) );
+	Q_time = (double *) malloc ( tw_num_nodes * sizeof(double) );
+	Q_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+
+	Q_log = (x10_Q_LOG_ENTRY *)
+		malloc ( tw_num_nodes * sizeof(x10_Q_LOG_ENTRY) );
+
+	error = error || !Q || !Q_time || !Q_first_time || !Q_log;
+
+/* Allocations for event logging (flowlog)  */
+
+	flow_time = (int *) malloc ( tw_num_nodes * sizeof(int) );
+	fx = (int *) malloc ( tw_num_nodes * sizeof(int) );
+	flow_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+
+	flog = (x20_FLOW_LOG_ENTRY *)
+		malloc ( tw_num_nodes * sizeof(x20_FLOW_LOG_ENTRY) );
+	fobj = (FLOW_COBJ *) malloc ( BLOCKSIZE * sizeof(FLOW_COBJ) );
+
+	error = error || !flow_time || !fx || !flow_first_time || !flog || !fobj;
+
+/* Allocations for message logging (msglog)  */
+
+	mx = (int *) malloc ( tw_num_nodes * sizeof(int) );
+	msg_time = (int *) malloc ( tw_num_nodes * sizeof(int) );
+	msg_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+
+	CPmlog = (x8_MSG_LOG_ENTRY *)
+		malloc ( tw_num_nodes * sizeof(x8_MSG_LOG_ENTRY) );
+	mobj = (MSG_COBJ *) malloc ( BLOCKSIZE * sizeof(MSG_COBJ) );
+
+	error = error || !mx || !msg_time || !msg_first_time || !CPmlog || !mobj;
+
+	if ( error )
+		printf ( "CP unable to malloc logmsg variables\n" );
+}
+
+a115 2
+	malloc_logmsg_variables();
+
+d144 1
+a144 669
+			{
+
+				if ( m.type == TIME_SYNC )
+				{
+					sync_cnt++;
+					printf ("BF_MACHrun: received TIME_SYNC\n");
+
+					if ( sync_cnt == tw_num_nodes )
+					{
+						sync_cnt = 0;
+					}
+				}
+				else
+				if ( m.type == GVT_DATA )
+				{
+					printf ("BF_MACHrun: received GVT_DATA\n");
+					printf ( "%s", m.buf );
+				}
+				else
+				if ( m.type == STDOUT_DATA )
+				{
+
+					fwrite (m.buf,m.mlen,1, stdout_fd );
+
+					m.dest = m.source;
+					m.source = CP;
+					m.mlen = 0;
+					m.type = 0;
+					send_msg_w ( &m );
+					m.type = STDOUT_DATA;
+				}
+				else
+				if ( m.type == STATS_DATA )
+				{
+					register int i, j;
+					static int hist_nodes;
+					hist_array * histogram;
+					int node = m.source;
+					histogram = m.buf;
+					printf ("BF_MACHrun: received STATS_DATA\n");
+					for ( j = 0; j <= HLENGTH; j++ )
+					{
+						HOST_fprintf (
+						stats_fp, 
+						"%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+						node, j,
+						histogram[0][j],
+						histogram[1][j],
+						histogram[2][j],
+						histogram[3][j],
+						histogram[4][j],
+						histogram[5][j],
+						histogram[6][j],
+						histogram[7][j],
+						histogram[8][j],
+						histogram[9][j],
+						histogram[10][j],
+						histogram[11][j],
+						histogram[12][j] );
+
+						for ( i = 0; i < 13; i++ )
+							sum_gram[i][j] += histogram[i][j];
+					}
+					hist_nodes++;
+					if ( hist_nodes == tw_num_nodes )
+					{
+						fclose ( stats_fp );
+						stats_fp = HOST_fopen ( "SUM", "w" );
+						HOST_fprintf (
+						stats_fp, 
+						"Node\tBucket\tTester\tTW\tObjects\tMercury\tIdle\tGo_Fwd\tQueue\tSched\tDeliver\tServe\tObjend\tGvt\tGcpast\n");
+						for ( j = 0; j <= HLENGTH; j++ )
+						{
+							HOST_fprintf ( stats_fp, "ALL\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+							j,
+							sum_gram[0][j],
+							sum_gram[1][j],
+							sum_gram[2][j],
+							sum_gram[3][j],
+							sum_gram[4][j],
+							sum_gram[5][j],
+							sum_gram[6][j],
+							sum_gram[7][j],
+							sum_gram[8][j],
+							sum_gram[9][j],
+							sum_gram[10][j],
+							sum_gram[11][j],
+							sum_gram[12][j] );
+						}
+						fclose ( stats_fp );
+					}
+				}
+				else
+				if ( m.type == STDOUT_TIME )
+				{
+					register int node = m.source;
+
+
+					if ( first_time[node] == 0 )
+					{
+						first_time[node] = 1;
+						num_times++;
+					}
+					stdout_time[node] = * (VTime *) m.buf;
+
+					if ( num_times == tw_num_nodes )
+					{
+						low_node = 0;
+						low_time = CPposinfPlus1;
+						next_low_time = low_time;
+
+						for ( node = 0; node < tw_num_nodes; node++ )
+						{
+							if ( ltVTime ( stdout_time[node], low_time ) )
+							{
+								next_low_time = low_time;
+								low_time = stdout_time[node];
+								low_node = node;
+							}
+							else
+							if ( ltVTime ( stdout_time[node], next_low_time ) )
+							{
+								next_low_time = stdout_time[node];
+							}
+						}
+						next_low_time = low_time;
+						m.buf  = &next_low_time;
+						m.mlen = sizeof(next_low_time);
+						m.dest = low_node;
+						m.source = CP;
+						m.type = 0;
+						send_msg_w ( &m );
+						m.type = STDOUT_TIME;
+					}
+				}
+				else
+				if ( m.type == FLOW_DATA )
+				{
+					register int node = m.source;
+
+
+					if ( flow_first_time[node] == 0 )
+					{
+						flow_first_time[node] = 1;
+						flow_num_times++;
+					}
+
+					entcpy ( flog[node], m.buf, m.mlen );
+
+					flow_time[node] = flog[node][0].start_time;
+
+					fx[node] = 0;
+
+					if ( flow_time[node] == MAXINT )
+					{
+						m.buf  = &flow_time[node];
+						m.mlen = sizeof(flow_time[node]);
+						m.dest = node;
+						m.source = CP;
+						m.type = 0;
+						send_msg_w ( &m );
+						m.type = FLOW_DATA;
+					}
+
+					if ( flow_num_times == tw_num_nodes )
+					{
+flow_loop:
+						flow_low_node = 0;
+						flow_low_time = MAXINT;
+
+						for ( node = 0; node < tw_num_nodes; node++ )
+						{
+							if ( flow_time[node] < flow_low_time )
+							{
+								flow_low_time = flow_time[node];
+								flow_low_node = node;
+							}
+						}
+
+						if ( flow_file == 0 )
+						{
+							flow_file = (FILE *) HOST_fopen ( "cflow", "w" );
+
+							if ( flow_file == 0 )
+							{
+								printf ( "can't open cflow file\n" );
+							}
+						}
+
+						if ( flow_low_time == MAXINT )
+						{
+							FILE * fp;
+
+							if ( fno > 0 )
+							{
+
+								HOST_fwrite ( fobj, sizeof(FLOW_COBJ) * fno,
+									    1, flow_file );
+							}
+							HOST_fclose ( flow_file );
+
+							printf ( "%d flow items\n", fitems );
+
+							fp = (FILE *) HOST_fopen ( "cname", "w" );
+
+							if ( fp == 0 )
+							{
+								printf ( "can't open cname file\n" );
+								break;
+							}
+
+							for ( i = 0; i < nobjs; i++ )
+							{
+								fprintf ( fp, "%-16s %d\n", obj[i].name,
+									    obj[i].node );
+							}
+
+							HOST_fclose ( fp );
+
+							printf ( "%d flow names\n", nobjs );
+
+							nobjs = 0;
+
+							m.buf  = &flow_low_time;
+							m.mlen = sizeof(flow_low_time);
+							m.dest = 0;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = FLOW_DATA;
+						}
+
+						node = flow_low_node;
+
+						flogp = &flog[node][fx[node]];
+/*We dont write the file in ASCII anymore. It takes up too much
+  room on the disks.
+						HOST_fprintf ( flow_file, "%d %d %d %s %f\n", node,
+								flogp->start_time, flogp->end_time,
+								flogp->object, flogp->svt );
+*/
+						fitems++;
+
+						fobj[fno].cpuf = flogp->start_time;
+						fobj[fno].cput = flogp->end_time;
+						fobj[fno].vt = flogp->svt;
+						i = objno(flogp->object);
+						fobj[fno].objno = i;
+						obj[i].node = node;
+
+						fno++;
+
+						if ( fno == BLOCKSIZE )
+						{
+							fno = 0;
+
+							HOST_fwrite ( fobj, sizeof(FLOW_COBJ) * BLOCKSIZE,
+								1, flow_file );
+						}
+
+						fx[node]++;
+
+						if ( fx[node] < 20 )
+							flow_time[node] = flog[node][fx[node]].start_time;
+
+						if ( fx[node] == 20 || flow_time[node] == MAXINT )
+						{
+							m.buf  = &flow_low_time;
+							m.mlen = sizeof(flow_low_time);
+							m.dest = flow_low_node;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = FLOW_DATA;
+						}
+
+						if ( fx[node] < 20 )
+							goto flow_loop;
+					}
+				}
+				else
+				if ( m.type == MSG_DATA )
+				{
+					register int node = m.source;
+
+
+					if ( msg_first_time[node] == 0 )
+					{
+						msg_first_time[node] = 1;
+
+						msg_num_times++;
+					}
+
+					entcpy ( CPmlog[node], m.buf, m.mlen );
+
+					msg_time[node] = CPmlog[node][0].twtimet;
+
+					mx[node] = 0;
+
+					if ( msg_time[node] == MAXINT )
+					{
+						m.buf  = &msg_time[node];
+						m.mlen = sizeof(msg_time[node]);
+						m.dest = node;
+						m.source = CP;
+						m.type = 0;
+						send_msg_w ( &m );
+						m.type = MSG_DATA;
+					}
+
+					if ( msg_num_times == tw_num_nodes )
+					{
+msg_loop:
+						msg_low_node = 0;
+						msg_low_time = MAXINT;
+
+						for ( node = 0; node < tw_num_nodes; node++ )
+						{
+							if ( msg_time[node] < msg_low_time )
+							{
+								msg_low_time = msg_time[node];
+								msg_low_node = node;
+							}
+						}
+
+						if ( mlog_file == 0 )
+						{
+							mlog_file = (FILE *) HOST_fopen ( "mmlog", "w" );
+
+							if ( mlog_file == 0 )
+								printf ( "can't open mmlog file\n" );
+						}
+
+						if ( msg_low_time == MAXINT )
+						{
+							FILE * fp;
+
+							if ( mno > 0 )
+							{
+								HOST_fwrite ( mobj, sizeof(MSG_COBJ) * mno,
+									    1, mlog_file );
+							}
+							HOST_fclose ( mlog_file );
+
+							printf ( "%d mlog items\n", mitems );
+
+							fp = (FILE *) HOST_fopen ( "mname", "w" );
+
+							if ( fp == 0 )
+							{
+								printf ( "can't open mname file\n" );
+								break;
+							}
+
+							for ( i = 0; i < nobjs; i++ )
+							{
+								fprintf ( fp, "%-20s %d\n", obj[i].name,
+									    obj[i].node );
+							}
+
+							HOST_fclose ( fp );
+
+							printf ( "%d mlog names\n", nobjs );
+
+							nobjs = 0;
+
+							m.buf  = &msg_low_time;
+							m.mlen = sizeof(msg_low_time);
+							m.dest = 0;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = MSG_DATA;
+						}
+
+						node = msg_low_node;
+
+						CPmlogp = &CPmlog[node][mx[node]];
+
+/* We don't write these out in ASCII anymore. It takes too
+   much room on the disks.
+						HOST_fprintf ( mlog_file,
+							"%d %d %d %d %d %s %.2f %s %.2f %d %d %x %d\n",
+								node,
+								CPmlogp->twtimef, CPmlogp->twtimet,
+								CPmlogp->hgtimef, CPmlogp->hgtimet,
+								CPmlogp->snder, CPmlogp->sndtim,
+								CPmlogp->rcver, CPmlogp->rcvtim,
+								CPmlogp->id_num, CPmlogp->mtype,
+								CPmlogp->flags, CPmlogp->len );
+*/
+						mitems++;
+
+						mobj[mno].twtimef = CPmlogp->twtimef;
+						mobj[mno].twtimet = CPmlogp->twtimet;
+						mobj[mno].hgtimef = CPmlogp->hgtimef;
+						mobj[mno].hgtimet = CPmlogp->hgtimet;
+						mobj[mno].sndtim = CPmlogp->sndtim;
+						mobj[mno].rcvtim = CPmlogp->rcvtim;
+						mobj[mno].id_num = CPmlogp->id_num;
+						mobj[mno].snder = objno(CPmlogp->snder);
+						i = objno(CPmlogp->rcver);
+						mobj[mno].rcver = i;
+						obj[i].node = node;
+						mobj[mno].len = CPmlogp->len;
+						mobj[mno].mtype = CPmlogp->mtype;
+						mobj[mno].flags = CPmlogp->flags;
+
+						mno++;
+
+						if ( mno == BLOCKSIZE )
+						{
+							mno = 0;
+
+							HOST_fwrite ( mobj, sizeof(MSG_COBJ) * BLOCKSIZE,
+								1, mlog_file );
+						}
+
+						mx[node]++;
+
+						if ( mx[node] < 8 )
+							msg_time[node] = CPmlog[node][mx[node]].twtimet;
+
+						if ( mx[node] == 8 || msg_time[node] == MAXINT )
+						{
+							m.buf  = &msg_low_time;
+							m.mlen = sizeof(msg_low_time);
+							m.dest = msg_low_node;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = MSG_DATA;
+						}
+
+						if ( mx[node] < 8 )
+							goto msg_loop;
+					}
+				}
+				else
+				if ( m.type == ISLOG_DATA )
+				{
+					register int node = m.source;
+
+					if ( IS_first_time[node] == 0 )
+					{
+						IS_first_time[node] = 1;
+
+						IS_num_times++;
+					}    
+
+					entcpy ( IS_log[node], m.buf, m.mlen );
+
+					IS_time[node] = IS_log[node][0].cputime;
+
+					IS[node] = 0;
+
+					if ( IS_time[node] == 1000000. )
+					{
+						m.buf  = &IS_time[node];
+						m.mlen = sizeof(IS_time[node]);
+						m.dest = node;
+						m.source = CP;
+						m.type = 0;
+						send_msg_w ( &m );
+						m.type = ISLOG_DATA;
+					}
+
+					if ( IS_num_times == tw_num_nodes )
+					{
+IS_loop:
+						IS_low_node = 0;
+						IS_low_time = 1000000.;
+
+						for ( node = 0; node < tw_num_nodes; node++ )
+						{
+							if ( IS_time[node] < IS_low_time )
+							{
+								IS_low_time = IS_time[node];
+								IS_low_node = node;
+							}
+						}
+
+						if ( ISfile == 0 )
+						{
+							ISfile = HOST_fopen ( "ISLOG", "w" );
+
+							if ( ISfile == 0 )
+							{
+								printf ( "can't open ISLOG file\n" );
+							}
+						}    
+
+						if ( IS_low_time == 1000000. )
+						{
+							HOST_fclose ( ISfile );
+
+							printf ( "%d islog items\n", isitems );
+
+							m.buf  = &IS_low_time;
+							m.mlen = sizeof(IS_low_time);
+							m.dest = 0;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = ISLOG_DATA;
+
+							goto IS_done;
+						}
+
+						node = IS_low_node;
+
+						IS_logp = &IS_log[node][IS[node]];
+
+						HOST_fprintf ( ISfile, "%d %d %f %f\n",
+								node,
+								IS_logp->seqnum,
+								IS_logp->cputime,
+								IS_logp->minvt.simtime
+								);
+
+						isitems++;
+
+						IS[node]++;
+
+						if ( IS[node] < 16 )
+							IS_time[node] = IS_log[node][IS[node]].cputime;
+
+						if ( IS[node] == 16 || IS_time[node] == 1000000. )
+						{
+							m.buf  = &IS_low_time;
+							m.mlen = sizeof(IS_low_time);
+							m.dest = IS_low_node;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = ISLOG_DATA;
+						}
+
+						if ( IS[node] < 16 )
+							goto IS_loop;
+					}
+IS_done:
+				}
+
+				else
+				if ( m.type == QLOG_DATA )
+				{
+					register int node = m.source;
+
+					if ( Q_first_time[node] == 0 )
+					{
+						Q_first_time[node] = 1;
+						Q_num_times++;
+					}    
+
+					if ( m.mlen != ( sizeof(Q_LOG_ENTRY) * 10 ) )
+						printf ( " --recv %d bytes from %d\n", m.mlen, node );
+
+					entcpy ( Q_log[node], m.buf, m.mlen );
+
+					Q_time[node] = Q_log[node][0].gvt.simtime;
+
+					Q[node] = 0;
+
+					if ( Q_time[node] == POSINF+1 )
+					{
+						m.buf  = &Q_low_time;
+						m.mlen = sizeof(Q_low_time);
+						m.dest = node;
+						m.source = CP;
+						m.type = 0;
+						send_msg_w ( &m );
+						m.type = QLOG_DATA;
+					}
+
+					if ( Q_num_times == tw_num_nodes )
+					{
+Q_loop:
+						Q_low_node = 0;
+						Q_low_time = POSINF+1;
+
+						for ( node = 0; node < tw_num_nodes; node++ )
+						{
+							if ( Q_time[node] < Q_low_time )
+							{
+								Q_low_time = Q_time[node];
+								Q_low_node = node;
+							}
+						}
+
+						if ( Qfile == 0 )
+						{
+							Qfile = HOST_fopen ( "QLOG", "w" );
+
+							if ( Qfile == 0 )
+								printf ( "can't open QLOG file\n" );
+							else
+								printf ( "QLOG opened\n" );
+						}    
+
+						if ( Q_low_time == POSINF+1 )
+						{
+							HOST_fclose ( Qfile );
+							printf ( "QLOG closed\n" );
+
+							m.buf  = &Q_low_time;
+							m.mlen = sizeof(Q_low_time);
+							m.dest = 0;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = QLOG_DATA;
+
+							event_type = END_EVENT;
+							break;
+						}
+
+						node = Q_low_node;
+
+						Q_logp = &Q_log[node][Q[node]];
+
+#ifdef DLM
+						HOST_fprintf ( Qfile, "%d %d %f %f\n",
+								node,
+								Q_logp->loadCount,
+								Q_logp->gvt.simtime,
+								Q_logp->utilization
+								);
+
+#else
+						HOST_fprintf ( Qfile, "%d %f %f\n",
+								node,
+								Q_logp->gvt.simtime,
+								Q_logp->utilization
+								);
+
+#endif DLM
+						Q[node]++;
+
+						if ( Q[node] < 10 )
+							Q_time[node] = Q_log[node][Q[node]].gvt.simtime;
+
+						if ( Q[node] == 10 || Q_time[node] == POSINF+1 )
+						{
+							m.buf  = &Q_low_time;
+							m.mlen = sizeof(Q_low_time);
+							m.dest = Q_low_node;
+							m.source = CP;
+							m.type = 0;
+							send_msg_w ( &m );
+							m.type = QLOG_DATA;
+						}
+
+						if ( Q[node] < 10 )
+							goto Q_loop;
+					}
+				}
+				else
+
+				if ( m.type == READ_THE_CONSOLE )
+				{
+					printf ("BBNrun: received READ_THE_CONSOLE\n");
+				}
+				else
+				if ( m.type == EXIT )
+				{
+					butterfly_node_term ();
+				}
+			}
+a433 31
+}
+
+
+objno ( name )
+
+	char * name;
+{
+	register int i;
+
+	if ( *name == 0 )
+		strcpy ( name, "null" );
+
+	for ( i = 0; i < nobjs; i++ )
+	{
+		if ( strcmp ( name, obj[i].name ) == 0 )
+			break;
+	}
+	if ( i == nobjs )
+	{
+		if ( i == MAX_OBJS )
+		{
+			printf ( "exceeded %d objects\n", i );
+		}
+		else
+		{
+			strcpy ( obj[i].name, name );
+			nobjs++;
+		}
+	}
+
+	return ( i );
+@
+
+
+1.5
+log
+@Add support for longer names for mlog.
+@
+text
+@d2 4
+a5 1
+ * $Log:	BF_MACHrun.c,v $
+d17 2
+a18 2
+ * 	(over 1/4 Meg saved from
+ * 	the data segment)
+d20 1
+a20 1
+ * 	of message buffers.
+d22 1
+a22 1
+ * 	created before they are closed.)
+d29 3
+a31 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d45 1
+a45 1
+extern	int tester();
+d55 12
+a66 12
+#define	READ_THE_CONSOLE	0
+#define	EXIT			1
+#define SIGNAL_THE_CUBE		2
+#define STDOUT_DATA		3
+#define STDOUT_TIME		4
+#define STATS_DATA		5
+#define GVT_DATA		6
+#define FLOW_DATA		7
+#define MSG_DATA		8
+#define TIME_SYNC		9
+#define ISLOG_DATA		10
+#define QLOG_DATA		11
+d103 2
+a104 2
+    Name name;
+    int node;
+d230 1
+a230 1
+	At first glance this seems to be the hard way to make array's.
+d237 1
+a237 1
+    int error = 0;
+d239 1
+a239 1
+    sum_gram = (hist_array *) malloc ( 20 * sizeof(hist_array) );
+d241 2
+a242 2
+    stdout_time = (VTime *) malloc ( tw_num_nodes * sizeof(VTime) );
+    first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+d244 1
+a244 1
+    obj = (CP_ObjStruct *) malloc ( MAX_OBJS * sizeof(CP_ObjStruct) );
+d246 1
+a246 1
+    error = error || !sum_gram || !stdout_time || !first_time || !obj;
+d250 3
+a252 3
+    IS = (int *) malloc ( tw_num_nodes * sizeof(int) );
+    IS_time = (double *) malloc ( tw_num_nodes * sizeof(double) );
+    IS_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+d254 2
+a255 2
+    IS_log = (x16_IS_LOG_ENTRY *)
+	malloc ( tw_num_nodes * sizeof(x16_IS_LOG_ENTRY) );
+d257 1
+a257 1
+    error = error || !IS || !IS_time || !IS_first_time || !IS_log;
+d261 3
+a263 3
+    Q = (int *) malloc ( tw_num_nodes * sizeof(int) );
+    Q_time = (double *) malloc ( tw_num_nodes * sizeof(double) );
+    Q_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+d265 2
+a266 2
+    Q_log = (x10_Q_LOG_ENTRY *)
+	malloc ( tw_num_nodes * sizeof(x10_Q_LOG_ENTRY) );
+d268 1
+a268 1
+    error = error || !Q || !Q_time || !Q_first_time || !Q_log;
+d272 3
+a274 3
+    flow_time = (int *) malloc ( tw_num_nodes * sizeof(int) );
+    fx = (int *) malloc ( tw_num_nodes * sizeof(int) );
+    flow_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+d276 3
+a278 3
+    flog = (x20_FLOW_LOG_ENTRY *)
+	malloc ( tw_num_nodes * sizeof(x20_FLOW_LOG_ENTRY) );
+    fobj = (FLOW_COBJ *) malloc ( BLOCKSIZE * sizeof(FLOW_COBJ) );
+d280 1
+a280 1
+    error = error || !flow_time || !fx || !flow_first_time || !flog || !fobj;
+d284 3
+a286 3
+    mx = (int *) malloc ( tw_num_nodes * sizeof(int) );
+    msg_time = (int *) malloc ( tw_num_nodes * sizeof(int) );
+    msg_first_time = (char *) malloc ( tw_num_nodes * sizeof(char) );
+d288 3
+a290 3
+    CPmlog = (x8_MSG_LOG_ENTRY *)
+	malloc ( tw_num_nodes * sizeof(x8_MSG_LOG_ENTRY) );
+    mobj = (MSG_COBJ *) malloc ( BLOCKSIZE * sizeof(MSG_COBJ) );
+d292 1
+a292 1
+    error = error || !mx || !msg_time || !msg_first_time || !CPmlog || !mobj;
+d294 2
+a295 2
+    if ( error )
+	printf ( "CP unable to malloc logmsg variables\n" );
+d300 2
+a301 2
+/* feature. This is very kludgy right now but for the	  */
+/* moment it will do.					  */
+d317 1
+a317 1
+double buff[64];	/* to force alignment on double boundary */
+d327 1
+a327 1
+    malloc_logmsg_variables();
+d329 1
+a329 1
+    butterfly_host_wait_for_nodes ();
+a330 2
+    for ( ;; )
+    {
+d333 2
+d338 6
+a343 6
+	    ioctl ( fileno(stdin), FIONREAD, &navail );
+	    if ( navail >0 )
+	    {
+		gets ( line );
+		break;	
+	    } 
+d346 3
+a348 3
+	    event_type = check_for_events ();
+	    if ( event_type )
+		break;	
+d350 3
+a352 3
+	    m.source = ANY;
+	    m.type   = ANY;
+	    m.buf = buff;
+d354 1
+a354 1
+	    iret = get_msg ( &m  );
+d356 2
+a357 2
+	    if ( iret )
+	    {
+d359 4
+a362 4
+		if ( m.type == TIME_SYNC )
+		{
+		    sync_cnt++;
+		    printf ("BF_MACHrun: received TIME_SYNC\n");
+d364 14
+a377 14
+		    if ( sync_cnt == tw_num_nodes )
+		    {
+			sync_cnt = 0;
+		    }
+		}
+		else
+		if ( m.type == GVT_DATA )
+		{
+		    printf ("BF_MACHrun: received GVT_DATA\n");
+		    printf ( "%s", m.buf );
+		}
+		else
+		if ( m.type == STDOUT_DATA )
+		{
+d379 1
+a379 1
+		    fwrite (m.buf,m.mlen,1, stdout_fd );
+d381 35
+a415 35
+		    m.dest = m.source;
+		    m.source = CP;
+		    m.mlen = 0;
+		    m.type = 0;
+		    send_msg_w ( &m );
+		    m.type = STDOUT_DATA;
+		}
+		else
+		if ( m.type == STATS_DATA )
+		{
+		    register int i, j;
+		    static int hist_nodes;
+		    hist_array * histogram;
+		    int node = m.source;
+		    histogram = m.buf;
+		    printf ("BF_MACHrun: received STATS_DATA\n");
+		    for ( j = 0; j <= HLENGTH; j++ )
+		    {
+			HOST_fprintf (
+			stats_fp, 
+			"%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+			node, j,
+			histogram[0][j],
+			histogram[1][j],
+			histogram[2][j],
+			histogram[3][j],
+			histogram[4][j],
+			histogram[5][j],
+			histogram[6][j],
+			histogram[7][j],
+			histogram[8][j],
+			histogram[9][j],
+			histogram[10][j],
+			histogram[11][j],
+			histogram[12][j] );
+d417 36
+a452 36
+			for ( i = 0; i < 13; i++ )
+			    sum_gram[i][j] += histogram[i][j];
+		    }
+		    hist_nodes++;
+		    if ( hist_nodes == tw_num_nodes )
+		    {
+			fclose ( stats_fp );
+			stats_fp = HOST_fopen ( "SUM", "w" );
+			HOST_fprintf (
+			stats_fp, 
+			"Node\tBucket\tTester\tTW\tObjects\tMercury\tIdle\tGo_Fwd\tQueue\tSched\tDeliver\tServe\tObjend\tGvt\tGcpast\n");
+			for ( j = 0; j <= HLENGTH; j++ )
+			{
+			    HOST_fprintf ( stats_fp, "ALL\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+			    j,
+			    sum_gram[0][j],
+			    sum_gram[1][j],
+			    sum_gram[2][j],
+			    sum_gram[3][j],
+			    sum_gram[4][j],
+			    sum_gram[5][j],
+			    sum_gram[6][j],
+			    sum_gram[7][j],
+			    sum_gram[8][j],
+			    sum_gram[9][j],
+			    sum_gram[10][j],
+			    sum_gram[11][j],
+			    sum_gram[12][j] );
+			}
+			fclose ( stats_fp );
+		    }
+		}
+		else
+		if ( m.type == STDOUT_TIME )
+		{
+		    register int node = m.source;
+d455 6
+a460 6
+		    if ( first_time[node] == 0 )
+		    {
+			first_time[node] = 1;
+			num_times++;
+		    }
+		    stdout_time[node] = * (VTime *) m.buf;
+d462 5
+a466 5
+		    if ( num_times == tw_num_nodes )
+		    {
+			low_node = 0;
+			low_time = CPposinfPlus1;
+			next_low_time = low_time;
+d468 28
+a495 28
+			for ( node = 0; node < tw_num_nodes; node++ )
+			{
+			    if ( ltVTime ( stdout_time[node], low_time ) )
+			    {
+				next_low_time = low_time;
+				low_time = stdout_time[node];
+				low_node = node;
+			    }
+			    else
+			    if ( ltVTime ( stdout_time[node], next_low_time ) )
+			    {
+				next_low_time = stdout_time[node];
+			    }
+			}
+			next_low_time = low_time;
+			m.buf  = &next_low_time;
+			m.mlen = sizeof(next_low_time);
+			m.dest = low_node;
+			m.source = CP;
+			m.type = 0;
+			send_msg_w ( &m );
+			m.type = STDOUT_TIME;
+		    }
+		}
+		else
+		if ( m.type == FLOW_DATA )
+		{
+		    register int node = m.source;
+d498 5
+a502 5
+		    if ( flow_first_time[node] == 0 )
+		    {
+			flow_first_time[node] = 1;
+			flow_num_times++;
+		    }
+d504 1
+a504 1
+		    entcpy ( flog[node], m.buf, m.mlen );
+d506 1
+a506 1
+		    flow_time[node] = flog[node][0].start_time;
+d508 1
+a508 1
+		    fx[node] = 0;
+d510 10
+a519 10
+		    if ( flow_time[node] == MAXINT )
+		    {
+			m.buf  = &flow_time[node];
+			m.mlen = sizeof(flow_time[node]);
+			m.dest = node;
+			m.source = CP;
+			m.type = 0;
+			send_msg_w ( &m );
+			m.type = FLOW_DATA;
+		    }
+d521 2
+a522 2
+		    if ( flow_num_times == tw_num_nodes )
+		    {
+d524 2
+a525 2
+			flow_low_node = 0;
+			flow_low_time = MAXINT;
+d527 8
+a534 8
+			for ( node = 0; node < tw_num_nodes; node++ )
+			{
+			    if ( flow_time[node] < flow_low_time )
+			    {
+				flow_low_time = flow_time[node];
+				flow_low_node = node;
+			    }
+			}
+d536 3
+a538 3
+			if ( flow_file == 0 )
+			{
+			    flow_file = (FILE *) HOST_fopen ( "cflow", "w" );
+d540 5
+a544 5
+			    if ( flow_file == 0 )
+			    {
+				printf ( "can't open cflow file\n" );
+			    }
+			}
+d546 3
+a548 3
+			if ( flow_low_time == MAXINT )
+			{
+			    FILE * fp;
+d550 2
+a551 2
+			    if ( fno > 0 )
+			    {
+d553 4
+a556 4
+				HOST_fwrite ( fobj, sizeof(FLOW_COBJ) * fno,
+					1, flow_file );
+			    }
+			    HOST_fclose ( flow_file );
+d558 1
+a558 1
+			    printf ( "%d flow items\n", fitems );
+d560 1
+a560 1
+			    fp = (FILE *) HOST_fopen ( "cname", "w" );
+d562 5
+a566 5
+			    if ( fp == 0 )
+			    {
+				printf ( "can't open cname file\n" );
+				break;
+			    }
+d568 5
+a572 5
+			    for ( i = 0; i < nobjs; i++ )
+			    {
+				fprintf ( fp, "%-16s %d\n", obj[i].name,
+					obj[i].node );
+			    }
+d574 1
+a574 1
+			    HOST_fclose ( fp );
+d576 1
+a576 1
+			    printf ( "%d flow names\n", nobjs );
+d578 1
+a578 1
+			    nobjs = 0;
+d580 8
+a587 8
+			    m.buf  = &flow_low_time;
+			    m.mlen = sizeof(flow_low_time);
+			    m.dest = 0;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = FLOW_DATA;
+			}
+d589 1
+a589 1
+			node = flow_low_node;
+d591 1
+a591 1
+			flogp = &flog[node][fx[node]];
+d594 3
+a596 3
+			HOST_fprintf ( flow_file, "%d %d %d %s %f\n", node,
+				flogp->start_time, flogp->end_time,
+				flogp->object, flogp->svt );
+d598 1
+a598 1
+			fitems++;
+d600 6
+a605 6
+			fobj[fno].cpuf = flogp->start_time;
+			fobj[fno].cput = flogp->end_time;
+			fobj[fno].vt = flogp->svt;
+			i = objno(flogp->object);
+			fobj[fno].objno = i;
+			obj[i].node = node;
+d607 1
+a607 1
+			fno++;
+d609 3
+a611 3
+			if ( fno == BLOCKSIZE )
+			{
+			    fno = 0;
+d613 3
+a615 3
+			    HOST_fwrite ( fobj, sizeof(FLOW_COBJ) * BLOCKSIZE,
+				1, flow_file );
+			}
+d617 1
+a617 1
+			fx[node]++;
+d619 2
+a620 2
+			if ( fx[node] < 20 )
+			    flow_time[node] = flog[node][fx[node]].start_time;
+d622 10
+a631 10
+			if ( fx[node] == 20 || flow_time[node] == MAXINT )
+			{
+			    m.buf  = &flow_low_time;
+			    m.mlen = sizeof(flow_low_time);
+			    m.dest = flow_low_node;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = FLOW_DATA;
+			}
+d633 8
+a640 8
+			if ( fx[node] < 20 )
+			    goto flow_loop;
+		    }
+		}
+		else
+		if ( m.type == MSG_DATA )
+		{
+		    register int node = m.source;
+d643 3
+a645 3
+		    if ( msg_first_time[node] == 0 )
+		    {
+			msg_first_time[node] = 1;
+d647 2
+a648 2
+			msg_num_times++;
+		    }
+d650 1
+a650 1
+		    entcpy ( CPmlog[node], m.buf, m.mlen );
+d652 1
+a652 1
+		    msg_time[node] = CPmlog[node][0].twtimet;
+d654 1
+a654 1
+		    mx[node] = 0;
+d656 10
+a665 10
+		    if ( msg_time[node] == MAXINT )
+		    {
+			m.buf  = &msg_time[node];
+			m.mlen = sizeof(msg_time[node]);
+			m.dest = node;
+			m.source = CP;
+			m.type = 0;
+			send_msg_w ( &m );
+			m.type = MSG_DATA;
+		    }
+d667 2
+a668 2
+		    if ( msg_num_times == tw_num_nodes )
+		    {
+d670 2
+a671 2
+			msg_low_node = 0;
+			msg_low_time = MAXINT;
+d673 8
+a680 8
+			for ( node = 0; node < tw_num_nodes; node++ )
+			{
+			    if ( msg_time[node] < msg_low_time )
+			    {
+				msg_low_time = msg_time[node];
+				msg_low_node = node;
+			    }
+			}
+d682 3
+a684 3
+			if ( mlog_file == 0 )
+			{
+			    mlog_file = (FILE *) HOST_fopen ( "mmlog", "w" );
+d686 3
+a688 3
+			    if ( mlog_file == 0 )
+				printf ( "can't open mmlog file\n" );
+			}
+d690 3
+a692 3
+			if ( msg_low_time == MAXINT )
+			{
+			    FILE * fp;
+d694 6
+a699 6
+			    if ( mno > 0 )
+			    {
+				HOST_fwrite ( mobj, sizeof(MSG_COBJ) * mno,
+					1, mlog_file );
+			    }
+			    HOST_fclose ( mlog_file );
+d701 1
+a701 1
+			    printf ( "%d mlog items\n", mitems );
+d703 1
+a703 1
+			    fp = (FILE *) HOST_fopen ( "mname", "w" );
+d705 5
+a709 5
+			    if ( fp == 0 )
+			    {
+				printf ( "can't open mname file\n" );
+				break;
+			    }
+d711 5
+a715 5
+			    for ( i = 0; i < nobjs; i++ )
+			    {
+				fprintf ( fp, "%-20s %d\n", obj[i].name,
+					obj[i].node );
+			    }
+d717 1
+a717 1
+			    HOST_fclose ( fp );
+d719 1
+a719 1
+			    printf ( "%d mlog names\n", nobjs );
+d721 1
+a721 1
+			    nobjs = 0;
+d723 8
+a730 8
+			    m.buf  = &msg_low_time;
+			    m.mlen = sizeof(msg_low_time);
+			    m.dest = 0;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = MSG_DATA;
+			}
+d732 1
+a732 1
+			node = msg_low_node;
+d734 1
+a734 1
+			CPmlogp = &CPmlog[node][mx[node]];
+d738 9
+a746 9
+			HOST_fprintf ( mlog_file,
+			    "%d %d %d %d %d %s %.2f %s %.2f %d %d %x %d\n",
+				node,
+				CPmlogp->twtimef, CPmlogp->twtimet,
+				CPmlogp->hgtimef, CPmlogp->hgtimet,
+				CPmlogp->snder, CPmlogp->sndtim,
+				CPmlogp->rcver, CPmlogp->rcvtim,
+				CPmlogp->id_num, CPmlogp->mtype,
+				CPmlogp->flags, CPmlogp->len );
+d748 1
+a748 1
+			mitems++;
+d750 14
+a763 14
+			mobj[mno].twtimef = CPmlogp->twtimef;
+			mobj[mno].twtimet = CPmlogp->twtimet;
+			mobj[mno].hgtimef = CPmlogp->hgtimef;
+			mobj[mno].hgtimet = CPmlogp->hgtimet;
+			mobj[mno].sndtim = CPmlogp->sndtim;
+			mobj[mno].rcvtim = CPmlogp->rcvtim;
+			mobj[mno].id_num = CPmlogp->id_num;
+			mobj[mno].snder = objno(CPmlogp->snder);
+			i = objno(CPmlogp->rcver);
+			mobj[mno].rcver = i;
+			obj[i].node = node;
+			mobj[mno].len = CPmlogp->len;
+			mobj[mno].mtype = CPmlogp->mtype;
+			mobj[mno].flags = CPmlogp->flags;
+d765 1
+a765 1
+			mno++;
+d767 3
+a769 3
+			if ( mno == BLOCKSIZE )
+			{
+			    mno = 0;
+d771 3
+a773 3
+			    HOST_fwrite ( mobj, sizeof(MSG_COBJ) * BLOCKSIZE,
+				1, mlog_file );
+			}
+d775 1
+a775 1
+			mx[node]++;
+d777 2
+a778 2
+			if ( mx[node] < 8 )
+			    msg_time[node] = CPmlog[node][mx[node]].twtimet;
+d780 10
+a789 10
+			if ( mx[node] == 8 || msg_time[node] == MAXINT )
+			{
+			    m.buf  = &msg_low_time;
+			    m.mlen = sizeof(msg_low_time);
+			    m.dest = msg_low_node;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = MSG_DATA;
+			}
+d791 8
+a798 8
+			if ( mx[node] < 8 )
+			    goto msg_loop;
+		    }
+		}
+		else
+		if ( m.type == ISLOG_DATA )
+		{
+		    register int node = m.source;
+d800 3
+a802 3
+		    if ( IS_first_time[node] == 0 )
+		    {
+			IS_first_time[node] = 1;
+d804 2
+a805 2
+			IS_num_times++;
+		    }    
+d807 1
+a807 1
+		    entcpy ( IS_log[node], m.buf, m.mlen );
+d809 1
+a809 1
+		    IS_time[node] = IS_log[node][0].cputime;
+d811 1
+a811 1
+		    IS[node] = 0;
+d813 10
+a822 10
+		    if ( IS_time[node] == 1000000. )
+		    {
+			m.buf  = &IS_time[node];
+			m.mlen = sizeof(IS_time[node]);
+			m.dest = node;
+			m.source = CP;
+			m.type = 0;
+			send_msg_w ( &m );
+			m.type = ISLOG_DATA;
+		    }
+d824 2
+a825 2
+		    if ( IS_num_times == tw_num_nodes )
+		    {
+d827 2
+a828 2
+			IS_low_node = 0;
+			IS_low_time = 1000000.;
+d830 8
+a837 8
+			for ( node = 0; node < tw_num_nodes; node++ )
+			{
+			    if ( IS_time[node] < IS_low_time )
+			    {
+				IS_low_time = IS_time[node];
+				IS_low_node = node;
+			    }
+			}
+d839 3
+a841 3
+			if ( ISfile == 0 )
+			{
+			    ISfile = HOST_fopen ( "ISLOG", "w" );
+d843 5
+a847 5
+			    if ( ISfile == 0 )
+			    {
+				printf ( "can't open ISLOG file\n" );
+			    }
+			}    
+d849 3
+a851 3
+			if ( IS_low_time == 1000000. )
+			{
+			    HOST_fclose ( ISfile );
+d853 1
+a853 1
+			    printf ( "%d islog items\n", isitems );
+d855 7
+a861 7
+			    m.buf  = &IS_low_time;
+			    m.mlen = sizeof(IS_low_time);
+			    m.dest = 0;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = ISLOG_DATA;
+d863 2
+a864 2
+			    goto IS_done;
+			}
+d866 1
+a866 1
+			node = IS_low_node;
+d868 1
+a868 1
+			IS_logp = &IS_log[node][IS[node]];
+d870 6
+a875 6
+			HOST_fprintf ( ISfile, "%d %d %f %f\n",
+				node,
+				IS_logp->seqnum,
+				IS_logp->cputime,
+				IS_logp->minvt.simtime
+				);
+d877 1
+a877 1
+			isitems++;
+d879 1
+a879 1
+			IS[node]++;
+d881 2
+a882 2
+			if ( IS[node] < 16 )
+			    IS_time[node] = IS_log[node][IS[node]].cputime;
+d884 10
+a893 10
+			if ( IS[node] == 16 || IS_time[node] == 1000000. )
+			{
+			    m.buf  = &IS_low_time;
+			    m.mlen = sizeof(IS_low_time);
+			    m.dest = IS_low_node;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = ISLOG_DATA;
+			}
+d895 3
+a897 3
+			if ( IS[node] < 16 )
+			    goto IS_loop;
+		    }
+d899 1
+a899 1
+		}
+d901 4
+a904 4
+		else
+		if ( m.type == QLOG_DATA )
+		{
+		    register int node = m.source;
+d906 5
+a910 5
+		    if ( Q_first_time[node] == 0 )
+		    {
+			Q_first_time[node] = 1;
+			Q_num_times++;
+		    }    
+d912 2
+a913 2
+		    if ( m.mlen != ( sizeof(Q_LOG_ENTRY) * 10 ) )
+		        printf ( " --recv %d bytes from %d\n", m.mlen, node );
+d915 1
+a915 1
+		    entcpy ( Q_log[node], m.buf, m.mlen );
+d917 1
+a917 1
+		    Q_time[node] = Q_log[node][0].gvt.simtime;
+d919 1
+a919 1
+		    Q[node] = 0;
+d921 10
+a930 10
+		    if ( Q_time[node] == POSINF+1 )
+		    {
+			m.buf  = &Q_low_time;
+			m.mlen = sizeof(Q_low_time);
+			m.dest = node;
+			m.source = CP;
+			m.type = 0;
+			send_msg_w ( &m );
+			m.type = QLOG_DATA;
+		    }
+d932 2
+a933 2
+		    if ( Q_num_times == tw_num_nodes )
+		    {
+d935 2
+a936 2
+			Q_low_node = 0;
+			Q_low_time = POSINF+1;
+d938 8
+a945 8
+			for ( node = 0; node < tw_num_nodes; node++ )
+			{
+			    if ( Q_time[node] < Q_low_time )
+			    {
+				Q_low_time = Q_time[node];
+				Q_low_node = node;
+			    }
+			}
+d947 3
+a949 3
+			if ( Qfile == 0 )
+			{
+			    Qfile = HOST_fopen ( "QLOG", "w" );
+d951 5
+a955 5
+			    if ( Qfile == 0 )
+				printf ( "can't open QLOG file\n" );
+			    else
+				printf ( "QLOG opened\n" );
+			}    
+d957 4
+a960 4
+			if ( Q_low_time == POSINF+1 )
+			{
+			    HOST_fclose ( Qfile );
+			    printf ( "QLOG closed\n" );
+d962 7
+a968 7
+			    m.buf  = &Q_low_time;
+			    m.mlen = sizeof(Q_low_time);
+			    m.dest = 0;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = QLOG_DATA;
+d970 3
+a972 3
+			    event_type = END_EVENT;
+			    break;
+			}
+d974 1
+a974 1
+			node = Q_low_node;
+d976 1
+a976 1
+			Q_logp = &Q_log[node][Q[node]];
+d979 6
+a984 6
+			HOST_fprintf ( Qfile, "%d %d %f %f\n",
+				node,
+				Q_logp->loadCount,
+				Q_logp->gvt.simtime,
+				Q_logp->utilization
+				);
+d987 5
+a991 5
+			HOST_fprintf ( Qfile, "%d %f %f\n",
+				node,
+				Q_logp->gvt.simtime,
+				Q_logp->utilization
+				);
+d994 1
+a994 1
+			Q[node]++;
+d996 2
+a997 2
+			if ( Q[node] < 10 )
+			    Q_time[node] = Q_log[node][Q[node]].gvt.simtime;
+d999 26
+a1024 9
+			if ( Q[node] == 10 || Q_time[node] == POSINF+1 )
+			{
+			    m.buf  = &Q_low_time;
+			    m.mlen = sizeof(Q_low_time);
+			    m.dest = Q_low_node;
+			    m.source = CP;
+			    m.type = 0;
+			    send_msg_w ( &m );
+			    m.type = QLOG_DATA;
+a1025 4
+
+			if ( Q[node] < 10 )
+			    goto Q_loop;
+		    }
+a1026 1
+		else
+d1028 1
+a1028 1
+		if ( m.type == READ_THE_CONSOLE )
+d1030 2
+a1031 1
+		    printf ("BBNrun: received READ_THE_CONSOLE\n");
+a1032 7
+		else
+		if ( m.type == EXIT )
+		{
+		    butterfly_node_term ();
+		}
+	    }
+	}
+d1034 1
+a1034 5
+	if ( event_type == END_EVENT )
+	{
+	    printf ( "All Done\n" );
+	    break;
+	}
+d1036 1
+a1036 1
+	interrupt_nodes ();
+d1038 3
+a1040 1
+	butterfly_get_prompt ( prompt, ALL );
+d1042 1
+a1042 3
+	for ( ;; )
+	{
+	    printf ( "%d--%s", cmd_node, prompt );
+d1044 7
+a1050 1
+	    gets ( line );
+d1052 3
+a1054 7
+	    if ( strcmp ( line, "stop" ) == 0
+	    ||   strcmp ( line, "quit" ) == 0 )
+	    {
+		printf ( "byebye\n" );
+                broadcast_event (END_EVENT);
+		exit(0);
+	    }
+d1056 8
+a1063 3
+	    if ( line[0] >= '0' && line[0] <= '9' )
+	    {
+		i = atoi ( line );
+d1065 5
+a1069 8
+		if ( i >= 0 && i < tw_num_nodes )
+		    cmd_node = i;
+		else
+		{
+		    printf ( "Max node is %d\n", tw_num_nodes-1 );
+		    continue;
+		}
+	    }
+d1071 1
+a1071 5
+	    if ( line[0] == '*'
+	    ||  strcmp ( line, "go" ) == 0 )
+		node = ALL;
+	    else
+		node = cmd_node;
+d1073 5
+a1077 1
+	    msg = line;
+d1079 2
+a1080 5
+	    if ( *msg == '*' )
+		msg++;
+	    else
+	    while ( *msg >= '0' && *msg <= '9' )
+		msg++;
+d1082 1
+a1082 2
+	    if ( *msg == 0 )
+		continue;
+d1084 5
+a1088 1
+	    butterfly_send_command ( msg, node );
+d1090 2
+a1091 5
+	    if ( strcmp ( line, "go" ) == 0 )
+	     {
+		signal(SIGINT, CP_Tester);
+		break;
+ 	     }
+d1093 2
+a1094 4
+	    if ( strcmp ( line, "*dumpqlog" ) == 0 )
+		break;
+
+	    butterfly_get_prompt ( prompt, node );
+d1096 11
+a1106 12
+    }
+    broadcast_event (END_EVENT);
+    fclose ( stdout_fd );
+    printf ( "Nodes shutting down\n" );
+    while ( -1 != wait ( (union wait *) 0 ) )
+    {
+        printf ( "." );
+	fflush ( stdout );
+    }
+    printf ( "\n" );
+    printf ( "CP: cluster node %d exiting\n", tw_num_nodes );
+    exit (0);
+d1121 2
+a1122 2
+    int argc;
+    char * argv[];
+d1125 12
+a1136 12
+    char   c;
+    int nodes;
+    char * config;
+    char * stats = "XL_STATS";	/* default for -S */
+    char * usage = 
+    	"usage: TW nodes config [ -S stats] [ -M memsiz ] [ -B numbuffs ]\n";
+    kern_return_t rv;
+    int nodes_requested;
+    cluster_type_t mach_type = 0;
+    cluster_id_t  cluster_id;
+    int nodes_allocated;
+    int child_pid;
+d1139 1
+a1139 1
+    signal (SIGINT, CP_Tester);
+d1141 7
+a1147 7
+    if ((argc < 3) || (argc > 9) || (sscanf(argv[1], "%d", &nodes) == 0))
+    	{  /* wrong number of args or bad "nodes" argument */
+    	printf("%s", usage);
+    	exit(0);
+    	}
+    Node_Args.num_nodes = tw_num_nodes = nodes;/* handle arg 1 */
+    nodes_requested = nodes + 1;
+d1149 1
+a1149 1
+    config = argv[2];	/* name of configuration file */
+d1151 2
+a1152 2
+    argc -= 2;
+    argv += 2;	/* set up for the loop */
+d1154 27
+a1180 27
+    while (--argc > 0 && (*++argv)[0] == '-')
+    	{  /* loop through optional args */
+	argc--;
+    	c = *++argv[0];		/* get option letter */
+    	switch (c)
+    	    {
+    	    case 'S':		/* stats file name */
+    	    	stats = *++argv;
+   	    	break;
+    	    case 'M':		/* megs of memory */
+    	    	if (sscanf(*++argv, "%lf", &Node_Args.meg ) == 0)
+    	    	    argc = -1;	/* force error exit */
+    	    	break;
+    	    case 'B':		/* # of bufs */
+    	    	if (sscanf(*++argv, "%d", &number_of_buffers ) == 0)
+    	    	    argc = -1;	/* force error exit */
+    	    	break;
+    	    default:
+    	    	argc = -1;	/* force error exit */
+    	    	break;
+    	    }  /* switch (c) */
+    	}  /* while (--argc ...) */
+    if (argc != 0)
+    	{  /* an error in the arguments */
+     	    printf("%s", usage);
+    	    exit(0);
+   	}  /* if (argc != 0) */
+d1182 12
+a1193 12
+    if ( number_of_buffers < MIN_NUM_BUFFS )
+    {
+	printf ( "Too few buffers (min is %d) --resetting to %d (default)\n",
+	    MIN_NUM_BUFFS, DEFAULT_NUM_BUFFS );
+        number_of_buffers = DEFAULT_NUM_BUFFS;
+    }
+    else if ( number_of_buffers > MAX_NUM_BUFFS )
+    {
+        printf ( "Too many buffers (max is %d) --resetting to %d (default)\n",
+	    MAX_NUM_BUFFS, DEFAULT_NUM_BUFFS );
+        number_of_buffers = DEFAULT_NUM_BUFFS;
+    }
+d1196 2
+a1197 2
+    make_path ( Node_Args.stdout_path, "STDOUT", "w" );
+    make_path ( Node_Args.config_path, config, "r" );
+d1199 1
+a1199 1
+    printf ( "Config File: %s\n", Node_Args.config_path );
+d1202 4
+a1205 4
+    make_path ( Node_Args.stats_path, stats, "w" );
+    printf ( "Stats File: %s\n", Node_Args.stats_path );
+    stdout_fd = 
+       (int) fopen ( Node_Args.stdout_path, "w" );
+d1207 2
+a1208 5
+    if ( 0 != ( rv = cluster_create(nodes_requested, mach_type,
+	&cluster_id, &nodes_allocated) ) )
+    {
+	printf ( "cluster_create returned %d\n", rv );
+	if ( rv == 6 )
+d1210 6
+a1215 1
+	    printf ( "Too few nodes in free cluster\n" );
+a1216 2
+	exit ( 1 );
+    }
+d1218 5
+a1222 5
+    if ( 0 != ( rv = fork_and_bind( tw_num_nodes, cluster_id, &child_pid) ) )
+    {
+	printf ( "fork_and_bind returned %d\n", rv );
+	exit ( 1 );
+    }
+d1224 7
+a1230 7
+    if ( child_pid ) /* I am the parent */
+    {
+	wait ( (union wait *) 0 );
+	printf ( "Cluster creator exiting\n" );
+	exit ( 0 );
+    }
+    /* I am the child running on cluster node tw_num_nodes `the CP' */
+d1232 2
+a1233 2
+    butterfly_host_init();
+    rtc_sync = getrtc();
+d1235 16
+a1250 16
+    printf ( "Starting Nodes\n" );
+    for ( nodes = 0; nodes < tw_num_nodes; nodes++ )
+    {
+        if ( 0 != ( rv = fork_and_bind( nodes, cluster_id, &child_pid) ) )
+        {
+            printf ( "fork_and_bind returned %d\n", rv );
+            exit ( 1 );
+        }
+        if ( ! child_pid ) /* I am the child running on cluster node `nodes' */
+        {
+	    Main_Node_Execution_Loop( nodes );
+	    /* never returns */
+        }
+        printf ( "." );
+	fflush ( stdout );
+    }
+d1252 5
+a1256 5
+    printf ( "\n" );
+    /* cluster node: tw_num_nodes --CP stuff */
+    tw_node_num = CP;
+    Main_CP_Execution_Loop();
+    /* never returns */
+d1262 2
+a1263 2
+    printf ( "GLOBAL\n" );
+    broadcast_event ( INTERRUPT_EVENT); 
+d1269 1
+a1269 1
+    butterfly_node_term ();
+d1274 1
+a1274 1
+    exit (0);
+d1279 2
+a1280 2
+    printf ( "TERM\n" );
+    exit (0);
+d1290 1
+a1290 1
+    char * path_name, * file_name, * mode;
+d1292 1
+a1292 1
+    FILE * fp;
+d1294 11
+a1304 11
+    if ( *file_name == '/' )
+    {
+	strcpy ( path_name, file_name );
+    }
+    else
+    {
+	strcpy ( path_name, working_dir );
+	if ( path_name[0] != 0 )
+	    strcat ( path_name, "/" );
+	strcat ( path_name, file_name );
+    }
+d1306 1
+a1306 1
+    fp = fopen ( path_name, mode );
+d1308 5
+a1312 5
+    if ( fp == 0 )
+    {
+	printf ( "Can't Open File: %s\n", path_name );
+	exit (0);
+    }
+d1314 1
+a1314 1
+    fclose ( fp );
+d1320 1
+a1320 1
+    char * name;
+d1322 1
+a1322 1
+    register int i;
+d1324 2
+a1325 2
+    if ( *name == 0 )
+	strcpy ( name, "null" );
+d1327 1
+a1327 8
+    for ( i = 0; i < nobjs; i++ )
+    {
+	if ( strcmp ( name, obj[i].name ) == 0 )
+	    break;
+    }
+    if ( i == nobjs )
+    {
+	if ( i == MAX_OBJS )
+d1329 2
+a1330 1
+	    printf ( "exceeded %d objects\n", i );
+d1332 1
+a1332 1
+	else
+d1334 9
+a1342 2
+	    strcpy ( obj[i].name, name );
+	    nobjs++;
+a1343 1
+    }
+d1345 1
+a1345 1
+    return ( i );
+@
+
+
+1.4
+log
+@1.  allow tester to interrupt looping node via signals
+2.  retype buff[] to double for TC2000 alignment
+@
+text
+@d3 4
+d100 1
+a100 1
+    char name[16];
+d710 1
+a710 1
+				fprintf ( fp, "%-16s %d\n", obj[i].name,
+@
+
+
+1.3
+log
+@fix tester quit bug
+@
+text
+@d3 3
+d29 1
+d38 3
+d104 1
+a104 1
+ 
+d291 13
+d309 2
+a310 1
+char buff [512];
+d323 1
+a323 1
+     
+d348 1
+a348 1
+           
+d1078 2
+d1081 1
+d1131 3
+d1143 1
+a1143 1
+    
+d1146 1
+a1146 1
+    
+@
+
+
+1.2
+log
+@Major Revision
+1. removed the Uniform System.
+2. changed the large arrays from global data to malloc-ed storage
+	(over 1/4 Meg saved from
+	the data segment)
+3. the command line parameter -B fixed, it now changes the number
+	of message buffers.
+4. The loging routines work with the no data case. (The files are
+	created before they are closed.)
+5. It prints `.' as each node is started.
+@
+text
+@d3 12
+d1021 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+a13 1
+#include <us.h>
+d45 5
+a52 2
+hist_array sum_gram[20];
+
+d57 2
+d61 3
+d75 1
+a75 1
+struct
+d79 6
+a84 2
+}
+    obj[MAX_OBJS];
+d101 1
+a101 2
+
+IS_LOG_ENTRY IS_log[MAX_NODES][16], * IS_logp;
+a102 3
+
+int IS[MAX_NODES];
+int ISfile;
+d106 7
+d116 3
+d120 4
+a125 3
+Q_LOG_ENTRY Q_log[MAX_NODES][10], * Q_logp;
+
+int Q[MAX_NODES];
+d130 7
+d140 3
+a142 1
+/* Declarations for event logging (flowlog)  */
+d144 3
+a146 1
+FLOW_LOG_ENTRY flog[MAX_NODES][20], * flogp;
+d148 1
+d150 1
+a150 1
+FLOW_COBJ fobj[BLOCKSIZE];
+a151 2
+int fx[MAX_NODES];
+FILE * flow_file;
+d154 9
+a162 1
+int flow_low_time, flow_time[MAX_NODES];
+d165 4
+d170 5
+a176 1
+MSG_LOG_ENTRY CPmlog[MAX_NODES][8], * CPmlogp;
+a177 1
+MSG_COBJ mobj[BLOCKSIZE];
+a178 1
+int mx[MAX_NODES];
+d181 9
+a189 1
+int msg_low_time, msg_time[MAX_NODES];
+d192 4
+d197 4
+d202 70
+d287 1
+d496 10
+a548 10
+			if ( flow_file == 0 )
+			{
+			    flow_file = (FILE *) HOST_fopen ( "cflow", "w" );
+
+			    if ( flow_file == 0 )
+			    {
+				printf ( "can't open cflow file\n" );
+			    }
+			}
+
+d642 8
+a691 8
+			if ( mlog_file == 0 )
+			{
+			    mlog_file = (FILE *) HOST_fopen ( "mmlog", "w" );
+
+			    if ( mlog_file == 0 )
+				printf ( "can't open mmlog file\n" );
+			}
+
+d799 10
+a825 10
+			if ( ISfile == 0 )
+			{
+			    ISfile = HOST_fopen ( "ISLOG", "w" );
+
+			    if ( ISfile == 0 )
+			    {
+				printf ( "can't open ISLOG file\n" );
+			    }
+			}    
+
+d881 11
+a906 8
+			if ( Q_low_time == POSINF+1 )
+			{
+			    HOST_fclose ( Qfile );
+			    printf ( "QLOG closed\n" );
+			    event_type = END_EVENT;
+			    break;
+			}
+
+d917 17
+d1054 1
+d1056 6
+a1061 1
+	; 
+a1068 1
+int cluster_num_nodes;
+a1069 24
+
+startup_func ( num_nodes)
+int num_nodes;
+
+{
+    if ( UsProc_Node == 0 )
+    {
+	tw_node_num = CP;
+	if ( num_nodes +1 < cluster_num_nodes )
+	{
+	    printf ("%d Node run in %d Node cluster!\n",
+		tw_num_nodes,
+		cluster_num_nodes
+	       );
+	}
+	Main_CP_Execution_Loop();
+    }
+    else
+    if ( UsProc_Node <= num_nodes )
+    {
+       Main_Node_Execution_Loop( num_nodes );
+    }
+}
+
+d1073 1
+d1121 1
+a1121 1
+    	    	if (sscanf(*++argv, "%d", &Node_Args.num_buffs ) == 0)
+d1135 14
+d1158 1
+a1158 1
+       fopen ( Node_Args.stdout_path, "w" );
+d1164 4
+d1171 1
+a1171 1
+    if ( 0 != ( rv = fork_and_bind( 0, cluster_id, &child_pid) ) )
+d1180 1
+a1180 1
+	printf ( "Parent pid %d exiting\n", getpid() );
+d1183 1
+a1183 1
+    /* I am the child */
+d1185 2
+a1186 1
+    InitializeUs();
+d1188 2
+a1189 3
+    cluster_num_nodes = TotalProcsAvailable();
+
+    if ( cluster_num_nodes < nodes )
+d1191 12
+a1202 4
+	printf (" Requested %d nodes ONLY %d in cluster\n",
+		  nodes,
+		  TotalProcsAvailable()
+	       );
+a1203 7
+    butterfly_host_init();
+    rtc_sync = getrtc();
+    Share ( &rtc_sync );
+/*
+    printf ( "Starting Nodes %d\n" , rtc_sync);
+*/
+    GenTaskForEachProc ( startup_func, nodes );
+d1205 5
+d1245 1
+a1245 1
+    int fp;
+@

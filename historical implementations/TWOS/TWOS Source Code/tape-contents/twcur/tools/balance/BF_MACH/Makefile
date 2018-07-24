@@ -1,0 +1,24 @@
+#	Copyright (C) 1989, 1991, California Institute of Technology.
+#		U. S. Government Sponsorship under NASA Contract NAS7-918
+#		is acknowledged.
+#
+
+OBJ_BALT   =    balt.o sortarrayd.o
+
+OBJ_REDUCE =    reduce.o sortarrayd.o
+
+VPATH	=	..
+
+all:		balt reduce
+
+balt:		$(OBJ_BALT)
+		cc -o balt  $(OBJ_BALT) 
+
+reduce:		$(OBJ_REDUCE)
+		cc -o reduce  $(OBJ_REDUCE)
+
+clean:
+		rm -f *.o
+
+.c.o:
+	cc -c $*.c

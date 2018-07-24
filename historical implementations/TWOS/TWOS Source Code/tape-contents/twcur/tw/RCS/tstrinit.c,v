@@ -1,0 +1,1758 @@
+head     1.18;
+branch   ;
+access   ;
+symbols  TW2_7:1.18 TW2_6:1.18 TW2_5_1:1.14 TW2_5:1.10 TW2_4_2:1.3 TW2_4_1:1.3 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.18
+date     91.11.06.11.13.13;  author configtw;  state Rel;
+branches ;
+next     1.17;
+
+1.17
+date     91.11.04.10.47.48;  author pls;  state Dev;
+branches ;
+next     1.16;
+
+1.16
+date     91.11.01.09.53.22;  author reiher;  state Dev;
+branches ;
+next     1.15;
+
+1.15
+date     91.08.08.13.02.55;  author reiher;  state Dev;
+branches ;
+next     1.14;
+
+1.14
+date     91.07.22.15.43.15;  author configtw;  state Rel;
+branches ;
+next     1.13;
+
+1.13
+date     91.07.22.14.33.43;  author configtw;  state Dev;
+branches ;
+next     1.12;
+
+1.12
+date     91.07.17.15.13.44;  author judy;  state Dev;
+branches ;
+next     1.11;
+
+1.11
+date     91.07.09.15.33.27;  author steve;  state Dev;
+branches ;
+next     1.10;
+
+1.10
+date     91.06.07.13.49.45;  author configtw;  state Rel;
+branches ;
+next     1.9;
+
+1.9
+date     91.06.04.08.57.02;  author configtw;  state Dev;
+branches ;
+next     1.8;
+
+1.8
+date     91.06.03.13.36.18;  author configtw;  state Dev;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.03.12.27.18;  author configtw;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.05.31.14.23.05;  author pls;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     91.04.01.15.48.54;  author reiher;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.03.26.09.53.47;  author pls;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     90.08.27.10.46.29;  author configtw;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.16.10.58.31;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.41.31;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@init tester
+@
+
+
+1.18
+log
+@Fix DLM link errors on Suns.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	tstrinit.c,v $
+ * Revision 1.17  91/11/04  10:47:48  pls
+ * 1.  Implement allowNow(), setMaxFreeMsgs().
+ * 2.  Add string parm to typeInit().
+ * 3.  Change sense of propDelay().
+ * 
+ * Revision 1.16  91/11/01  09:53:22  reiher
+ * critical path switching code, code to control migration by ratio, and an
+ * option to run TWOS in a batch mode (no traps to tester, exit instead) (PLR)
+ * 
+ * Revision 1.15  91/08/08  13:02:55  reiher
+ * added test for failure from mkocb to typeinit
+ * 
+ * Revision 1.14  91/07/22  15:43:15  configtw
+ * Fix misspelling of MARK3.
+ * 
+ * Revision 1.13  91/07/22  14:33:43  configtw
+ * Remove recv_q_limit stuff for Mark3
+ * 
+ * Revision 1.12  91/07/17  15:13:44  judy
+ * New copyright notice.
+ * 
+ * Revision 1.11  91/07/09  15:33:27  steve
+ * support for receive queue limit, object timing mode, and the changable
+ * its a feature. miparm.me replaced with tw_node_num.
+ * 
+ * Revision 1.10  91/06/07  13:49:45  configtw
+ * Don't allow pktlen to change.
+ *
+ * Revision 1.9  91/06/04  08:57:02  configtw
+ * Set default number of migrations to 8.
+ * 
+ * Revision 1.8  91/06/03  13:36:18  configtw
+ * Put lower limit on stack size.
+ * 
+ * Revision 1.7  91/06/03  12:27:18  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.6  91/05/31  14:23:05  pls
+ * Set dlm on by default.
+ * 
+ * Revision 1.5  91/04/01  15:48:54  reiher
+ * Fixes to routines controlling DLM parameters, and a new routine for a new
+ * capability (toggling dlm graphics).
+ * 
+ * Revision 1.4  91/03/26  09:53:47  pls
+ * 1.  Add support for TYPEINIT.
+ * 2.  Modify hoglog code to use hlog.
+ * 3.  Add hook for library support code.
+ * 
+ * Revision 1.3  90/08/27  10:46:29  configtw
+ * Round objstksize to 8 byte boundary.
+ * 
+ * Revision 1.2  90/08/16  10:58:31  steve
+ * put in a check to make sure max_acks was not larger than 1/2 num of buffs
+ * 
+ * Revision 1.1  90/08/07  15:41:31  configtw
+ * Initial revision
+ * 
+*/
+char tstrinit_id [] = "@@(#)tstrinit.c   1.44\t10/2/89\t16:28:12\tTIMEWARP";
+
+
+/*
+
+Purpose:
+
+		This module contains routines that initialize certain variables
+		and tables used by the tester.  
+
+Functions:
+
+		set_max_acks(number) - set a limit on the number of acks allowed
+						to be outstanding
+				Parameters - int * number
+				Return - Always returns zero
+
+		set_objstksize(number) - set the size of objects' stacks
+				Parameters - int * number
+				Return - Always returns zero
+
+		disable_message_sendback() - turn off message sendback
+				Parameters - none
+				Return - Always returns zero
+
+		set_nostdout() - disable output of stdout messages
+				Parameters - none
+				Return - Always returns zero
+
+		set_nogvtout() - disable output of gvt msgs
+				Parameters - none
+				Return - Always returns zero
+
+		enable_mem_stats() - start keeping track of memory statistics
+				Parameters - none
+				Return - Always returns zero
+
+		init_types() - copy the init, event, and term entry points from
+						the application's process table into the types table
+				Parameters - none
+				Return - Always returns zero
+
+Implementation:
+
+		set_max_acks(), set_objstksize(), set_nostdout(),
+		set_nogvtout(), and enable_memory_stats() all do pretty much
+		what they sound like.  Typically, they are only called at the
+		begining of a run, to set a parameter for the entire run.
+
+		init_types() copies information about the various object
+		types into the type_table[] array.
+*/
+
+
+#include <stdio.h>  
+#include "twcommon.h"
+#include "twsys.h"
+#include "machdep.h"
+#include "tester.h"
+
+#if TWUSRLIB
+extern void* twulib_init_type();
+#endif
+extern int      hlog;
+extern VTime    hlogVTime;
+extern int max_acks;
+extern int max_neg_acks;
+extern int maxFreeMsgs;
+extern int recv_q_limit;
+extern int its_a_feature;
+extern int no_gvtout;
+extern int mem_stats_enabled;
+extern int manual_init();
+extern int manual_event();
+#define manual_term 0
+extern int null_init();
+extern int null_event();
+extern int initing_type;
+extern int interval;
+
+Int		allowNowFlag = FALSE;
+int     cancellation_penalty = 0;
+int     cancellation_reward = 0;
+int     peek_limit = 2;
+STime   time_window;
+
+#ifdef MARK3
+extern VTime stdout_sent_time;
+#endif
+
+FILE * cpulog;
+FILE * HOST_fopen ();
+
+set_cpulog ()
+{
+	cpulog = HOST_fopen ( "cpulog", "w" );
+
+	if ( cpulog == 0 )
+		printf ( "can't open cpulog\n" );
+}
+
+STime cutoff_time = POSINF;
+
+set_cutoff_time ( time )
+
+	STime * time;
+{
+	cutoff_time = *time;
+}
+
+#ifdef EVTLOG
+
+set_evtlog ()
+{
+	evtlog = TRUE;
+}
+
+Byte * evtlog_area;
+
+set_chklog ()
+{
+	int i;
+
+	for ( i = 0; i < MAX_TW_FILES; i++ )
+	{
+		if ( strcmp ( tw_file[i].name, "evtlog" ) == 0 )
+			break;
+	}
+
+	if ( i < MAX_TW_FILES )
+	{
+		chklog = TRUE;
+		evtlog_area = tw_file[i].area;
+	}
+	else
+		_pprintf ( "evtlog file not found\n" );
+}
+
+#endif EVTLOG
+
+void hoglog(hog_log_time)
+	STime       *hog_log_time;
+{
+	hlog = TRUE;
+	hlogVTime = newVTime(*hog_log_time,0,0);
+
+}  /* hoglog */
+
+allowNow()
+/* Allow messages to be sent with receive time equal to now */
+
+{
+	allowNowFlag = TRUE;
+}	/* allowNow */
+
+set_time_window ( window )
+
+	STime * window;
+{
+	time_window = *window;
+}
+
+set_max_acks ( number )
+
+	int * number;
+{
+#ifdef BBN
+	extern int number_of_buffers;
+
+	if ( *number > 0 && *number <= number_of_buffers/2 )
+#else
+	if ( *number > 0 && *number <= MAX_ACKS )
+#endif
+		max_acks = *number;
+	else
+		_pprintf ( "Invalid Max_Acks. Left at %d\n", max_acks );
+}
+
+#if !MARK3
+#define MAX_RECV_Q_LIMIT 100
+
+set_recv_q_limit ( number )
+
+	int * number;
+{
+	if ( *number > 0 && *number <= MAX_RECV_Q_LIMIT )
+		recv_q_limit = *number;
+	else
+		_pprintf ( "Invalid recv_q_limit. Left at %d\n", recv_q_limit );
+}
+#endif
+
+set_obj_time_mode ( number )
+
+	int * number;
+{
+#ifdef MICROTIME
+	if ( *number >= NOOBJTIME && *number <= WALLOBJTIME )
+		object_timing_mode = *number;
+	else
+		_pprintf ( "Invalid object_timing_mode. Left at %d\n",
+			object_timing_mode );
+#endif
+}
+
+set_its_a_feature ( number )
+
+	int * number;
+{
+
+/*
+	if ( *number > 0 && *number <= MAX_RECV_Q_LIMIT )
+*/
+		its_a_feature = *number;
+/*
+	else
+*/
+	if ( tw_node_num == 0 )
+		_pprintf ( "its_a_feature. set to %d\n", its_a_feature );
+}
+
+#if !BBN
+set_max_neg_acks ( number )
+
+	int * number;
+{
+	if ( *number > 0 && *number <= MAX_ACKS )
+		max_neg_acks = *number;
+	else
+		_pprintf ( "Invalid max_neg_acks. Left at %d\n", max_neg_acks );
+}
+#endif
+
+setMaxFreeMsgs ( number )
+	int		*number;
+{
+	maxFreeMsgs = *number;
+}	/* setMaxFreeMsgs */
+
+set_objstksize ( number )
+
+	int * number;
+{
+	if ( *number < objstksize )
+	{
+		_pprintf ( "Can't decrease stack size from %d to %d\n",
+			objstksize, *number );
+		return;
+	}
+
+	objstksize = *number;
+	objstksize = (objstksize + 7) & ~7; /* round to 8 byte boundary */
+}
+
+set_pktlen ( number )
+
+	int * number;
+{
+	if ( *number < MAXPKTL )
+	{
+		pktlen = MAXPKTL;
+		if ( tw_node_num == 0 )
+			_pprintf( "pktlen %d too small - set to %d\n", *number, MAXPKTL );
+	}
+	else
+	if ( *number > MAXPKTL )
+	{
+		pktlen = MAXPKTL;
+		if ( tw_node_num == 0 )
+		   _pprintf ( "pktlen %d too large - set to %d\n", *number, MAXPKTL );
+	}
+	else
+		pktlen = *number;
+
+	msgdefsize = sizeof(Msgh) + pktlen;
+}
+
+set_penalty ( number )
+
+	int * number;
+{
+	cancellation_penalty = *number;
+}
+
+set_reward ( number )
+
+	int * number;
+{
+	cancellation_reward = *number;
+}
+
+set_plimit ( plimit )
+
+	int * plimit;
+{
+	peek_limit = *plimit;
+}
+
+disable_message_sendback ()
+{
+	no_message_sendback = TRUE;
+}
+
+set_nostdout ()
+{
+	no_stdout = TRUE;
+
+#ifdef MARK3
+	stdout_sent_time = posinf;
+#endif
+}
+
+set_nogvtout ()
+{
+	no_gvtout = TRUE;
+}
+
+enable_mem_stats ()
+{
+	mem_stats_enabled = TRUE;
+}
+
+init_types ()
+{
+	extern ObjectType * objectTypeList[];
+
+	ObjectType ** ob;
+	Typtbl * tw;
+
+	type_table[0].type = "manual";
+	type_table[0].init  = manual_init;
+	type_table[0].event = manual_event;
+	type_table[0].term  = manual_term;
+	type_table[0].statesize = 100;
+
+	/* If the NULL object type is moved to any other place in the type
+		table, be sure to change the definition of NULL_TYPE in twsys.h
+		to point to the new location. */
+
+	type_table[1].type = "NULL";
+	type_table[1].init = null_init;
+	type_table[1].event = null_event;
+	type_table[1].statesize = 0;
+
+	tw = &type_table[2];
+
+	ob = objectTypeList;
+
+	while ( *ob )
+	{
+		tw->type = (*ob)->type;
+
+		if ( strlen ( tw->type ) >= TOBJLEN )
+		{
+			twerror ( "init_types: type name %s too long; only %d characters allowed\n", tw->type, TOBJLEN );
+			tw_exit ();
+		}
+
+		tw->init  = (*ob)->init;
+		tw->event = (*ob)->event;
+		tw->term  = (*ob)->term;
+		tw->displayMsg  = (*ob)->displayMsg;
+		tw->displayState  = (*ob)->displayState;
+		tw->statesize = (*ob)->statesize;
+		tw->initType = (*ob)->initType;
+		tw->typeArea = NULL;
+#if TWUSRLIB
+		tw->libTable = twulib_init_type(tw,*ob);        /* do library init */
+#endif
+
+		tw++;
+		ob++;
+	}
+}  /* init_types */
+
+void typeinit(type_name,msg)
+	Type        type_name;
+	Name		msg;
+{
+	Ocb         *o;
+	State       *s;
+	Typtbl      *tp;
+
+	tp = find_object_type(type_name);   /* check type validity */
+	if (tp == NULL)
+		{    /* invalid type */
+		twerror("Invalid type: %s",type_name);
+		}
+	else
+		{    /* call the type initialization routine */
+		if (tp->typeArea)
+			twerror("Memory already allocated for type: %s",type_name);
+		else
+			{  /* do the type init */
+
+			/* make the phony ocb to support i/o */ 
+			o = mkocb();
+			strcpy(o->name,"TYPEINIT");
+			s = (State *) m_create(sizeof(State),neginf,CRITICAL);
+			clear(s,sizeof(State));
+			o->sb = s;          /* point to phony state */
+			xqting_ocb = o;
+
+			/* allow type malloc and do the call */
+			initing_type = TRUE;
+			tp->typeArea = (*tp->initType)(msg);	/* save allocated area */
+
+			/* reset flag and dump ocb */
+			initing_type = FALSE;
+			nukocb(o);
+			xqting_ocb = NULLOCB;
+			}
+		}
+}  /* typeinit */
+
+extern STime gvt_sync;
+
+set_gvt_sync ( number )
+
+	STime * number;
+{
+	gvt_sync = *number;
+}
+
+extern int tw_num_nodes;
+extern int node_offset, node_limit;
+int subcube_num, num_subcubes;
+
+subcube ( node, number, config )
+
+	int * node;
+	int * number;
+	char * config;
+{
+	char * argv[2];
+
+	num_subcubes++;
+
+	if ( node_offset != 0 )
+		return;
+
+	node_limit = tw_node_num;
+
+	if ( tw_node_num < *node )
+		return;
+
+	subcube_num = num_subcubes;
+
+	node_offset = *node;
+
+	tw_num_nodes = *number;
+
+	node_limit = node_offset + tw_num_nodes - 1;
+
+	tw_node_num -= node_offset;
+
+	miparm.me = tw_node_num;
+	miparm.maxnprc = tw_num_nodes;
+
+	if ( tw_node_num == 0 )
+	{
+#ifdef MARK3
+
+	  /* I'm dubious about what's going on here.  At any rate, msg type
+			  10 is an ISLOG_DATA message, so we probably should use
+			  that symbol here. PLR */
+
+	  send_message ( 0, 0, CP, ISLOG_DATA );
+#endif
+		argv[1] = config;
+		init_command ( argv );
+	}
+}
+
+#ifdef MARK3
+extern int interrupt_disable;
+
+disable_interrupts ()
+{
+	interrupt_disable = 1;
+}
+
+enable_interrupts ()
+{
+	interrupt_disable = 0;
+}
+#endif
+
+set_prop_delay ( delay )
+
+	double *delay;
+{
+	if (*delay > 1.0)
+		{
+		prop_delay = TRUE;
+
+		delay_factor = *delay - 1.0;
+		}
+}
+
+#if DLM
+int dlm = TRUE;
+#else
+int dlm = FALSE;
+#endif
+
+int migrGraph = FALSE;
+
+#ifdef DLM
+
+int batchRun = FALSE;
+
+setBatch()
+{
+	batchRun = TRUE;
+}
+
+set_dlm ()
+
+{
+	if ( dlm == FALSE)
+	{
+		_pprintf("cannot enable dynamic load management while calculating critical path\n");
+	}
+	else
+		dlm = FALSE;
+}
+
+float minUtilDiff = .1;
+
+set_threshold ( threshold )
+
+int * threshold;
+{
+	if ( threshold <= 0 )
+	{
+		_pprintf ( "illegal value for dlm threshold %d; threshold not reset\n",
+			threshold);
+	}
+	else
+	{
+		minUtilDiff = ((float)*threshold)/100.;
+	}
+}
+
+extern float minUtilRatio ;
+
+setMigrRatio ( ratio )
+
+int * ratio;
+{
+    if ( *ratio < 0 )
+	{
+		_pprintf ( "illegal value for migration ratio %d; default not changed\n", 
+			ratio );
+	}
+	else
+	{
+		minUtilRatio = (((float)*ratio)/100.) + 1;
+		if ( tw_node_num == 0 )
+			_pprintf ( "migration ratio set to %f\n", minUtilRatio ) ;
+	}
+}
+
+int migrPerInt = 8;
+
+setNumMigrs ( numMigr )
+
+int * numMigr;
+{
+	/* If the user asked for more migrations than the number of overloaded and
+		underload node pairs possible, cut it down to that. */
+
+	if ( (  *numMigr ) * 2  > tw_num_nodes)
+	{
+		migrPerInt = tw_num_nodes / 2;
+
+		if ( tw_node_num == 0 )
+
+				_pprintf("Fewer migrations (%d) permitted than requested(%d)\n",
+						 migrPerInt, *numMigr);
+	}
+	else
+	{
+		migrPerInt = *numMigr;
+	}
+
+	/* If the number of migrations requested won't fit into the message
+		used to pass the info around, cut it down so it will. */
+
+	if ( migrPerInt > MAX_MIGR )
+	{
+		migrPerInt = MAX_MIGR;
+		if ( tw_node_num == 0 )
+				_pprintf("Only %d migrations permitted, hard coded limit\n",
+						migrPerInt);
+	}
+
+	if ( tw_node_num == 0 )
+		_pprintf ("%d migrations per cycle permitted\n",migrPerInt);
+
+}
+
+extern char chooseStrat;
+
+setChooseStrat ( chooseIn )
+
+int * chooseIn;
+{
+	char chooseInChar;
+
+	chooseInChar = ( char ) *chooseIn;
+
+	if ( chooseInChar == BEST_FIT || chooseInChar == NEXT_BEST_FIT )
+	{
+		chooseStrat = chooseInChar;
+	}
+	else
+	{
+		if ( tw_node_num == 0 )
+				_pprintf( "Illegal choose code %d, defaulting to BEST_FIT\n",
+						*chooseIn);
+		chooseStrat = BEST_FIT;
+	}
+}
+
+extern char splitStrat;
+
+setSplitStrat ( splitIn )
+
+int * splitIn;
+{
+	char splitInChar;
+
+	splitInChar = ( char ) *splitIn;
+
+	if ( splitInChar == MINIMAL_SPLIT || splitInChar == NEAR_FUTURE ||
+				splitInChar == NO_SPLIT || splitInChar == LIMIT_EMSGS )
+	{
+		splitStrat = splitInChar;
+	}
+	else
+	{
+		if ( tw_node_num == 0 )
+				_pprintf( "Illegal split code %d, defaulting to NEAR_FUTURE\n",
+						*splitIn);
+		splitStrat = NEAR_FUTURE;
+	}
+}
+
+extern int maxMigr;
+
+setMaxMigr ( migrations )
+
+int * migrations;
+{
+	if ( *migrations < 0 )
+	{
+		if ( tw_node_num == 0 )
+				_pprintf ( "Illegal # of simulataneous migrations = %d; ignored\n",
+						*migrations);
+		return ;
+	}
+	else
+	{
+		_pprintf("setting maxMigr to %d\n",*migrations);
+		maxMigr = *migrations;
+	}
+
+	if ( tw_node_num == 0 )
+		_pprintf ( "Maximum simultaneous migrations per node = %d\n", 
+						maxMigr );
+
+}
+
+/* Set the number of cycles at start of run during which no dlm is permitted. */
+
+extern int idleDlmCycles;
+
+setIdleDlmCycles ( cycles )
+
+int * cycles;
+{
+
+	if ( *cycles < 0 )
+	{
+		if ( tw_node_num == 0 )
+				_pprintf ( "Illegal # of cycles without dlm = %d; ignored\n",
+						*cycles );
+		return ;
+	}
+
+	idleDlmCycles = *cycles;
+}
+
+extern int dlmInterval;
+
+setDlmInt ( interval )
+
+int * interval;
+{
+
+	if ( *interval <= 0 )
+	{
+		if ( tw_node_num == 0 )
+				_pprintf ( "Illegal dlm interval setting = %d; ignored\n",
+						*interval );
+		return ;
+	}
+
+	dlmInterval = *interval;
+}
+
+/*  Toggle whether migration graphics data will be stored in the migration
+	  log or just normal information. */
+
+setMigrGraph()
+{
+	if ( migrGraph )
+	{  
+	  migrGraph = FALSE;
+	}  
+	else
+	{  
+	  migrGraph = TRUE;
+	}  
+}
+#endif DLM
+
+@
+
+
+1.17
+log
+@1.  Implement allowNow(), setMaxFreeMsgs().
+2.  Add string parm to typeInit().
+3.  Change sense of propDelay().
+@
+text
+@d7 5
+d566 8
+a582 2
+int dlm = TRUE;
+
+a777 2
+
+int migrGraph = FALSE;
+@
+
+
+1.16
+log
+@critical path switching code, code to control migration by ratio, and an
+option to run TWOS in a batch mode (no traps to tester, exit instead) (PLR)
+@
+text
+@d7 4
+d128 1
+d141 1
+d206 1
+a206 1
+	
+d209 7
+d282 1
+d292 1
+d294 6
+d436 1
+a436 1
+void typeinit(type_name)
+d438 1
+d443 1
+a443 1
+	
+d455 1
+a455 1
+			
+a457 6
+			if ( o == NULL )
+			{
+				twerror ( "typeinit unable to set up phony ocb for type %s\n",
+							type_name );
+				tester();
+			}
+d463 1
+a463 1
+			
+d466 2
+a467 2
+			tp->typeArea = (*tp->initType)();    /* save allocated area */
+			
+d553 3
+a555 1
+	prop_delay = TRUE;
+d557 2
+a558 1
+	delay_factor = *delay;
+d584 1
+a584 1
+ 
+d652 1
+a652 1
+	
+@
+
+
+1.15
+log
+@added test for failure from mkocb to typeinit
+@
+text
+@d7 3
+d544 7
+d556 1
+a556 1
+	if ( dlm )
+d558 1
+a558 1
+		dlm = FALSE;
+d561 1
+a561 1
+		dlm = TRUE;
+d570 28
+a597 1
+	minUtilDiff = ((float)*threshold)/100.;
+@
+
+
+1.14
+log
+@Fix misspelling of MARK3.
+@
+text
+@d7 3
+d433 6
+@
+
+
+1.13
+log
+@Remove recv_q_limit stuff for Mark3
+@
+text
+@d7 3
+d220 1
+a220 1
+#if !Mark3
+@
+
+
+1.12
+log
+@New copyright notice.
+@
+text
+@d7 3
+d217 1
+d229 2
+@
+
+
+1.11
+log
+@support for receive queue limit, object timing mode, and the changable
+its a feature. miparm.me replaced with tw_node_num.
+@
+text
+@d1 4
+d7 4
+a46 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.10
+log
+@Don't allow pktlen to change.
+@
+text
+@d3 3
+d107 2
+d209 40
+d278 5
+a282 5
+    if ( *number < MAXPKTL )
+    {
+        pktlen = MAXPKTL;
+        if ( tw_node_num == 0 )
+            _pprintf( "pktlen %d too small - set to %d\n", *number, MAXPKTL );
+d553 1
+a553 1
+		if ( miparm.me == 0 )
+d569 1
+a569 1
+		if ( miparm.me == 0 )
+d574 1
+a574 1
+	if ( miparm.me == 0 )
+d595 1
+a595 1
+		if ( miparm.me == 0 )
+d619 1
+a619 1
+		if ( miparm.me == 0 )
+d634 1
+a634 1
+		if ( miparm.me == 0 )
+d645 1
+a645 1
+	if ( miparm.me == 0 )
+d662 1
+a662 1
+		if ( miparm.me == 0 )
+d680 1
+a680 1
+		if ( miparm.me == 0 )
+@
+
+
+1.9
+log
+@Set default number of migrations to 8.
+@
+text
+@d3 3
+d233 5
+a237 5
+	if ( *number < MINPKTL )
+	{
+		pktlen = MINPKTL;
+		if ( tw_node_num == 0 )
+			_pprintf( "pktlen %d too small - set to %d\n", *number, MINPKTL );
+@
+
+
+1.8
+log
+@Put lower limit on stack size.
+@
+text
+@d3 3
+d492 1
+a492 1
+int migrPerInt = 1;
+@
+
+
+1.7
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        tstrinit.c,v $
+d212 7
+@
+
+
+1.6
+log
+@Set dlm on by default.
+@
+text
+@d2 4
+a5 1
+ * $Log:	tstrinit.c,v $
+d25 1
+a25 1
+char tstrinit_id [] = "@@(#)tstrinit.c	1.44\t10/2/89\t16:28:12\tTIMEWARP";
+d27 3
+a29 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d35 2
+a36 2
+	This module contains routines that initialize certain variables
+	and tables used by the tester.  
+d40 4
+a43 4
+	set_max_acks(number) - set a limit on the number of acks allowed
+			to be outstanding
+		Parameters - int * number
+		Return - Always returns zero
+d45 3
+a47 3
+	set_objstksize(number) - set the size of objects' stacks
+		Parameters - int * number
+		Return - Always returns zero
+d49 3
+a51 3
+	disable_message_sendback() - turn off message sendback
+		Parameters - none
+		Return - Always returns zero
+d53 3
+a55 3
+	set_nostdout() - disable output of stdout messages
+		Parameters - none
+		Return - Always returns zero
+d57 3
+a59 3
+	set_nogvtout() - disable output of gvt msgs
+		Parameters - none
+		Return - Always returns zero
+d61 3
+a63 3
+	enable_mem_stats() - start keeping track of memory statistics
+		Parameters - none
+		Return - Always returns zero
+d65 4
+a68 4
+	init_types() - copy the init, event, and term entry points from
+			the application's process table into the types table
+		Parameters - none
+		Return - Always returns zero
+d72 4
+a75 4
+	set_max_acks(), set_objstksize(), set_nostdout(),
+	set_nogvtout(), and enable_memory_stats() all do pretty much
+	what they sound like.  Typically, they are only called at the
+	begining of a run, to set a parameter for the entire run.
+d77 2
+a78 2
+	init_types() copies information about the various object
+	types into the type_table[] array.
+d91 2
+a92 2
+extern int	hlog;
+extern VTime	hlogVTime;
+d105 4
+a108 4
+int	cancellation_penalty = 0;
+int	cancellation_reward = 0;
+int	peek_limit = 2;
+STime	time_window;
+d119 1
+a119 1
+    cpulog = HOST_fopen ( "cpulog", "w" );
+d121 2
+a122 2
+    if ( cpulog == 0 )
+	printf ( "can't open cpulog\n" );
+d129 1
+a129 1
+    STime * time;
+d131 1
+a131 1
+    cutoff_time = *time;
+d138 1
+a138 1
+    evtlog = TRUE;
+d145 1
+a145 1
+    int i;
+d147 5
+a151 5
+    for ( i = 0; i < MAX_TW_FILES; i++ )
+    {
+	if ( strcmp ( tw_file[i].name, "evtlog" ) == 0 )
+	    break;
+    }
+d153 7
+a159 7
+    if ( i < MAX_TW_FILES )
+    {
+	chklog = TRUE;
+	evtlog_area = tw_file[i].area;
+    }
+    else
+	_pprintf ( "evtlog file not found\n" );
+d165 1
+a165 1
+    STime	*hog_log_time;
+d167 3
+a169 3
+    hlog = TRUE;
+    hlogVTime = newVTime(*hog_log_time,0,0);
+    
+d174 1
+a174 1
+    STime * window;
+d176 1
+a176 1
+    time_window = *window;
+d181 1
+a181 1
+    int * number;
+d184 1
+a184 1
+    extern int number_of_buffers;
+d186 1
+a186 1
+    if ( *number > 0 && *number <= number_of_buffers/2 )
+d188 1
+a188 1
+    if ( *number > 0 && *number <= MAX_ACKS )
+d190 3
+a192 3
+	max_acks = *number;
+    else
+	_pprintf ( "Invalid Max_Acks. Left at %d\n", max_acks );
+d197 1
+a197 1
+    int * number;
+d199 4
+a202 4
+    if ( *number > 0 && *number <= MAX_ACKS )
+	max_neg_acks = *number;
+    else
+	_pprintf ( "Invalid max_neg_acks. Left at %d\n", max_neg_acks );
+d207 1
+a207 1
+    int * number;
+d209 2
+a210 2
+    objstksize = *number;
+    objstksize = (objstksize + 7) & ~7;	/* round to 8 byte boundary */
+d215 1
+a215 1
+    int * number;
+d217 15
+a231 15
+    if ( *number < MINPKTL )
+    {
+	pktlen = MINPKTL;
+	if ( tw_node_num == 0 )
+	    _pprintf( "pktlen %d too small - set to %d\n", *number, MINPKTL );
+    }
+    else
+    if ( *number > MAXPKTL )
+    {
+	pktlen = MAXPKTL;
+	if ( tw_node_num == 0 )
+	   _pprintf ( "pktlen %d too large - set to %d\n", *number, MAXPKTL );
+    }
+    else
+	pktlen = *number;
+d233 1
+a233 1
+    msgdefsize = sizeof(Msgh) + pktlen;
+d238 1
+a238 1
+    int * number;
+d240 1
+a240 1
+    cancellation_penalty = *number;
+d245 1
+a245 1
+    int * number;
+d247 1
+a247 1
+    cancellation_reward = *number;
+d252 1
+a252 1
+    int * plimit;
+d254 1
+a254 1
+    peek_limit = *plimit;
+d259 1
+a259 1
+    no_message_sendback = TRUE;
+d264 1
+a264 1
+    no_stdout = TRUE;
+d267 1
+a267 1
+    stdout_sent_time = posinf;
+d273 1
+a273 1
+    no_gvtout = TRUE;
+d278 1
+a278 1
+    mem_stats_enabled = TRUE;
+d283 1
+a283 1
+    extern ObjectType * objectTypeList[];
+d285 2
+a286 2
+    ObjectType ** ob;
+    Typtbl * tw;
+d288 5
+a292 5
+    type_table[0].type = "manual";
+    type_table[0].init  = manual_init;
+    type_table[0].event = manual_event;
+    type_table[0].term  = manual_term;
+    type_table[0].statesize = 100;
+d294 3
+a296 3
+    /* If the NULL object type is moved to any other place in the type
+        table, be sure to change the definition of NULL_TYPE in twsys.h
+        to point to the new location. */
+d298 4
+a301 4
+    type_table[1].type = "NULL";
+    type_table[1].init = null_init;
+    type_table[1].event = null_event;
+    type_table[1].statesize = 0;
+d303 1
+a303 1
+    tw = &type_table[2];
+d305 1
+a305 1
+    ob = objectTypeList;
+d307 1
+a307 5
+    while ( *ob )
+    {
+	tw->type = (*ob)->type;
+
+	if ( strlen ( tw->type ) >= TOBJLEN )
+d309 1
+a309 3
+	    twerror ( "init_types: type name %s too long; only %d characters allowed\n", tw->type, TOBJLEN );
+	    tw_exit ();
+	}
+d311 14
+a324 8
+	tw->init  = (*ob)->init;
+	tw->event = (*ob)->event;
+	tw->term  = (*ob)->term;
+	tw->displayMsg  = (*ob)->displayMsg;
+	tw->displayState  = (*ob)->displayState;
+	tw->statesize = (*ob)->statesize;
+	tw->initType = (*ob)->initType;
+	tw->typeArea = NULL;
+d326 1
+a326 1
+	tw->libTable = twulib_init_type(tw,*ob);	/* do library init */
+d329 3
+a331 3
+	tw++;
+	ob++;
+    }
+d335 1
+a335 1
+    Type	type_name;
+d337 9
+a345 13
+    Ocb		*o;
+    State	*s;
+    Typtbl	*tp;
+    
+    tp = find_object_type(type_name);	/* check type validity */
+    if (tp == NULL)
+    	{    /* invalid type */
+    	twerror("Invalid type: %s",type_name);
+    	}
+    else
+    	{    /* call the type initialization routine */
+	if (tp->typeArea)
+	    twerror("Memory already allocated for type: %s",type_name);
+d347 24
+a370 20
+	    {  /* do the type init */
+	    
+	    /* make the phony ocb to support i/o */ 
+	    o = mkocb();
+	    strcpy(o->name,"TYPEINIT");
+	    s = (State *) m_create(sizeof(State),neginf,CRITICAL);
+	    clear(s,sizeof(State));
+	    o->sb = s;		/* point to phony state */
+	    xqting_ocb = o;
+	    
+	    /* allow type malloc and do the call */
+	    initing_type = TRUE;
+    	    tp->typeArea = (*tp->initType)();    /* save allocated area */
+    	    
+    	    /* reset flag and dump ocb */
+	    initing_type = FALSE;
+	    nukocb(o);
+	    xqting_ocb = NULLOCB;
+	    }
+    	}
+d377 1
+a377 1
+    STime * number;
+d379 1
+a379 1
+    gvt_sync = *number;
+d388 3
+a390 3
+    int * node;
+    int * number;
+    char * config;
+d392 1
+a392 1
+    char * argv[2];
+d394 1
+a394 1
+    num_subcubes++;
+d396 2
+a397 2
+    if ( node_offset != 0 )
+	return;
+d399 1
+a399 1
+    node_limit = tw_node_num;
+d401 2
+a402 2
+    if ( tw_node_num < *node )
+	return;
+d404 1
+a404 1
+    subcube_num = num_subcubes;
+d406 1
+a406 1
+    node_offset = *node;
+d408 1
+a408 1
+    tw_num_nodes = *number;
+d410 1
+a410 1
+    node_limit = node_offset + tw_num_nodes - 1;
+d412 1
+a412 1
+    tw_node_num -= node_offset;
+d414 2
+a415 2
+    miparm.me = tw_node_num;
+    miparm.maxnprc = tw_num_nodes;
+d417 2
+a418 2
+    if ( tw_node_num == 0 )
+    {
+d421 3
+a423 3
+      /* I'm dubious about what's going on here.  At any rate, msg type
+              10 is an ISLOG_DATA message, so we probably should use
+              that symbol here. PLR */
+d425 1
+a425 1
+      send_message ( 0, 0, CP, ISLOG_DATA );
+d427 3
+a429 3
+	argv[1] = config;
+	init_command ( argv );
+    }
+d437 1
+a437 1
+    interrupt_disable = 1;
+d442 1
+a442 1
+    interrupt_disable = 0;
+d448 1
+a448 1
+    double *delay;
+d450 1
+a450 1
+    prop_delay = TRUE;
+d452 1
+a452 1
+    delay_factor = *delay;
+d462 6
+a467 6
+    if ( dlm )
+    {
+        dlm = FALSE;
+    }
+    else
+        dlm = TRUE;
+d476 1
+a476 1
+    minUtilDiff = ((float)*threshold)/100.;
+d485 2
+a486 2
+    /* If the user asked for more migrations than the number of overloaded and
+	underload node pairs possible, cut it down to that. */
+d488 3
+a490 3
+    if ( (  *numMigr ) * 2  > tw_num_nodes)
+    {
+	migrPerInt = tw_num_nodes / 2;
+d492 1
+a492 1
+	if ( miparm.me == 0 )
+d494 7
+a500 7
+		_pprintf("Fewer migrations (%d) permitted than requested(%d)\n",
+			 migrPerInt, *numMigr);
+    }
+    else
+    {
+	migrPerInt = *numMigr;
+    }
+d502 2
+a503 2
+    /* If the number of migrations requested won't fit into the message
+	used to pass the info around, cut it down so it will. */
+d505 8
+a512 3
+    if ( migrPerInt > MAX_MIGR )
+    {
+	migrPerInt = MAX_MIGR;
+d514 1
+a514 6
+		_pprintf("Only %d migrations permitted, hard coded limit\n",
+			migrPerInt);
+    }
+    
+    if ( miparm.me == 0 )
+	_pprintf ("%d migrations per cycle permitted\n",migrPerInt);
+d524 1
+a524 1
+    char chooseInChar;
+d526 1
+a526 1
+    chooseInChar = ( char ) *chooseIn;
+d528 11
+a538 11
+    if ( chooseInChar == BEST_FIT || chooseInChar == NEXT_BEST_FIT )
+    {
+	chooseStrat = chooseInChar;
+    }
+    else
+    {
+	if ( miparm.me == 0 )
+		_pprintf( "Illegal choose code %d, defaulting to BEST_FIT\n",
+			*chooseIn);
+	chooseStrat = BEST_FIT;
+    }
+d547 1
+a547 1
+    char splitInChar;
+d549 1
+a549 1
+    splitInChar = ( char ) *splitIn;
+d551 12
+a562 12
+    if ( splitInChar == MINIMAL_SPLIT || splitInChar == NEAR_FUTURE ||
+		splitInChar == NO_SPLIT || splitInChar == LIMIT_EMSGS )
+    {
+	splitStrat = splitInChar;
+    }
+    else
+    {
+	if ( miparm.me == 0 )
+		_pprintf( "Illegal split code %d, defaulting to NEAR_FUTURE\n",
+			*splitIn);
+	splitStrat = NEAR_FUTURE;
+    }
+d571 13
+a583 2
+    if ( *migrations < 0 )
+    {
+d585 2
+a586 9
+		_pprintf ( "Illegal # of simulataneous migrations = %d; ignored\n",
+			*migrations);
+	return ;
+    }
+    else
+    {
+	_pprintf("setting maxMigr to %d\n",*migrations);
+	maxMigr = *migrations;
+    }
+a587 4
+    if ( miparm.me == 0 )
+	_pprintf ( "Maximum simultaneous migrations per node = %d\n", 
+			maxMigr );
+
+d599 7
+a605 7
+    if ( *cycles < 0 )
+    {
+	if ( miparm.me == 0 )
+		_pprintf ( "Illegal # of cycles without dlm = %d; ignored\n",
+			*cycles );
+	return ;
+    }
+d607 1
+a607 1
+    idleDlmCycles = *cycles;
+d617 7
+a623 7
+    if ( *interval <= 0 )
+    {
+	if ( miparm.me == 0 )
+		_pprintf ( "Illegal dlm interval setting = %d; ignored\n",
+			*interval );
+	return ;
+    }
+d625 1
+a625 1
+    dlmInterval = *interval;
+d631 1
+a631 1
+      log or just normal information. */
+d635 8
+a642 8
+    if ( migrGraph )
+    {  
+      migrGraph = FALSE;
+    }  
+    else
+    {  
+      migrGraph = TRUE;
+    }  
+@
+
+
+1.5
+log
+@Fixes to routines controlling DLM parameters, and a new routine for a new
+capability (toggling dlm graphics).
+@
+text
+@d3 4
+d454 1
+a454 1
+int dlm = FALSE;
+@
+
+
+1.4
+log
+@1.  Add support for TYPEINIT.
+2.  Modify hoglog code to use hlog.
+3.  Add hook for library support code.
+@
+text
+@d3 5
+d303 7
+d413 6
+a418 1
+	send_message ( 0, 0, CP, 10 );
+d521 1
+a521 2
+    if ( chooseInChar == MINIMAL_SPLIT || chooseInChar == NEAR_FUTURE ||
+		chooseInChar == NO_SPLIT )
+d573 2
+a574 1
+		maxMigr = *migrations;
+d619 17
+@
+
+
+1.3
+log
+@Round objstksize to 8 byte boundary.
+@
+text
+@d3 3
+d76 5
+d90 1
+a91 4
+int cancellation_penalty = 0;
+int cancellation_reward = 0;
+int peek_limit = 2;
+STime time_window;
+d93 5
+d122 2
+d150 10
+d304 5
+d313 40
+a352 1
+}
+@
+
+
+1.2
+log
+@put in a check to make sure max_acks was not larger than 1/2 num of buffs
+@
+text
+@d3 3
+d176 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d147 3
+a149 1
+    if ( *number > 0 && *number <= 60 )
+@

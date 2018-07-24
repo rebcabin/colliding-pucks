@@ -1,0 +1,338 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_7:1.3 TW2_6:1.3 TW2_5_1:1.3 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.15.13.03;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.27.00;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.41.14;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@string handling functions
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	str.c,v $
+ * Revision 1.2  91/06/03  12:27:00  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:41:14  configtw
+ * Initial revision
+ * 
+*/
+char str_id [] = "@@(#)str.c     1.1\t7/7/87\t17:01:29\tTIMEWARP";
+
+#include "twcommon.h"
+#include "twsys.h"
+
+FUNCTION Char *strcat(s1, s2)
+register Char *s1;      /* target string to which characters are appended */
+register Char *s2;      /* source string of characters which are appended */
+{
+	Char *s0=s1;
+
+	while( *s1 )
+		s1++;
+	while( *s1++ = *s2++ )
+		;
+	return s0;
+	}
+
+
+FUNCTION Char *strchr(s, c)
+register Char *s;       /* string to be searched */
+register Char c;        /* character to be searched for */
+{
+	for (; *s; s++)
+		if (*s == c)
+			return s;
+	return NULL;
+	}
+
+
+FUNCTION Int strcmp(s1, s2)
+register Char *s1;      /* string to be compared */
+register Char *s2;      /* string which is the standard of comparison */
+{
+	for (; (*s1) && (*s1==*s2); s1++,s2++)
+		;
+	return (*s1-*s2);
+	}
+
+
+FUNCTION Char *strcpy(s1, s2)
+register Char *s1;      /* destination of string copy */
+register Char *s2;      /* source of characters for string copy */
+{
+	Char *s0=s1;
+
+	while (*s1++ = *s2++)
+		;
+	return s0;
+	}
+
+
+FUNCTION Int strlen(s)
+register Char *s;       /* string whose length is taken */
+{
+	register i=0;
+
+	while (*s++)
+		i++;
+	return i;
+	}
+
+
+FUNCTION Char *strncat(s1, s2, n)
+register Char *s1;      /* target string to which characters are appended */
+register Char *s2;      /* source string of characters which are appended */
+register Int n;         /* maximum number of characters to move */
+{
+	Char *s0=s1;
+
+	if ((n <= 0) || (!(*s2)))
+		return s0;
+	while (*s1)
+		s1++;
+	while ((n--) && (*s1++ = *s2++))
+		;
+	if (!n)
+		*s1 = '\0';
+	return s0;
+	}
+
+
+FUNCTION Int strncmp(s1, s2, n)
+register Char *s1;      /* string to be compared */
+register Char *s2;      /* string which is the standard of comparison */
+register Int n;         /* maximum number of characters to compare */
+{
+	if (n <= 0)
+		return 0;
+	for (; (--n>0) && (*s1) && (*s1==*s2); s1++,s2++)
+		;
+	return (*s1-*s2);
+	}
+
+
+FUNCTION Char *strncpy(s1, s2, n)
+register Char *s1;      /* destination of string copy */
+register Char *s2;      /* source of characters for string copy */
+register Int n;         /* maximum number of characters to copy */
+{
+	Char *s0=s1;
+
+	if (n <= 0)
+		return s0;
+	while ((*s1++ = *s2++) && (--n))
+		;
+	while (--n > 0)
+		*s1++ = '\0';
+	return s0;
+	}
+
+
+/* CAUTION: the following routine may be wrong.  Use at your own risk. */
+FUNCTION Char *strrchr(s, c)
+register Char *s;       /* string to be searched */
+register Char c;        /* character to be searched for */
+{
+	register Char *s0=s;
+
+	while (*s)
+		s++;
+	for (s--; s>=s0; s--)
+		if (*s == c)
+			return s;
+	return NULL;
+	}
+
+
+FUNCTION Long atol(s)
+char *s;
+{
+	Long i, n, sign;
+
+	for(i = 0; s[i] == ' ' || s[i] == '\n' || s[i] == '\t'; i++)
+		;
+
+	sign = 1;
+
+	if(s[i] == '+' || s[i] == '-') {
+		sign =(s[i++] == '+') ? 1 : -1;
+		}
+
+	for(n = 0; s[i] >= '0' && s[i] <= '9'; i++) {
+		/* Skip white space. */
+		n = 10 * n + s[i] - '0';
+		}
+
+	return(sign * n);
+	}
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        str.c,v $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char str_id [] = "@@(#)str.c	1.1\t7/7/87\t17:01:29\tTIMEWARP";
+d16 1
+a16 1
+    Char *s0=s1;
+d18 6
+a23 6
+    while( *s1 )
+        s1++;
+    while( *s1++ = *s2++ )
+        ;
+    return s0;
+    }
+d30 5
+a34 5
+    for (; *s; s++)
+        if (*s == c)
+            return s;
+    return NULL;
+    }
+d41 4
+a44 4
+    for (; (*s1) && (*s1==*s2); s1++,s2++)
+        ;
+    return (*s1-*s2);
+    }
+d51 1
+a51 1
+    Char *s0=s1;
+d53 4
+a56 4
+    while (*s1++ = *s2++)
+        ;
+    return s0;
+    }
+d62 1
+a62 1
+    register i=0;
+d64 4
+a67 4
+    while (*s++)
+        i++;
+    return i;
+    }
+d75 1
+a75 1
+    Char *s0=s1;
+d77 10
+a86 10
+    if ((n <= 0) || (!(*s2)))
+        return s0;
+    while (*s1)
+        s1++;
+    while ((n--) && (*s1++ = *s2++))
+        ;
+    if (!n)
+        *s1 = '\0';
+    return s0;
+    }
+d94 6
+a99 6
+    if (n <= 0)
+        return 0;
+    for (; (--n>0) && (*s1) && (*s1==*s2); s1++,s2++)
+        ;
+    return (*s1-*s2);
+    }
+d107 1
+a107 1
+    Char *s0=s1;
+d109 8
+a116 8
+    if (n <= 0)
+        return s0;
+    while ((*s1++ = *s2++) && (--n))
+        ;
+    while (--n > 0)
+        *s1++ = '\0';
+    return s0;
+    }
+d124 1
+a124 1
+    register Char *s0=s;
+d126 7
+a132 7
+    while (*s)
+        s++;
+    for (s--; s>=s0; s--)
+        if (*s == c)
+            return s;
+    return NULL;
+    }
+d138 1
+a138 1
+    Long i, n, sign;
+d140 2
+a141 2
+    for(i = 0; s[i] == ' ' || s[i] == '\n' || s[i] == '\t'; i++)
+        ;
+d143 1
+a143 1
+    sign = 1;
+d145 3
+a147 3
+    if(s[i] == '+' || s[i] == '-') {
+        sign =(s[i++] == '+') ? 1 : -1;
+        }
+d149 4
+a152 4
+    for(n = 0; s[i] >= '0' && s[i] <= '9'; i++) {
+        /* Skip white space. */
+        n = 10 * n + s[i] - '0';
+        }
+d154 2
+a155 2
+    return(sign * n);
+    }
+@

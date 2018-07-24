@@ -1,0 +1,107 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_7:1.3 TW2_6:1.3 TW2_5_1:1.3 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.15.08.22;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.24.12;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.23;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@typedef for FUNC
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	func.h,v $
+ * Revision 1.2  91/06/03  12:24:12  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:38:23  configtw
+ * Initial revision
+ * 
+*/
+
+/*      func.h          */
+
+typedef struct
+{
+	short name;
+	long beg, end;
+	char level;
+	char extra;
+	char ftype, fstars;
+	char types[10];
+	char stars[10];
+	short args[10];
+} FUNC;
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        func.h,v $
+a13 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 3
+a9 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d11 1
+a11 1
+/*	func.h		*/
+d15 8
+a22 8
+    short name;
+    long beg, end;
+    char level;
+    char extra;
+    char ftype, fstars;
+    char types[10];
+    char stars[10];
+    short args[10];
+@

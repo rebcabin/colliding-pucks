@@ -1,0 +1,25 @@
+.MAKE_VERSION:	VERSION-1.0
+.BUILT_LAST_MAKE_RUN:
+msgList.o:	../../tw/twcommon.h ../../tw/vtime.h ../twusrlib.h ../TWULarray.h ../twpackages.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../msgList.c
+.BUILT_LAST_MAKE_RUN:
+outList.o:	../../tw/twcommon.h ../../tw/vtime.h ../twusrlib.h ../outList.h ../TWULarray.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../outList.c
+.BUILT_LAST_MAKE_RUN:
+TWULarray.o:	../../tw/twcommon.h ../../tw/vtime.h ../twusrlib.h ../TWULarray.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../TWULarray.c
+.BUILT_LAST_MAKE_RUN:
+evtList.o:	../../tw/twcommon.h ../../tw/vtime.h ../twusrlib.h ../outList.h ../twpackages.h ../TWULarray.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../evtList.c
+.BUILT_LAST_MAKE_RUN:
+TWULfastcpy.o:
+	as  -mc68020 -o TWULfastcpy.o TWULfastcpy.s
+.BUILT_LAST_MAKE_RUN:
+multiPacket.o:	../../tw/twcommon.h ../../tw/vtime.h ../twusrlib.h ../outList.h ../twpackages.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../multiPacket.c
+.BUILT_LAST_MAKE_RUN:
+twpackages.o:	../../tw/twcommon.h ../../tw/vtime.h ../twusrlib.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../twpackages.c
+.BUILT_LAST_MAKE_RUN:
+twusrlib.o:	../../tw/twcommon.h ../../tw/vtime.h ../../twsim/tws.h ../twusrlib.h ../outList.h 
+	cc -c -f68881 -O -I../../tw -I../../twsim -DSIMULATOR -DSUN -DFAST_VTIME_MACROS -Bstatic ../twusrlib.c

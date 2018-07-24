@@ -1,0 +1,104 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_6:1.3 TW2_5_1:1.3 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.16.15.46;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.07.10.10.46.27;  author steve;  state Exp;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.13.36.05;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@fast copy for Sun 4
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	SUN4copy.c,v $
+ * Revision 1.2  91/07/10  10:46:27  steve
+ * Use bcopy system call.
+ * 
+ * Revision 1.1  90/08/07  13:36:05  configtw
+ * Initial revision
+ * 
+*/
+
+entcpy ( dest, src, numbytes )
+
+	char *dest, *src;
+	int numbytes;
+{
+	bcopy ( src, dest, numbytes );
+#if 0
+	while ( numbytes-- )
+	{
+		*dest++ = *src++;
+	}
+#endif
+}
+@
+
+
+1.2
+log
+@Use bcopy system call.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        SUN4copy.c,v $
+a13 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 3
+a9 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d13 2
+a14 2
+    char *dest, *src;
+    int numbytes;
+d16 7
+a22 4
+    while ( numbytes-- )
+    {
+	*dest++ = *src++;
+    }
+@

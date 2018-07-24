@@ -1,0 +1,8 @@
+#! /bin/sh
+echo $1
+for ii in *.c *.h simpar.y simlex.l
+do
+diff $ii $1/$ii
+echo $ii
+read foo
+done

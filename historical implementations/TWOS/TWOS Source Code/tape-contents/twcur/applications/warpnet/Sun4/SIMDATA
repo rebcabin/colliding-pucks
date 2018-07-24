@@ -1,0 +1,29 @@
+version: Version 2.4.2
+total_clock_time:	518.00
+sum_of_event_times:	483.67
+avg_time_per_event:	0.014
+hog_time_microseconds:	8660000.000
+hog_name:	67
+queue_time:	6.47
+dequeue_time:	1.04
+multiplier:	1.000000
+get_current_lvt:	35027
+get_own_name:	169
+event_messages:	45319
+events_sans_stdout:	35027
+stdout_events:	0
+events_equal_time:	0
+create_object:	170
+destroy_object:	0
+message_count:	34995
+get_message:	45287
+get_msg_selector:	0
+get_sender:	0
+get_send_time:	0
+final_simtime:	936.0000
+requested_message_blocks:	45319
+allocated_message_blocks:	946
+number_message_bytes:	9070408
+number_state_bytes:	678100
+queue-size:	944
+

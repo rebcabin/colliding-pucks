@@ -1,0 +1,76 @@
+head     1.2;
+branch   ;
+access   ;
+symbols  TW2_6:1.2 TW2_5_1:1.2 TW2_4_2:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.2
+date     91.07.17.16.22.25;  author judy;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.12.12.11.05.35;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@TC2000 compare routine
+@
+
+
+1.2
+log
+@New copyright notice.
+@
+text
+@/*	Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.	*/
+
+/*
+ * $Log:	TCcomp.c,v $
+ * Revision 1.1  90/12/12  11:05:35  configtw
+ * Initial revision
+ * 
+/*
+/* @@(#)TCcomp.c	1.1 10/1/90 */
+
+int bytcmp ( a, b, l )
+
+    register unsigned char *a, *b;
+    register int l;
+{
+    while ( l-- )
+    {
+	if ( *a < *b )
+	    return ( -1 );
+	else
+	if ( *a > *b )
+	    return ( 1 );
+
+	a++;  b++;
+    }
+
+    return ( 0 );
+}
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log$
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+@

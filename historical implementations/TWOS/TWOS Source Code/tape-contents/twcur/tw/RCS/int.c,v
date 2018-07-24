@@ -1,0 +1,446 @@
+head     1.5;
+branch   ;
+access   ;
+symbols  TW2_7:1.5 TW2_6:1.4 TW2_5_1:1.3 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.5
+date     91.12.27.09.05.55;  author pls;  state Rel;
+branches ;
+next     1.4;
+
+1.4
+date     91.11.01.09.24.41;  author pls;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.07.17.15.08.50;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.24.24;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.34;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@handle errors & block objects
+@
+
+
+1.5
+log
+@Fix up TIMING code.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	int.c,v $
+ * Revision 1.4  91/11/01  09:24:41  pls
+ * 1.  Change version id.
+ * 2.  Add signal handling (SCR 164).
+ * 
+ * Revision 1.3  91/07/17  15:08:50  judy
+ * New copyright notice.
+ * 
+ * Revision 1.2  91/06/03  12:24:24  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:38:34  configtw
+ * Initial revision
+ * 
+*/
+char int_id [] = "@@(#)int.c     $Revision: 1.4 $\t$Date: 91/11/01 09:24:41 $\tTIMEWARP";
+
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+
+Purpose:
+
+		int.c contains a set of functions that put a site's currently
+		executing object into a blocked state, to handle an error
+		condition.  Such error conditions include division by zero,
+		overflow, stack overflow, addressing exceptions, and similar
+		errors.  Once the object has been blocked, they call dispatch()
+		to choose a new object for execution.
+
+Functions:
+
+		sigHandler() - initial routine triggered by signal
+				Parameters -	int  sig,code
+								struct sigcontext *scp
+								char *addr
+				Return - void
+				
+		objdiv0() - set an error condition for division by zero
+				Parameters - none
+				Return - Always returns 0
+
+		objoflow() - set an error condition for arithmetic overflow
+				Parameters - none
+				Return - Always returns 0
+
+		objsub() - set an error condition for subscript out of range
+				Parameters - none
+				Return - Always returns 0
+
+		objadr() - set an error condition for addressing fault
+				Parameters - none
+				Return - Always returns 0
+
+		objstk() - set an error condition for stack overflow
+				Parameters - none
+				Return - Always returns 0
+
+		objins() - set an error condition for illegal instruction
+				Parameters - none
+				Return - Always returns 0
+
+		objtout() - set an error condition for timeout
+				Parameters - none
+				Return - Always returns 0
+
+		twmfu() - set an error condition for mfu (??)
+				Parameters - none
+				Return - Always returns 0
+
+Implementation:
+
+		All of these routines are identical, except for the error
+		condition they set, so only one will be discussed.  objdiv0()
+		sets the serror field of the state in the currently executing
+		object's state buffer to OBJDIV0.  It sets the executing object's
+		run status to ARLBK, so that it will not execute.  Then it calls
+		dispatch(), to select a new object for execution.
+
+*/
+
+#include <signal.h>
+
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+
+extern Byte * object_context;
+
+extern int      hlog;
+extern VTime    hlogVTime;
+extern int      maxSlice;
+extern Ocb*     maxSliceObj;
+extern VTime    maxSliceTime;
+extern int      sliceTime;
+
+FUNCTION		sigHandler_b(sig,code,scp,addr)
+
+	int					sig,code;
+	struct sigcontext	*scp;
+	char				*addr;
+	
+{
+	switch (sig)
+		{
+		case SIGBUS:
+		case SIGEMT:
+		case SIGILL:
+		case SIGSEGV:
+			check_stack_and_state(xqting_ocb);
+			objins();	/* illegal instruction */
+			break;
+		case SIGFPE:
+#if BFLY1
+			if (code == FPE_INTDIV0)
+				objdiv0();	/* divide by 0 */
+			else
+#endif
+				objoflow();	/* numeric overflow */
+			break;
+		default:
+			_pprintf ("Unknown signal: %d, code: %d @@%x\n",sig,code,addr);
+			tester();
+			break;
+		}	/* switch (sig) */
+}	/* sigHandler_b */
+
+FUNCTION		sigHandler(sig,code,scp,addr)
+
+	int					sig,code;
+	struct sigcontext	*scp;
+	char				*addr;
+	
+{
+	if (objectCode)
+		{	/* interrupted while executing object code */
+		objectCode = FALSE;
+#if TIMING
+		stop_timing();
+#endif
+		 
+#if MARK3
+		mark3time ();
+#endif
+#if BF_MACH
+		butterflytime ();
+#endif
+		object_end_time = node_cputime;
+
+		if (hlog)
+			{
+			sliceTime = object_end_time - object_start_time;
+			if ((sliceTime > maxSlice) && (geVTime(gvt,hlogVTime)))
+				{ /* this slice was bigger than max so far */
+				maxSlice = sliceTime;
+				maxSliceObj = xqting_ocb;
+				maxSliceTime = xqting_ocb->svt;
+				}
+			}  /* if hlog */
+	
+		xqting_ocb->stats.cputime += object_end_time - object_start_time;
+	
+		switch_back ( sigHandler_b, object_context, sig, code, scp, addr );
+		
+		}
+	else
+		{
+		twerror("sigHandler F Fatal error in Time Warp: %d, %d",sig,code);
+		tester();
+		}
+}	/* sigHandler */
+
+FUNCTION        objdiv0 ()
+{
+	object_error ( OBJDIV0 );
+	dispatch ();
+}
+
+
+FUNCTION        objoflow ()
+{
+	object_error ( OBJOFLOW );
+	dispatch ();
+}
+
+
+FUNCTION        objsub ()
+{
+	object_error ( OBJSUB );
+	dispatch ();
+}
+
+
+FUNCTION        objadr ()
+{
+	object_error ( OBJADR );
+	dispatch ();
+}
+
+
+FUNCTION        objstk ()
+{
+	object_error ( OBJSTK );
+	dispatch ();
+}
+
+
+FUNCTION        objins ()
+{
+	object_error ( OBJINS );
+	dispatch ();
+}
+
+
+FUNCTION        objtout ()
+{
+	object_error ( OBJTOUT );
+	dispatch ();
+}
+
+
+FUNCTION        twmfu ()
+{
+	object_error ( TWMFU );
+	dispatch ();
+}
+
+
+FUNCTION object_error ( error )
+
+	char * error;
+{
+	xqting_ocb->sb->serror = error;
+
+	objend ();
+}
+@
+
+
+1.4
+log
+@1.  Change version id.
+2.  Add signal handling (SCR 164).
+@
+text
+@d7 4
+d21 1
+a21 1
+char int_id [] = "@@(#)int.c     $Revision$\t$Date$\tTIMEWARP";
+d145 3
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@d7 3
+d17 1
+a17 1
+char int_id [] = "@@(#)int.c     1.8\t6/2/89\t12:44:01\tTIMEWARP";
+d36 6
+d85 2
+d89 1
+d91 81
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        int.c,v $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char int_id [] = "@@(#)int.c	1.8\t6/2/89\t12:44:01\tTIMEWARP";
+d9 3
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d17 6
+a22 6
+	int.c contains a set of functions that put a site's currently
+	executing object into a blocked state, to handle an error
+	condition.  Such error conditions include division by zero,
+	overflow, stack overflow, addressing exceptions, and similar
+	errors.  Once the object has been blocked, they call dispatch()
+	to choose a new object for execution.
+d26 3
+a28 3
+	objdiv0() - set an error condition for division by zero
+		Parameters - none
+		Return - Always returns 0
+d30 3
+a32 3
+	objoflow() - set an error condition for arithmetic overflow
+		Parameters - none
+		Return - Always returns 0
+d34 3
+a36 3
+	objsub() - set an error condition for subscript out of range
+		Parameters - none
+		Return - Always returns 0
+d38 3
+a40 3
+	objadr() - set an error condition for addressing fault
+		Parameters - none
+		Return - Always returns 0
+d42 3
+a44 3
+	objstk() - set an error condition for stack overflow
+		Parameters - none
+		Return - Always returns 0
+d46 3
+a48 3
+	objins() - set an error condition for illegal instruction
+		Parameters - none
+		Return - Always returns 0
+d50 3
+a52 3
+	objtout() - set an error condition for timeout
+		Parameters - none
+		Return - Always returns 0
+d54 3
+a56 3
+	twmfu() - set an error condition for mfu (??)
+		Parameters - none
+		Return - Always returns 0
+d60 6
+a65 6
+	All of these routines are identical, except for the error
+	condition they set, so only one will be discussed.  objdiv0()
+	sets the serror field of the state in the currently executing
+	object's state buffer to OBJDIV0.  It sets the executing object's
+	run status to ARLBK, so that it will not execute.  Then it calls
+	dispatch(), to select a new object for execution.
+d75 2
+a76 2
+    object_error ( OBJDIV0 );
+    dispatch ();
+d82 2
+a83 2
+    object_error ( OBJOFLOW );
+    dispatch ();
+d89 2
+a90 2
+    object_error ( OBJSUB );
+    dispatch ();
+d96 2
+a97 2
+    object_error ( OBJADR );
+    dispatch ();
+d103 2
+a104 2
+    object_error ( OBJSTK );
+    dispatch ();
+d110 2
+a111 2
+    object_error ( OBJINS );
+    dispatch ();
+d117 2
+a118 2
+    object_error ( OBJTOUT );
+    dispatch ();
+d124 2
+a125 2
+    object_error ( TWMFU );
+    dispatch ();
+d131 1
+a131 1
+    char * error;
+d133 1
+a133 1
+    xqting_ocb->sb->serror = error;
+d135 1
+a135 1
+    objend ();
+@

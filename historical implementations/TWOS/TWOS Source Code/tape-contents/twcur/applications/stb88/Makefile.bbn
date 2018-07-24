@@ -1,0 +1,254 @@
+# -------------------------------------------------------
+# START OF STANDARD DEFINITIONS - DO NOT DELETE THIS LINE, GENMAKE USES IT
+
+# THIS MAKEFILE WAS CREATED BY THE GENMAKE PROGRAM.
+#
+# THE FIRST SECTION OF THE MAKEFILE CONTAINS STANDARD DEFINES INSERTED
+# BY GENMAKE, AND SHOULD NOT BE MODIFIED (MODIFICATIONS WOULD GET LOST
+# THE NEXT TIME GENMAKE IS RUN).
+#
+# THE SECOND SECTION OF THE MAKEFILE HOLDS THE SPECIFICATIONS FOR THE
+# TARGET OBJECTS OF THE MAKEFILE.  THIS IS ALSO THE PLACE WHERE
+# ADDITIONAL DEFINES AND DEFAULT RULES, IF ANY, SHOULD BE PLACED.
+# THIS SECTION IS PRESERVED UNTOUCHED BY GENMAKE, SO YOU CAN PUT
+# MODIFICATIONS THERE. 
+#
+# THE THIRD AND FINAL SECTION OF THE MAKEFILE CONTAINS DEPENDENCY
+# INFORMATION.  THIS INFORMATION IS GENERATED AUTOMATICALLY AND SHOULD
+# NOT BE MODIFIED, SINCE MODIFICATIONS WOULD GET LOST THE NEXT TIME
+# GENMAKE WAS RUN.
+
+# ------------- ``ver'' and ``hver'' variables ---------------
+
+# ver:
+#
+# ``ver'' is the Chrysalis software version to link with and to use
+# for include files.  ver = NO_VERSION_SPECIFIED -- This forces one to
+# explicitly specify the Chrysalis software version as an argument to
+# the ``make'' program.
+#
+# For example, "make ver=dev all" will rebuild the "all" target using
+# the "dev" version of the Chrysalis kernel.
+#
+# hver:
+#
+# ``hver'' is the hardware version of the processor card.  It is used
+# to trigger ifdefs in the code for handling special hardware
+# features.
+#
+# hver = BPN2 is the default -- the BPN2 processor card.  This can be
+# over-ridden by selecting something else in the make command-line
+# (e.g., make ver=dev hver=BPNE)
+
+ver        = Chrys40/BF_PLUS
+hver       = BF_PLUS
+
+
+BFLY       = /usr/butterfly
+CHRYS      = $(BFLY)/chrys/$(ver)
+HARDWARE_DEF = -D$(hver)
+
+# Genmake replaces this line, based on whether or not there's a jumptable
+# for this chrysalis version:
+SYS        = $(CHRYS)/chrys_jump_table.68 $(LIB)/boss.o68 $(LIB)/libcs.a
+
+BCC        = CHRYSALIS=$(CHRYS) $(BFLY)/bin/bcc $(HARDWARE_DEF)
+BF77       = CHRYSALIS=$(CHRYS) $(BFLY)/bin/bf77
+F77	   = $(BFLY)/bin/gf77
+AS68       = $(BFLY)/bin/as68
+LNK68	   = $(BFLY)/bin/lnk68
+SPLITSYMS  = $(BFLY)/bin/splitsyms
+AR68	   = $(BFLY)/bin/ar68
+NM68	   = $(BFLY)/bin/nm68
+RANLIB68   = $(BFLY)/bin/ranlib68
+GENMAKE    = $(BFLY)/bin/genmake
+
+BCCFLAGS   = $(EXTRA_BCCFLAGS)
+BF77FLAGS  = $(EXTRA_BF77FLAGS)
+AS68FLAGS  = -defineall $(EXTRA_AS68FLAGS)
+
+H          = $(CHRYS)/include
+LIB        = $(CHRYS)/lib
+
+# 	don't use $(ver)/$(hver) definition of CHRYS
+US         = $(BFLY)/chrys/$(ver)/us
+CFLAGS     = $(EXTRA_CFLAGS)
+FFLAGS     = $(EXTRA_FFLAGS)
+IFLAGS     = -I$H
+LFLAGS     = $(EXTRA_LFLAGS) -lm
+LIBRARIES  = $(EXTRA_LIBRARIES) $(LIB)/libm.a
+
+MAKEDEFS   = ver=$(ver) hver=$(hver) BCC="$(BCC)" AS68="$(AS68)" 
+MAKECMD    = $(BFLY)/bin/MAKE -k 
+MAKE	   = $(MAKECMD) $(MAKEDEFS) $(EXTRA_MAKEFLAGS)
+
+CLEAN      = $(MAKE) clean
+REMAKE     = $(MAKE) remake
+INSTALL    = $(MAKE) install
+SPOTLESS   = $(MAKE) spotless
+
+# Source file suffixes:
+# .c .c68 - C source file
+# .f .f68 - Fortran source file
+# .F .F68 - Fortran source file - run through C preprocessor before compiling
+#
+# Assembler source file suffixes:
+# .a68    - assembler source code file
+# .s .s68 - machine generated assembler source code file
+#
+# Intermediate file suffixes:
+# .o68  - relocatable output of the assembler
+#
+# Executable file suffixes:
+# .68   - executable 68000 file in a.out format
+#
+# Suffixes for building uniform system programs that run on the host
+# .o    - relocatable output of the assembler
+# .out  - executable file in a.out format
+
+.SUFFIXES:
+.SUFFIXES: .68 .out .o68 .l68 .o .c .F .f .c68 .F68 .f68 .s .a68 .s68
+
+.c68.68 .c.68:
+	-rm -f $*.o68 $*.68 $*.syms
+	$(BCC) $(BCCFLAGS) -o $@ $< $(LIBRARIES)
+
+.f68.68 .f.68 .F68.68 .F.68:
+	-rm -f $*.o68 $*.68 $*.syms
+	$(BF77) $(BF77FLAGS) -o $@ $< $(LIBRARIES)
+
+.c68.s68 .c.s68:
+	-rm -f $*.s68
+	$(BCC) $(BCCFLAGS) -S $<
+
+.f68.s68 .f.s68 .F68.s68 .F.s68:
+	-rm -f $*.s68
+	$(BF77) $(BF77FLAGS) -S $<
+
+.c68.o68 .c.o68:
+	-rm -f $*.o68
+	$(BCC) $(BCCFLAGS) -c -O -X130 -X140 $<
+
+.f68.o68 .f.o68 .F68.o68 .F.o68:
+	-rm -f $*.o68
+	$(BF77) $(BF77FLAGS) -c $<
+
+.a68.o68 .s68.o68 .s.o68:
+	-rm -f $*.o68
+	$(BCC) -c $<
+
+.o68.68:
+	-rm -f $*.68 $*.syms
+	$(BCC) $(BCCFLAGS) -o $@ $< $(LIBRARIES)
+
+.c68.l68:
+	-rm -f $*.l68
+	$(BCC) $(BCCFLAGS) -h $<
+
+# Rules for building uniform system programs that run on the host
+.c.out:
+	-rm -f $*.o $* $*.out
+	$(CC) $(CFLAGS) -o $* $< $(LFLAGS); touch $@
+
+.c.o:
+	-rm -f $*.o
+	$(CC) $(CFLAGS) -c $<
+
+.f.out .F.out:
+	-rm -f $*.o $* $*.out
+	$(F77) $(FFLAGS) -o $* $< $(LFLAGS); touch $@
+
+.f.o .F.o:
+	-rm -f $*.o
+	$(F77) $(FFLAGS) -c $<
+
+.o.out:
+	-rm -f $* $*.out
+	$(CC) -o $* $< $(LFLAGS); touch $@
+
+# END OF STANDARD DEFINITIONS - DO NOT DELETE THIS LINE
+# -----------------------------------------------------
+# START OF USER DEFINITIONS AND TARGET SPECIFICATIONS
+
+BASE_DIR	= /usr/local/src
+STB88_DIR	= /usr/local/src/applications_2.1/stb88
+TWSIM_LIB_DIR	= $(BASE_DIR)/tw2.2.2/twsim/Butterfly
+DEST_DIRECTORY  = $(PUCKS_DIR)
+
+STB88_OBJS	=	\
+		stb88_1.o68\
+		grid.o68\
+		div.o68\
+		distributor.o68\
+		initializer.o68\
+		motion.o68\
+		xcorps.o68\
+		stat.o68\
+		transform.o68\
+		random.o68\
+		array.o68\
+		ctlslib.o68\
+		pjhabs.o68\
+		stb_debug.o68
+
+
+
+
+EXTRA_BCCFLAGS  = -DBBN	-DOLDTW
+EXTRA_BF77FLAGS = 
+EXTRA_AS68FLAGS = 
+EXTRA_LIBRARIES = $(LIB)/librsio.a $(LIB)/librf.a
+TWSIM_LIB = $(TWSIM_LIB_DIR)/twsim.a
+TW_LIB_DIR = /usr/local/src/tw2.2.2/tw/Butterfly
+TW_LIBRARIES = $(TW_LIB_DIR)/tw.a
+
+
+EXTRA_CFLAGS    = -I$(US)
+EXTRA_FFLAGS	= -sysdefs $H/fortran.sysdefs $(IFLAGS)
+EXTRA_LFLAGS    = $(US)/uslib.a
+# For versions of Chrysalis 3.0 or before
+# EXTRA_LFLAGS    = $(US)/us.o
+
+
+#DESTDIR = $(DEST_DIRECTORY)
+DESTDIR = destination_directory
+ 
+
+all:    stb88_sim.68
+
+
+
+install: $(DESTDIR)/stb88_sim.68
+
+
+remake:
+	$(GENMAKE) $(ver)
+
+clean:
+	-rm -f *~ *.[los]68 *.log *.o
+
+spotless:
+	-rm -f *~ *.a *.[los]68 *.68 *.syms *.log *.o *.out
+
+lint:
+	lint $(IFLAGS) -n *.c *.c68 -lbfly > lint.log 2>&1
+
+
+
+$(DESTDIR)/stb88_sim.68: stb88_sim.68
+	-rm -f $@ $(DESTDIR)/stb88_sim.syms
+	cp stb88_sim.68 stb88_sim.syms $(DESTDIR)
+
+stb88_sim.68: $(SYS) $(EXTRA_LIBRARIES) $(STB88_OBJS)
+	$(BCC) $(BCCFLAGS) -a 4 -o $@ $(STB88_OBJS)  \
+	 $(TWSIM_LIB) $(LIBRARIES)
+ 
+stb88tw.68: $(SYS) $(EXTRA_LIBRARIES) $(TW_LIBRARIES)
+	$(BCC) $(BCCFLAGS) -o $@ $(STB88_OBJS) $(TW_LIBRARIES) \
+	 $(LIBRARIES) 
+
+# END OF USER DEFINITIONS AND TARGET SPECIFICATIONS
+# -------------------------------------------------------------------
+# START OF GENERATED DEPENDENCY INFORMATION - DO NOT DELETE THIS LINE
+# END OF GENERATED DEPENDENCY INFORMATION - DO NOT DELETE THIS LINE
+# -----------------------------------------------------------------

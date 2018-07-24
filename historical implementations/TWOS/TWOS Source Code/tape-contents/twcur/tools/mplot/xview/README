@@ -1,0 +1,9 @@
+/*	Copyright (C) 1989, 1991, California Institute of Technology.
+		U.S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.       */
+	
+
+This version of mplot links with xview 2.0 and hence (we hope) with openwin.
+
+Note the strange JPL dependent include and library paths in the Makefile.
+

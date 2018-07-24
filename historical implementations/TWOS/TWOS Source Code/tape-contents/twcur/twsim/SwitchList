@@ -1,0 +1,90 @@
+
+
+The following is a complete list of the simulator switches as of 11/11/90
+
+	     case 'a':
+Enable the archive file procedures
+
+	     case 'b':
+Add suffix letters which are an argument required by this switch to
+the names of the SIMDATA and TRACE files. (Does not enable either file)
+
+	     case 'c':
+Calculate the critical path
+
+	     case 'd':
+output simulator data to the file SIMDATA (see also b switch)
+
+	     case 'e':
+create an event log file called EVTLOG
+
+	     case 'f':
+Make flow table entries for the flow program (the simulator must be
+compiled with this feature enabled)
+
+	     case 'g':
+don't stop for anything when the simulator is started
+
+	     case 'k':
+count the number of events (poll) and stop and print the virtual time
+every xx events where xx is an argument required by this switch
+
+	     case 'l':
+make the objstats file  (XL_STATS) collect data at intervals of kk.k where kk.k is
+an argument required by this switch. (see also s switch )
+
+	     case 'm':
+make a file of output messages for each event called MTRACE
+
+	     case 'M':
+make a file of input messages for each event called IMTRACE
+
+	     case 'n':
+disable most internal timekeeping
+
+	     case 'p':
+cause the simulator to fork the pad program and redirect stdout to 
+the stdin of pad. Tell pad to quit at end. The simulator must be
+compiled with this feature enabled.
+
+	     case 'q':
+Stop immediately after starting so that user can enter commands to the
+simulator (such as SF to set step switch false and start the simulator).
+If -q is not entered on the command line, the simulator does not stop.
+If the simulator is stopped because of a switch, multiple commands can be
+entered. Start again with a <CR>.
+
+	     case 's':
+Do not make a file of cumulative object statistics called XL_STATS in same
+format as is used by time warp.  File is now made by default if there
+is no 's' switch. See also l switch which should not be used with 's'.
+
+	     case 't':
+make an event trace file called TRACE  (see also switch b)
+
+	     case 'x':
+do internal timing as though every event time was multiplied by a factor
+which is an argument required by this switch. The physical time does not
+change.
+
+	     case 'y':
+do some stack checking. (for use if timewarp is crashing and it may
+be because the stack reserved is too small)
+
+	     case 'z':
+enable trace file and change its format so it does not print realtime
+or total time
+
+****************************************************************************
+Special config file command for TWSIM.
+(requires an #ifdef when compiling)
+
+objstats time
+
+Where time is a double.  The -s switch should not be used. -s now suppresses
+the file.  This config command will make an objstats record at the time
+indicated. It  can be used about 20 times.
+A final record will also be made at end of simulation run.
+
+
+

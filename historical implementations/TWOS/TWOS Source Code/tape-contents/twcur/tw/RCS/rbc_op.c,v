@@ -1,0 +1,1044 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_7:1.3 TW2_6:1.3 TW2_5_1:1.3 TW2_5:1.3;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.06.03.12.26.23;  author configtw;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.03.28.09.58.01;  author configtw;  state Dev;
+branches ;
+next     1.1;
+
+1.1
+date     91.03.26.10.34.26;  author pls;  state Dev;
+branches ;
+next     ;
+
+
+desc
+@code for rollback chip
+@
+
+
+1.3
+log
+@Tab conversion.
+@
+text
+@/*
+ * $Log:        rbc_op.c,v $
+ * Revision 1.2  91/03/28  09:58:01  configtw
+ * Add RBC change for Steve.
+ * 
+ * Revision 1.1  91/03/26  10:34:26  pls
+ * Initial revision
+ *
+*/
+
+/*
+ * Copyright (C) 1991, Integrated Parallel Technology, All Rights Reserved.
+ * U. S. Government Sponsorship under SBIR Contract NAS7-1102 is acknowledged.
+ */
+
+/* rbc_op.c */
+
+#include "twcommon.h"
+#include "twsys.h"
+#include "rbc_public.h"
+/*
+#define PARANOID
+*/
+int rbc_present;
+
+rollback_op ( ocb, num_frames, rb_time )
+Ocb * ocb;
+int num_frames;
+VTime rb_time;
+{
+	int rv;
+	int i;
+	FootCB * p, * q;
+
+	/* repeat until 0 return or error */
+	while ( rv = rbc_rollback ( ocb->first_seg, num_frames ) )
+		if ( rv != ABORTED_COMMAND )
+		{
+			_pprintf ( "Error in rollback_op rv is %d\n", rv );
+			tester();
+		}
+
+	/* rbc_rollback successful do book keeping */
+	ocb->frames_used -= num_frames;
+
+	/* loops immediately exit if there are no dynamic state pieces */
+
+	/* pass one update rollback chip */
+	for ( p = ocb->fcb; p; p = p->next )
+	{
+		for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+		{
+			if ( p->seg[i].status == SEG_FREE )
+			{
+				continue;
+			}
+
+			/* breaks if ok */
+			while ( rv = rbc_rollback ( p->seg[i].seg_no, num_frames ) )
+				if ( rv != ABORTED_COMMAND )
+				{
+					_pprintf (
+						"rollback_op rv = %d for %s p = %x, i = %d, seg = %d\n",
+						rv, ocb->name, p, i, p->seg[i].seg_no );
+					tester();
+				}
+
+			if ( (p->seg[i].status & SEG_FUTURE_FREE) &&
+				leVTime ( rb_time, p->seg[i].last_used ) )
+			{
+				p->seg[i].status &= ~SEG_FUTURE_FREE;
+			}
+		}
+	}
+
+	/* pass two free rolled-over segments */
+	for ( p = ocb->fcb; p; p = q )
+	{
+		int rolled_over_checking_done = 0;
+
+		q = p->next; /* in case p is destroyed */
+
+		for ( i = p->first_used_segment; i < SEG_PER_CB; )
+		{
+			if ( p->seg[i].status == SEG_FREE )
+			{
+				i++;
+			}
+			else if ( leVTime ( rb_time,  p->seg[i].first_alloc ) )
+			{
+/*
+_pprintf ( "rollback freeing seg %d\n", p->seg[i].seg_no );
+*/
+				p->seg[i].status = SEG_FREE;
+				free_segment ( p->seg[i].seg_no );
+				i++;
+			}
+			else /* the rest can't be rolled over */
+			{
+				rolled_over_checking_done = 1;
+				p->first_used_segment = i;
+				break;
+			}
+		}
+
+		if ( SEG_PER_CB == i ) /* all of p is empty */
+		{
+/*
+check_empty_footCB ( p );
+*/
+			l_destroy ( p );
+			ocb->fcb = q;
+		}
+
+		if ( rolled_over_checking_done )
+			break;
+	}
+#ifdef PARANOID
+	checkOcbRBC ( ocb, "rollback" );
+#endif
+	return SUCCESS;
+}
+
+advance_op ( ocb, num_frames, rb_time )
+Ocb * ocb;
+int num_frames;
+VTime rb_time; /* should always be gvt ? */
+{
+	int rv;
+	int i;
+	FootCB * p, * q;
+
+	/* repeat until 0 return or error */
+	while ( rv = rbc_advance ( ocb->first_seg, num_frames ) )
+		if ( rv != ABORTED_COMMAND )
+		{
+			_pprintf ( "Error in advance_op rv is %d\n", rv );
+			tester();
+			return;
+		}
+
+
+	/* rbc_advance successful do book keeping */
+	ocb->frames_used -= num_frames;
+
+
+	/* loops immediately exit if there are no dynamic state pieces */
+
+	/* pass one update rollback chip */
+	for ( p = ocb->fcb; p; p = p->next )
+	{
+		for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+		{
+			if ( p->seg[i].status == SEG_FREE )
+			{
+				continue;
+			}
+
+			/* breaks if ok */
+			while ( rv = rbc_advance ( p->seg[i].seg_no, num_frames ) )
+				if ( rv != ABORTED_COMMAND )
+				{
+					_pprintf (
+						"advance_op rv = %d for %s p = %x, i = %d, seg = %d\n",
+						rv, ocb->name, p, i, p->seg[i].seg_no );
+					tester();
+				}
+
+			if ( (p->seg[i].status & SEG_FUTURE_FREE) &&
+				gtVTime ( rb_time, p->seg[i].last_used ) )
+			{
+/*
+_pprintf ( "advance freeing seg %d\n", p->seg[i].seg_no );
+*/
+				p->seg[i].status = SEG_FREE;
+				free_segment ( p->seg[i].seg_no );
+			}
+		}
+
+		/* make p->first_used_segment correct,(used in grab-collect) */
+		for ( i = p->first_used_segment; ; i++ )
+		{
+			if ( ( SEG_PER_CB == i ) || ( p->seg[i].status != SEG_FREE ) )
+			{
+				p->first_used_segment = i;
+				break;
+			}
+		}
+	}
+
+	/* delete empty foot cb's at front */
+	while ( (p = ocb->fcb) && (p->first_used_segment == SEG_PER_CB) )
+	{
+		ocb->fcb = p->next;
+		l_destroy ( p );
+	}
+
+	/* delete empty foot cb's past the front */
+	for ( p = ocb->fcb; p && (q = p->next); )
+	{
+		if ( q->first_used_segment == SEG_PER_CB )
+		{
+			p->next = q->next;
+			l_destroy ( q );
+		}
+		else
+		{
+			p = q;
+		}
+	}
+#ifdef PARANOID
+	checkOcbRBC ( ocb, "advance" );
+#endif
+	return SUCCESS;
+}
+
+mark_op ( ocb, num_frames, rb_time )
+Ocb * ocb;
+int num_frames; /* should always be one ? */
+VTime rb_time; /* doesn't matter ? */
+{
+	int rv;
+	int i;
+	FootCB * p, * q;
+
+	/* repeat until 0 return or error */
+	while ( rv = rbc_mark ( ocb->first_seg, num_frames ) )
+	{
+		if ( rv = MARK_OVERFLOW )
+			return FAILURE;
+
+		if ( rv != ABORTED_COMMAND )
+		{
+			_pprintf ( "Error in mark_op rv is %d\n", rv );
+			tester();
+		}
+	}
+
+	/* rbc_mark successful do book keeping */
+	ocb->frames_used += num_frames;
+	ocb->last_chance = NULL;
+
+	/* for loop immediately exits if there are no dynamic state pieces */
+	for ( p = ocb->fcb; p; p = p->next )
+	{
+		/* update rollback chip */
+		for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+		{
+			if ( p->seg[i].status == SEG_FREE )
+			{
+				continue;
+			}
+
+			/* breaks if ok */
+			while ( rv = rbc_mark ( p->seg[i].seg_no, num_frames ) )
+				if ( rv != ABORTED_COMMAND )
+				{
+					_pprintf (
+						"mark_op rv = %d for %s p = %x, i = %d, seg = %d\n",
+						rv, ocb->name, p, i, p->seg[i].seg_no );
+					tester();
+				}
+
+		}
+	}
+#ifdef PARANOID
+	checkOcbRBC ( ocb, "mark" );
+/*
+	print_ocb_rbc ( ocb );
+*/
+#endif
+
+
+	return SUCCESS;
+}
+
+/*--------------------------------------------------------------------------*
+   Clean Up
+*--------------------------------------------------------------------------*/
+term_op ( ocb )
+Ocb *ocb;
+{
+	int rv;
+	int wait = TRUE;
+	unsigned long begin, end;
+
+	/* this function should delete all the other segments (if any) */
+	rbc_get_def ( ocb->first_seg, &begin, &end );
+
+	ocb->frames_used--;
+
+	if ( (rv = rbc_dealloc_start ( ocb->first_seg, begin, end ) ) ||
+		(rv = rbc_dealloc_done ( ocb->first_seg, begin, end, wait ) ) )
+	{
+		_pprintf ( "term_op returned %d\n", rv );
+		tester();
+	}
+	ocb->first_seg = -1;
+	ocb->footer = NULL;
+	ocb->fcb = NULL;
+	/* ocb->frames_used = 0;*/
+	ocb->uses_rbc = FALSE;
+}
+
+/*--------------------------------------------------------------------------*
+   Debugging Functions
+*--------------------------------------------------------------------------*/
+/* this function is used only for debugging */
+rbc_check_frame_count ( ocb, count )
+Ocb *ocb;
+int count;
+{
+	if ( ocb->runstat == ITS_STDOUT )
+		return 0;
+
+	if ( ocb->sb ) /* one more state not in the queue */
+		count++;
+
+	if ( count != ocb->frames_used )
+	{
+		_pprintf ( "Echeck: ocb %s count = %d, frames = %d\n",
+			ocb->name, count, ocb->frames_used );
+		tester();
+	}
+
+	if ( ocb->frames_used  &&
+		emulator_check_frame_count ( ocb->first_seg, count ) )
+	{
+		_pprintf ( "That was object: %s\n", ocb->name );
+		tester();
+		return -1;
+	}
+	return 0;
+}
+
+check_footCB ( p, ocb, string )
+FootCB *p;
+Ocb * ocb;
+char * string;
+{
+	int i;
+	int count = ocb->frames_used;
+	int status;
+	State * s = fststate_macro (ocb);
+	VTime garbTime;
+
+	garbTime = s->sndtim;
+
+	for ( i = 0; i < SEG_PER_CB; i++ )
+	{
+		if ( status = p->seg[i].status )
+		{
+			if ( count && emulator_check_frame_count(p->seg[i].seg_no, count) )
+			{
+				_pprintf ( "check_fcb: counters: object: %s @@ %s\n",
+					ocb->name, string );
+				tester();
+			}
+			if ( ltVTime ( ocb->svt, p->seg[i].first_alloc ) )
+			{
+				_pprintf ( "check_fcb: rollback: object: %s @@ %s\n",
+					ocb->name, string );
+				tester();
+			}
+			if ( (status & SEG_FUTURE_FREE) &&
+				ltVTime ( p->seg[i].last_used, garbTime ) )
+			{
+				_pprintf ( "check_fcb: advance: object: %s @@ %s\n",
+					ocb->name, string );
+				tester();
+			}
+		}
+	}
+}
+
+check_empty_footCB ( p )
+FootCB *p;
+{
+	int i;
+
+	for ( i = 0; i < SEG_PER_CB; i++ )
+	{
+		if ( p->seg[i].status )
+		{
+			_pprintf ( "FCB is not free 0x%x->seg[%d]\n", p, i );
+			tester();
+		}
+	}
+}
+
+checkOcbRBC ( ocb, string )
+Ocb *ocb;
+char * string;
+{
+	State *s;
+	int count;
+	FootCB *p;
+
+	count = 0;
+	for (s = fststate_macro (ocb); s; s = nxtstate_macro (s))
+	{
+		count++;
+	}
+
+	rbc_check_frame_count ( ocb, count );
+
+	for ( p = ocb->fcb; p; p = p->next )
+		check_footCB ( p, ocb, string );
+}
+
+print_footCB ( p )
+FootCB *p;
+{
+	int i;
+
+	for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+	{
+		printf ( "%d: seg: %d status %d firstVT %lf lastVT %lf\n",
+			i, p->seg[i].seg_no, p->seg[i].status,
+			p->seg[i].first_alloc.simtime,
+			p->seg[i].last_used.simtime );
+		print_frame_counter ( p->seg[i].seg_no );
+	}
+}
+
+print_ocb_rbc ( ocb )
+Ocb * ocb;
+{
+	FootCB *p;
+
+	printf ( "rbc dump for %s 0x%x\n", ocb->name, ocb );
+	if ( ! ocb->uses_rbc )
+	{
+		printf ( "ocb doesn't use rbc\n" );
+		return;
+	}
+	printf ( "1st seg %d, frames_used %d, footer 0x%x\n",
+		ocb->first_seg, ocb->frames_used, ocb->footer );
+	print_frame_counter ( ocb->first_seg );
+	for ( p = ocb->fcb; p ; p = p->next )
+		print_footCB ( p );
+}
+@
+
+
+1.2
+log
+@Add RBC change for Steve.
+@
+text
+@d3 3
+d31 3
+a33 3
+    int rv;
+    int i;
+    FootCB * p, * q;
+d35 7
+a41 7
+    /* repeat until 0 return or error */
+    while ( rv = rbc_rollback ( ocb->first_seg, num_frames ) )
+	if ( rv != ABORTED_COMMAND )
+	{
+	    _pprintf ( "Error in rollback_op rv is %d\n", rv );
+	    tester();
+	}
+d43 2
+a44 2
+    /* rbc_rollback successful do book keeping */
+    ocb->frames_used -= num_frames;
+d46 1
+a46 1
+    /* loops immediately exit if there are no dynamic state pieces */
+d48 2
+a49 4
+    /* pass one update rollback chip */
+    for ( p = ocb->fcb; p; p = p->next )
+    {
+	for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+d51 6
+a56 4
+	    if ( p->seg[i].status == SEG_FREE )
+	    {
+		continue;
+	    }
+d58 15
+a72 8
+	    /* breaks if ok */
+	    while ( rv = rbc_rollback ( p->seg[i].seg_no, num_frames ) )
+		if ( rv != ABORTED_COMMAND )
+		{
+		    _pprintf (
+			"rollback_op rv = %d for %s p = %x, i = %d, seg = %d\n",
+			rv, ocb->name, p, i, p->seg[i].seg_no );
+		    tester();
+a73 6
+
+	    if ( (p->seg[i].status & SEG_FUTURE_FREE) &&
+		leVTime ( rb_time, p->seg[i].last_used ) )
+	    {
+		p->seg[i].status &= ~SEG_FUTURE_FREE;
+	    }
+a74 1
+    }
+d76 4
+a79 4
+    /* pass two free rolled-over segments */
+    for ( p = ocb->fcb; p; p = q )
+    {
+	int rolled_over_checking_done = 0;
+d81 1
+a81 1
+	q = p->next; /* in case p is destroyed */
+d83 8
+a90 8
+	for ( i = p->first_used_segment; i < SEG_PER_CB; )
+	{
+	    if ( p->seg[i].status == SEG_FREE )
+	    {
+		i++;
+	    }
+	    else if ( leVTime ( rb_time,  p->seg[i].first_alloc ) )
+	    {
+d94 11
+a104 11
+		p->seg[i].status = SEG_FREE;
+		free_segment ( p->seg[i].seg_no );
+		i++;
+	    }
+	    else /* the rest can't be rolled over */
+	    {
+		rolled_over_checking_done = 1;
+		p->first_used_segment = i;
+		break;
+	    }
+	}
+d106 2
+a107 2
+	if ( SEG_PER_CB == i ) /* all of p is empty */
+	{
+d111 6
+a116 2
+	    l_destroy ( p );
+	    ocb->fcb = q;
+a117 4
+
+	if ( rolled_over_checking_done )
+	    break;
+    }
+d119 1
+a119 1
+    checkOcbRBC ( ocb, "rollback" );
+d121 1
+a121 1
+    return SUCCESS;
+d129 3
+a131 3
+    int rv;
+    int i;
+    FootCB * p, * q;
+d133 8
+a140 8
+    /* repeat until 0 return or error */
+    while ( rv = rbc_advance ( ocb->first_seg, num_frames ) )
+	if ( rv != ABORTED_COMMAND )
+	{
+	    _pprintf ( "Error in advance_op rv is %d\n", rv );
+	    tester();
+	    return;
+	}
+d143 2
+a144 2
+    /* rbc_advance successful do book keeping */
+    ocb->frames_used -= num_frames;
+d147 1
+a147 1
+    /* loops immediately exit if there are no dynamic state pieces */
+d149 2
+a150 4
+    /* pass one update rollback chip */
+    for ( p = ocb->fcb; p; p = p->next )
+    {
+	for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+d152 1
+a152 8
+	    if ( p->seg[i].status == SEG_FREE )
+	    {
+		continue;
+	    }
+
+	    /* breaks if ok */
+	    while ( rv = rbc_advance ( p->seg[i].seg_no, num_frames ) )
+		if ( rv != ABORTED_COMMAND )
+d154 4
+a157 5
+		    _pprintf (
+			"advance_op rv = %d for %s p = %x, i = %d, seg = %d\n",
+			rv, ocb->name, p, i, p->seg[i].seg_no );
+		    tester();
+		}
+d159 13
+a171 3
+	    if ( (p->seg[i].status & SEG_FUTURE_FREE) &&
+		gtVTime ( rb_time, p->seg[i].last_used ) )
+	    {
+d175 14
+a188 3
+		p->seg[i].status = SEG_FREE;
+		free_segment ( p->seg[i].seg_no );
+	    }
+d191 2
+a192 2
+	/* make p->first_used_segment correct,(used in grab-collect) */
+	for ( i = p->first_used_segment; ; i++ )
+d194 2
+a195 5
+	    if ( ( SEG_PER_CB == i ) || ( p->seg[i].status != SEG_FREE ) )
+	    {
+		p->first_used_segment = i;
+		break;
+	    }
+a196 1
+    }
+d198 2
+a199 11
+    /* delete empty foot cb's at front */
+    while ( (p = ocb->fcb) && (p->first_used_segment == SEG_PER_CB) )
+    {
+	ocb->fcb = p->next;
+	l_destroy ( p );
+    }
+
+    /* delete empty foot cb's past the front */
+    for ( p = ocb->fcb; p && (q = p->next); )
+    {
+	if ( q->first_used_segment == SEG_PER_CB )
+d201 9
+a209 2
+	    p->next = q->next;
+	    l_destroy ( q );
+a210 5
+	else
+	{
+	    p = q;
+	}
+    }
+d212 1
+a212 1
+    checkOcbRBC ( ocb, "advance" );
+d214 1
+a214 1
+    return SUCCESS;
+d222 3
+a224 3
+    int rv;
+    int i;
+    FootCB * p, * q;
+d226 5
+a230 5
+    /* repeat until 0 return or error */
+    while ( rv = rbc_mark ( ocb->first_seg, num_frames ) )
+    {
+	if ( rv = MARK_OVERFLOW )
+	    return FAILURE;
+d232 5
+a236 4
+	if ( rv != ABORTED_COMMAND )
+	{
+	    _pprintf ( "Error in mark_op rv is %d\n", rv );
+	    tester();
+a237 1
+    }
+d239 3
+a241 3
+    /* rbc_mark successful do book keeping */
+    ocb->frames_used += num_frames;
+    ocb->last_chance = NULL;
+d243 2
+a244 5
+    /* for loop immediately exits if there are no dynamic state pieces */
+    for ( p = ocb->fcb; p; p = p->next )
+    {
+	/* update rollback chip */
+	for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+d246 7
+a252 4
+	    if ( p->seg[i].status == SEG_FREE )
+	    {
+		continue;
+	    }
+d254 10
+a263 8
+	    /* breaks if ok */
+	    while ( rv = rbc_mark ( p->seg[i].seg_no, num_frames ) )
+		if ( rv != ABORTED_COMMAND )
+		{
+		    _pprintf (
+			"mark_op rv = %d for %s p = %x, i = %d, seg = %d\n",
+			rv, ocb->name, p, i, p->seg[i].seg_no );
+		    tester();
+a264 1
+
+a265 1
+    }
+d267 1
+a267 1
+    checkOcbRBC ( ocb, "mark" );
+d269 1
+a269 1
+    print_ocb_rbc ( ocb );
+d274 1
+a274 1
+    return SUCCESS;
+d283 3
+a285 3
+    int rv;
+    int wait = TRUE;
+    unsigned long begin, end;
+d287 2
+a288 2
+    /* this function should delete all the other segments (if any) */
+    rbc_get_def ( ocb->first_seg, &begin, &end );
+d290 1
+a290 1
+    ocb->frames_used--;
+d292 11
+a302 11
+    if ( (rv = rbc_dealloc_start ( ocb->first_seg, begin, end ) ) ||
+	(rv = rbc_dealloc_done ( ocb->first_seg, begin, end, wait ) ) )
+    {
+	_pprintf ( "term_op returned %d\n", rv );
+	tester();
+    }
+    ocb->first_seg = -1;
+    ocb->footer = NULL;
+    ocb->fcb = NULL;
+    /* ocb->frames_used = 0;*/
+    ocb->uses_rbc = FALSE;
+d313 2
+a314 2
+    if ( ocb->runstat == ITS_STDOUT )
+	return 0;
+d316 2
+a317 2
+    if ( ocb->sb ) /* one more state not in the queue */
+	count++;
+d319 6
+a324 6
+    if ( count != ocb->frames_used )
+    {
+	_pprintf ( "Echeck: ocb %s count = %d, frames = %d\n",
+	    ocb->name, count, ocb->frames_used );
+	tester();
+    }
+d326 8
+a333 8
+    if ( ocb->frames_used  &&
+	emulator_check_frame_count ( ocb->first_seg, count ) )
+    {
+	_pprintf ( "That was object: %s\n", ocb->name );
+	tester();
+	return -1;
+    }
+    return 0;
+d341 5
+a345 5
+    int i;
+    int count = ocb->frames_used;
+    int status;
+    State * s = fststate_macro (ocb);
+    VTime garbTime;
+d347 1
+a347 1
+    garbTime = s->sndtim;
+d349 1
+a349 3
+    for ( i = 0; i < SEG_PER_CB; i++ )
+    {
+	if ( status = p->seg[i].status )
+d351 22
+a372 19
+	    if ( count && emulator_check_frame_count(p->seg[i].seg_no, count) )
+	    {
+		_pprintf ( "check_fcb: counters: object: %s @@ %s\n",
+		    ocb->name, string );
+		tester();
+	    }
+	    if ( ltVTime ( ocb->svt, p->seg[i].first_alloc ) )
+	    {
+		_pprintf ( "check_fcb: rollback: object: %s @@ %s\n",
+		    ocb->name, string );
+		tester();
+	    }
+	    if ( (status & SEG_FUTURE_FREE) &&
+		ltVTime ( p->seg[i].last_used, garbTime ) )
+	    {
+		_pprintf ( "check_fcb: advance: object: %s @@ %s\n",
+		    ocb->name, string );
+		tester();
+	    }
+a373 1
+    }
+d379 1
+a379 1
+    int i;
+d381 1
+a381 3
+    for ( i = 0; i < SEG_PER_CB; i++ )
+    {
+	if ( p->seg[i].status )
+d383 5
+a387 2
+	    _pprintf ( "FCB is not free 0x%x->seg[%d]\n", p, i );
+	    tester();
+a388 1
+    }
+d395 3
+a397 3
+    State *s;
+    int count;
+    FootCB *p;
+d399 5
+a403 5
+    count = 0;
+    for (s = fststate_macro (ocb); s; s = nxtstate_macro (s))
+    {
+        count++;
+    }
+d405 1
+a405 1
+    rbc_check_frame_count ( ocb, count );
+d407 2
+a408 2
+    for ( p = ocb->fcb; p; p = p->next )
+	check_footCB ( p, ocb, string );
+d414 1
+a414 1
+    int i;
+d416 8
+a423 8
+    for ( i = p->first_used_segment; i < SEG_PER_CB; i++ )
+    {
+	printf ( "%d: seg: %d status %d firstVT %lf lastVT %lf\n",
+	    i, p->seg[i].seg_no, p->seg[i].status,
+	    p->seg[i].first_alloc.simtime,
+	    p->seg[i].last_used.simtime );
+	print_frame_counter ( p->seg[i].seg_no );
+    }
+d429 1
+a429 1
+    FootCB *p;
+d431 11
+a441 11
+    printf ( "rbc dump for %s 0x%x\n", ocb->name, ocb );
+    if ( ! ocb->uses_rbc )
+    {
+	printf ( "ocb doesn't use rbc\n" );
+	return;
+    }
+    printf ( "1st seg %d, frames_used %d, footer 0x%x\n",
+	ocb->first_seg, ocb->frames_used, ocb->footer );
+    print_frame_counter ( ocb->first_seg );
+    for ( p = ocb->fcb; p ; p = p->next )
+	print_footCB ( p );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d18 3
+a20 3
+
+#define DEBUG
+
+a29 1
+    int rolled_over_checking_done = 0;
+d32 1
+a33 1
+    /* repeat until 0 return or error */
+d43 4
+a46 2
+    /* for loop immediately exits if there are no dymanic state pieces */
+    for ( p = ocb->fcb; p; p = q )
+a47 3
+	q = p->next; /* in case p becomes free */
+
+	/* pass one update rollback chip */
+a54 2
+	    while ( rv =
+		rbc_rollback ( p->seg[i].seg_no, num_frames ) )
+d56 1
+d59 3
+a61 3
+		    _pprintf ("rollback_op rv = %d\n", rv );
+		    _pprintf ( "p = %x, i = %d, seg = %d\n",
+			p, i, p->seg[i].seg_no );
+d71 1
+d73 8
+a80 3
+	/* pass two update allocation map */
+	i = p->first_used_segment;
+	while ( ! rolled_over_checking_done )
+d82 1
+a82 1
+	    if ( SEG_PER_CB == i ) /* all of p is empty */
+a83 6
+		l_destroy ( p );
+		ocb->fcb = p = q;
+		break; /* maybe some to do on next p */
+	    }
+	    else if ( p->seg[i].status == SEG_FREE )
+	    {
+a87 1
+		p->seg[i].status = SEG_FREE;
+d91 2
+a92 1
+		free_segment ( p->seg[i].seg_no, FALSE );
+d99 1
+d102 12
+d115 2
+a116 2
+#ifdef DEBUG
+    countQueues ( ocb );
+d130 1
+a131 1
+    /* repeat until 0 return or error */
+d139 1
+d143 5
+a147 2
+    /* for loop immediately exits if there are no dymanic state pieces */
+    for ( p = ocb->fcb; p; p = q )
+a148 3
+	q = p->next; /* in case p becomes free */
+
+	/* pass one update rollback chip */
+a155 2
+	    while ( rv =
+		rbc_advance ( p->seg[i].seg_no, num_frames ) )
+d157 1
+d160 3
+a162 3
+		    _pprintf ( "advance_op rv = %d\n", rv );
+		    _pprintf ( "p = %x, i = %d, seg = %d\n",
+			p, i, p->seg[i].seg_no );
+a168 1
+		p->seg[i].status = SEG_FREE;
+d172 2
+a173 23
+		free_segment ( p->seg[i].seg_no, TRUE );
+		if ( p->first_used_segment == i )
+		    while ( 1 )
+		    {
+			if ( SEG_PER_CB == i )
+			/* all of p is empty */
+			{
+			    l_destroy ( p );
+			    ocb->fcb = p = q;
+			    break;
+			}
+			else if ( p->seg[i].status
+			    == SEG_FREE )
+			{
+			    i++;
+			}
+			else
+			{
+			    p->first_used_segment
+				= i;
+			    break;
+			}
+		    }
+d176 10
+d187 23
+a209 2
+#ifdef DEBUG
+    countQueues ( ocb );
+d223 1
+a225 1
+    /* repeat until 0 return or error */
+d238 1
+d240 2
+a241 2
+    /* for loop immediately exits if there are no dymanic state pieces */
+    for ( p = ocb->fcb; p; p = q )
+d243 1
+a243 3
+	q = p->next; /* in case p becomes free */
+
+	/* pass one update rollback chip */
+a250 2
+	    while ( rv =
+		rbc_mark ( p->seg[i].seg_no, num_frames ) )
+d252 1
+d255 3
+a257 3
+		    _pprintf ( "mark_op rv = %d\n", rv );
+		    _pprintf ( "p = %x, i = %d, seg = %d\n",
+			p, i, p->seg[i].seg_no );
+d263 2
+a264 2
+#ifdef DEBUG
+    countQueues ( ocb );
+d269 2
+d331 75
+@

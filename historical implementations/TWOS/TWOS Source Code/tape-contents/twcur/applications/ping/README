@@ -1,0 +1,9 @@
+
+	This version of pong is very minimal.  It doesn't use any Time Warp
+features that it doesn't have to use.  The source code is in pp.c, and the
+type table is in pongtab.c.  This application is almost the smallest possible
+Time Warp application, and serves as a sample of a very simple TW program.
+
+Two objects of type "player" are created.  One is called "ping", the other
+"pong".  They trade messages, until, during ping's turn, it notices that the
+cutoff time has been reached.

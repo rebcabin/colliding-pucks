@@ -1,0 +1,18 @@
+number_of_nodes 		 20
+number_of_sector_rows 		  4
+number_of_sector_cols 		  8
+number_of_pucks			 64 
+puck_radius  			  6
+puck_mass			  10
+min_x  				  0
+max_x  				1024	
+min_y  				  0
+max_y  			 	848	
+do_graphics?			yes
+show_puck_names?	 	no	
+show_sector_names?	 	no	
+show_velocity_vectors?		yes 
+read_puck_states_from_file?	no	
+file_name		        PB2-32-32.cfg
+
+

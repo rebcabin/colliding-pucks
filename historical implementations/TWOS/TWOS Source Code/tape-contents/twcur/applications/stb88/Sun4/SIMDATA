@@ -1,0 +1,29 @@
+version: Version 2.4.2
+total_clock_time:	1533.00
+sum_of_event_times:	1177.88
+avg_time_per_event:	0.003
+hog_time_microseconds:	13370000.000
+hog_name:	blue_div6/1
+queue_time:	64.90
+dequeue_time:	10.94
+multiplier:	1.000000
+get_current_lvt:	4301087
+get_own_name:	349
+event_messages:	587758
+events_sans_stdout:	376752
+stdout_events:	0
+events_equal_time:	0
+create_object:	381
+destroy_object:	0
+message_count:	376752
+get_message:	587059
+get_msg_selector:	76690
+get_sender:	1883
+get_send_time:	1883
+final_simtime:	507210.0000
+requested_message_blocks:	587758
+allocated_message_blocks:	1386
+number_message_bytes:	151983545
+number_state_bytes:	1190556
+queue-size:	1384
+

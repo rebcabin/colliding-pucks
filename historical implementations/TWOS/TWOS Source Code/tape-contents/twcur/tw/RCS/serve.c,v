@@ -1,0 +1,1260 @@
+head     1.10;
+branch   ;
+access   ;
+symbols  TW2_7:1.10 TW2_6:1.10 TW2_5_1:1.8 TW2_5:1.7 TW2_4_2:1.2 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.10
+date     91.11.04.10.33.09;  author pls;  state Rel;
+branches ;
+next     1.9;
+
+1.9
+date     91.11.01.09.51.15;  author reiher;  state Dev;
+branches ;
+next     1.8;
+
+1.8
+date     91.07.17.15.12.21;  author judy;  state Rel;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.03.12.26.40;  author configtw;  state Rel;
+branches ;
+next     1.6;
+
+1.6
+date     91.05.31.15.23.06;  author pls;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     91.04.15.10.00.28;  author pls;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.04.01.15.46.13;  author reiher;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.03.25.16.37.30;  author csupport;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.12.10.10.52.57;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.58;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@handle user calls to O/S
+@
+
+
+1.10
+log
+@1.  Check for messages at time now (SCR 199).
+2.  Add selector info to error message.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	serve.c,v $
+ * Revision 1.9  91/11/01  09:51:15  reiher
+ * timing stuff and critical path stuff (PLR)
+ * 
+ * Revision 1.8  91/07/17  15:12:21  judy
+ * New copyright notice.
+ * 
+ * Revision 1.7  91/06/03  12:26:40  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.6  91/05/31  15:23:06  pls
+ * Change message ordering.
+ * 
+ * Revision 1.5  91/04/15  10:00:28  pls
+ * Use allocated memory for arg.text (bug 4)
+ * 
+ * Revision 1.4  91/04/01  15:46:13  reiher
+ * Code to support Tapas Som's work.
+ *
+ * Revision 1.3  91/03/25  16:37:30  csupport
+ * Add the service routine for tw_interrupt()
+ *
+ * Revision 1.2  90/12/10  10:52:57  configtw
+ * use .simtime field as necessary
+ * 
+ * Revision 1.1  90/08/07  15:40:58  configtw
+ * Initial revision
+ * 
+*/
+char serve_id [] = "@@(#)serve.c 1.65\t9/26/89\t16:40:59\tTIMEWARP";
+
+
+/*
+Purpose:  
+
+		serve.c is supposed to contain the code necessary to handle
+		user calls that trap to the operating system.  There are
+		also several user services available that do not trap to
+		the operating system.  These are kept in services.c.
+		Thus, these two modules should contain all code for handling
+		user interactions with the operating system.
+
+Functions:
+
+		sv_interrupt() - Give control to Time Warp
+
+		sv_tell(xrcvr,xrcvtim,selector,xlen,xtext) - Handle an event
+				message send request.
+				Parameters - Ocb *o, Char *xrcvr, VTime xrcvtime,
+						Long selector, Int xlen, Char *xtext
+				Return - Always returns 0
+
+		sv_doit(o) - Try to clear an object blocked in the middle
+				of an event message send.
+				Parameters - Ocb *o
+				Return - SUCCESS if it unblocked the object, FAILURE
+						otherwise
+
+		msgfind(o) - Look for
+				a particular message in an object's output queue.
+				Parameters - Ocb *o
+				Return - NULL if the message is found, themsg otherwise
+
+		uniq() - generate a message id unique to this node
+				Parameters - none
+				Return - the id (as a long)
+
+Implementation:
+
+		also calls chk_blocked() and dispatch() after the service
+		routine returns.  chk_blocked() will see if a blocked object
+		can unblock, and dispatch() will choose a new object to run.
+		The latter routine may, then, cause the object that called
+		serve() to relinquish control of the processor.  (But only
+		after its request has been serviced.)
+
+		The service routines themselves tend to be straightforward.
+		Most of their work (beyond some sanity checks) involves setting
+		up fields in the ocb's argblock.pkt_blk structure.  After all
+		fields are appropriately set, a blocking status is set.  After
+		the return from the service routine, serve() will call a routine
+		that checks the blocking status, and handles the situation
+		appropriately.
+
+		sv_interrupt() was added in version 2.5.  It is called from
+		tw_interrupt and is used to allow Time Warp to regain control
+		from an object that is taking a very long time to execute.
+
+		sv_doit() is called by chk_blocked().  It extracts the 
+		information put into the argblock.pkt_blk structure.
+		Then it handles the nitty-gritty details of outputting the
+		message. It calls routines to allocate the memory for both the
+		message and anti-message, calls uniq() to get ids for the message,
+		sends out the message, and puts the anti-message in the
+		output queue, with appropriate marks to indicate their status.
+		Throughout, care is taken to ensure that things aren't done
+		halfway, and don't otherwise go wrong.  sv_doit() may well
+		end up blocked, because memory for the message and anitmessage
+		can't be found.
+
+		msgfind() tries to match a message in the ocb's output queue
+		that matches the one being searched for.  There are complications
+		based on marked and unmarked output messages, but, those aside,
+		the routine merely attempts to match parameters to message fields,
+		trying the easiest tests, and those most likely to fail, first.
+
+		uniq() simply keeps a static counter that it increments on each
+		call, returning the new value.  In combination with a node number,
+		this value can comprise an identifier unique to the entire 
+		simulation.
+
+*/
+
+#include <stdio.h>
+#include "twcommon.h"
+#include "twsys.h"
+
+extern Int		allowNowFlag;
+extern FILE * cpulog;
+
+#   define arg o->argblock.pkt_blk
+
+/***************************************************************************/
+
+FUNCTION sv_interrupt ()
+
+{
+	Debug
+
+	dispatch();
+}  /* sv_interrupt */
+
+/***************************************************************************/
+
+FUNCTION sv_tell ( rcver, rcvtim, selector, txtlen, text )
+
+	Name * rcver;
+	VTime rcvtim;
+	Long selector;
+	int txtlen;
+	Byte * text;
+{
+	register Ocb * o = xqting_ocb;
+
+  Debug
+
+	o->stats.evtmsg++;
+
+	if ( txtlen > pktlen )
+	{
+		object_error ( MSGLEN );
+		goto sv_tell_end;
+	}
+
+	/* error if receive time < object's time or
+		receive time = now & recipient is self or
+		receive time > +inf or
+		receive time = now & allowNowFlag is false & 
+			not in term section &
+			receiver is not stdout type object */
+
+	if ( ltVTime ( rcvtim, o->svt )
+	|| ( eqVTime ( rcvtim, o->svt ) && namecmp (rcver, o->name) == 0)
+	||   gtSTime ( rcvtim.simtime, posinf.simtime )
+	|| ( eqVTime ( rcvtim, o->svt ) && !allowNowFlag &&
+		!eqSTime ( rcvtim.simtime, posinf.simtime) &&
+		(namecmp ( rcver, "stdout") != 0) &&
+		fileNum(rcver) == MAX_TW_FILES)
+		)
+		{
+#if PARANOID
+		twerror ("sv_tell I illegal %s at %f,%d,%d to %s at %f,%d,%d s: %d",
+				 o->name, o->svt.simtime, o->svt.sequence1, o->svt.sequence2,
+				rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2,
+				selector);
+#endif
+		object_error ( MSGTIME );
+		goto sv_tell_end;
+		}
+
+	if ( *(Byte *)rcver == 0 )
+	{
+#ifdef PARANOID
+		twerror ( "sv_tell I null receiver from %s at %f",
+				o->name, o->svt.simtime );
+#endif
+		object_error ( MSGRCVER );
+		goto sv_tell_end;
+	}
+
+	arg.selector = selector;
+
+	arg.mtype = EMSG;
+
+	arg.rcver = rcver;
+	arg.rcvtim = rcvtim;
+	arg.len = txtlen;
+	arg.text = text;
+
+	arg.gid.node = miparm.me;
+	arg.gid.num = uniq ();
+
+	o->runstat = BLKPKT;        /* requests transmission */
+
+sv_tell_end:
+
+	dispatch ();
+}
+
+
+#ifdef MSGTIMER
+extern long msgstart;
+#endif MSGTIMER
+FUNCTION sv_doit ( o )
+
+	Ocb *o;
+{
+	Msgh *buf, *antibuf, *themsg;
+	register int txtlen;
+	Byte * text;
+	extern int aggressive;
+
+Debug
+
+	if ( aggressive )
+	{
+		if ( ( themsg = o->co ) == NULL )
+		{
+			_pprintf ( "sv_doit null o->co for %s\n", o->name );
+			tester();
+		}
+	}    
+	else
+	if ( ( themsg = msgfind ( o ) ) == NULL )
+	{
+		return SUCCESS;
+	}
+
+	text = arg.text,
+	txtlen = arg.len;
+
+	buf = mkomsg ( o, arg.rcvtim, arg.rcver, arg.mtype, txtlen, arg.selector );
+
+	if ( buf == NULL )
+	{
+		/* OK, be that way!  We'll try again later */
+
+		return FAILURE;
+	}
+
+	if ( ltVTime ( arg.rcvtim, gvt ) )
+	{
+		/* don't send the message -- if this condition is reached,       */
+		/* then you should have gotten a HIT in the output queue,        */
+		/* but didn't because user left some stack garbage in the        */
+		/* message that is different THIS time through from what it      */
+		/* was LAST time through.  So, the message the user is   */
+		/* sending now should have been found in the output queue,       */
+		/* but was MISSED.  What should we set o->co to be  ?  @@@@@@       */
+		/* could be a bug sliming around here, but for now @@@@@@   */
+		/* I won't disturb o->co since there is nothing @@@@@@              */
+		/* reasonable to set it equal to. @@@@@@                    */
+
+		entcpy ( buf + 1, text, txtlen );
+		twerror ( "SV_DOIT E Message receive time earlier than GVT" );
+		showmsg ( buf );
+		tester ();
+		l_destroy ( (List_hdr *) buf ); /* and don't produce antimessage */
+		return FAILURE;
+	}
+
+	if ( ltVTime ( o->svt, gvt ) )
+	{
+		entcpy ( buf + 1, text, txtlen );
+		twerror ( "SV_DOIT E Message send time earlier than GVT" );
+		showmsg ( buf );
+		tester ();
+		l_destroy ( (List_hdr *) buf );
+		return FAILURE;
+	}
+
+	if ( (antibuf =
+			mkomsg ( o, arg.rcvtim, arg.rcver, arg.mtype, txtlen, arg.selector
+		)) == NULL )
+	{
+		l_destroy ( (List_hdr *) buf );
+
+		return FAILURE;
+	}
+
+	entcpy ( buf + 1, text, txtlen );
+	entcpy ( antibuf + 1, text, txtlen );
+
+	buf->gid = arg.gid;
+	antibuf->gid = arg.gid;
+#ifdef SOM
+	buf->Ept = o->sb->Ept;
+#endif SOM
+
+	mark_macro ( buf );
+	mark_macro ( antibuf );
+	negate_macro ( antibuf );
+
+	l_insert ( themsg, antibuf );
+
+	if ( aggressive || o->co == o->oqh || neVTime ( o->co->sndtim, o->svt ) )
+	{
+		o->co = antibuf;
+	}
+
+	smsg_stat ( o, buf );
+
+	if ( cpulog && arg.mtype == EMSG )
+	{
+		HOST_fprintf ( cpulog, "M %s %f %d %s %f\n", o->name, o->svt.simtime,
+						o->stats.cputime, arg.rcver, arg.rcvtim.simtime );
+
+		buf->cputime = o->stats.cputime;
+	}
+
+	if ((arg.mtype == DYNCRMSG) || (arg.mtype == DYNDSMSG))
+		{       /* this is our own memory */
+		l_destroy((List_hdr *)arg.text);
+		}
+
+#ifdef MSGTIMER
+	if ( !mlog )
+		buf->msgtimef = msgstart;
+#endif MSGTIMER
+	deliver ( buf );
+
+
+	/* Keep track of the fact that this event sent one more message. */
+
+	o->sb->resultingEvents++;
+
+	return SUCCESS;
+}
+
+
+FUNCTION Msgh * msgfind ( o )
+
+	Ocb         *o;
+{
+	register Msgh  *p, *last_p;
+
+  Debug
+
+	if ( o->co == NULL )
+	{
+		_pprintf ( "msgfind: you blew it dummy!\n" );
+		tester ();
+	}
+
+	if ( o->co == o->oqh || neVTime ( o->co->sndtim, o->svt ) )
+	{
+		return ( o->co );
+	}
+
+	p = fstomb ( o->co );
+
+	last_p = (Msgh *) l_prev_macro ( p );
+
+	for ( ; p; last_p = p, p = nxtomb (p) )
+	{
+		if ( p->stype < o->centry ) break;
+
+		/*  In this case, the other message in the bundle already in the
+				output queue came from another node, due to migration.
+				If that node had a higher node number than the current node,
+				the new message should be queued before the message p currently
+				points to. */
+
+		if ( p->gid.node > arg.gid.node ) break;
+
+/*
+		if ( p->gid.node < arg.gid.node
+		|| ( p->gid.node == arg.gid.node && p->gid.num < arg.gid.num ) )
+			last_p = p;
+*/
+
+		if ( p->stype > o->centry ) continue;
+
+		/* only look at unmarked messages in the output queue so that  */
+		/* if the user produces several identical messages they will */
+		/* be "msgfound" once each                                   */
+
+		if ( isposi_macro ( p ) ) continue;
+		if ( ismarked_macro ( p ) ) continue;
+
+		if ( p->txtlen != arg.len ) continue;
+		if ( neVTime ( p->rcvtim, arg.rcvtim ) ) continue;
+		if ( p->mtype != arg.mtype ) continue;
+		if ( p->selector != arg.selector ) continue;
+		if ( namecmp ( p->rcver, arg.rcver ) != 0 ) continue;
+		if ( bytcmp ( (Byte *) (p + 1), arg.text, arg.len ) != 0 ) continue;
+
+		mark_macro ( p );
+		return ( NULL );
+	}
+
+	return ( last_p );
+}
+
+FUNCTION long uniq ()
+{
+	static long count = 1000;   /* Start at 1000 for initialization */
+
+	count++;    /* just a counter */
+
+	return count;
+}
+
+
+/* This code is probably redundant, and can be replaced by calling sv_event()
+		for dynamic creation messages.  */
+
+FUNCTION sv_create ( rcver, rcvtim, objtype )
+
+	Name *rcver;
+	VTime rcvtim;
+	Name *objtype;
+{
+	register Ocb * o = xqting_ocb;
+	int txtlen = sizeof ( Crttext );
+	Crttext *create_text;
+
+  Debug
+
+	if ((create_text = (Crttext *)m_create(sizeof(Crttext),o->svt,NONCRITICAL))
+		== NULL)
+		_pprintf("sv_create: out of memory");
+	clear ( create_text, sizeof ( Crttext ) );
+
+	strcpy ( create_text->tp, objtype );
+	create_text->node = -1;
+
+	if ( ltVTime ( rcvtim, o->svt )
+	|| ( eqVTime ( rcvtim, o->svt ) && namecmp (rcver, o->name) == 0)
+	||   gtSTime ( rcvtim.simtime, posinf.simtime ) )
+	{
+#ifdef PARANOID
+		twerror ("sv_create I illegal %s at %f,%d,%d to %s at %f,%d,%d",
+				 o->name, o->svt.simtime, o->svt.sequence1, o->svt.sequence2,
+				rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2 );
+#endif
+		object_error ( MSGTIME );
+		goto sv_create_end;
+	}
+
+	arg.mtype = DYNCRMSG;
+
+	arg.rcver = rcver;
+	arg.rcvtim = rcvtim;
+	arg.len = txtlen;
+	arg.text = (Byte *) create_text;
+
+	arg.gid.node = miparm.me;
+	arg.gid.num = uniq ();
+
+	o->runstat = BLKPKT;        /* requests transmission */
+
+sv_create_end:
+
+	dispatch ();
+}
+
+FUNCTION sv_destroy ( rcver, rcvtim )
+
+	Name *rcver;
+	VTime rcvtim;
+{
+	register Ocb * o = xqting_ocb;
+	int txtlen = sizeof ( Crttext );
+	Crttext *create_text;
+
+  Debug
+
+	if ((create_text = (Crttext *)m_create(sizeof(Crttext),o->svt,NONCRITICAL))
+		== NULL)
+		_pprintf("sv_destroy: out of memory");
+	clear ( create_text, sizeof ( Crttext ) );
+
+	strcpy ( create_text->tp, "NULL" );
+	create_text->node = -1;
+
+	if ( ltVTime ( rcvtim, o->svt )
+	|| ( eqVTime ( rcvtim, o->svt ) && namecmp (rcver, o->name) == 0)
+	||   gtSTime ( rcvtim.simtime, posinf.simtime ) )
+	{
+#ifdef PARANOID
+		twerror ("sv_destroy I illegal %s at %f,%d,%d to %s at %f,%d,%d",
+				 o->name, o->svt.simtime, o->svt.sequence1, o->svt.sequence2,
+				rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2 );
+#endif
+		object_error ( MSGTIME );
+		goto sv_destroy_end;
+	}
+
+	arg.mtype = DYNDSMSG;
+
+	arg.rcver = rcver;
+	arg.rcvtim = rcvtim;
+	arg.len = txtlen;
+	arg.text = (Byte *) create_text;
+
+	arg.gid.node = miparm.me;
+	arg.gid.num = uniq ();
+
+	o->runstat = BLKPKT;        /* requests transmission */
+
+sv_destroy_end:
+
+	dispatch ();
+}
+@
+
+
+1.9
+log
+@timing stuff and critical path stuff (PLR)
+@
+text
+@d7 3
+d49 1
+a49 1
+		
+d89 1
+a89 1
+		
+d123 1
+d134 1
+a134 1
+	
+d160 7
+d169 9
+a177 4
+	||   gtSTime ( rcvtim.simtime, posinf.simtime ) )
+	{
+#ifdef PARANOID
+		twerror ("sv_tell I illegal %s at %f,%d,%d to %s at %f,%d,%d",
+d179 2
+a180 1
+				rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2 );
+d184 1
+a184 1
+	}
+d380 1
+a380 1
+		
+@
+
+
+1.8
+log
+@New copyright notice.
+@
+text
+@d7 3
+d198 4
+d314 4
+d319 5
+@
+
+
+1.7
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        serve.c,v $
+a30 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.6
+log
+@Change message ordering.
+@
+text
+@d2 4
+a5 1
+ * $Log:	serve.c,v $
+d22 1
+a22 1
+char serve_id [] = "@@(#)serve.c	1.65\t9/26/89\t16:40:59\tTIMEWARP";
+d24 3
+a26 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d31 6
+a36 6
+	serve.c is supposed to contain the code necessary to handle
+	user calls that trap to the operating system.  There are
+	also several user services available that do not trap to
+	the operating system.  These are kept in services.c.
+	Thus, these two modules should contain all code for handling
+	user interactions with the operating system.
+d39 2
+a40 2
+	
+	sv_interrupt() - Give control to Time Warp
+d42 5
+a46 5
+	sv_tell(xrcvr,xrcvtim,selector,xlen,xtext) - Handle an event
+		message send request.
+		Parameters - Ocb *o, Char *xrcvr, VTime xrcvtime,
+			Long selector, Int xlen, Char *xtext
+		Return - Always returns 0
+d48 5
+a52 5
+	sv_doit(o) - Try to clear an object blocked in the middle
+		of an event message send.
+		Parameters - Ocb *o
+		Return - SUCCESS if it unblocked the object, FAILURE
+			otherwise
+d54 4
+a57 4
+	msgfind(o) - Look for
+		a particular message in an object's output queue.
+		Parameters - Ocb *o
+		Return - NULL if the message is found, themsg otherwise
+d59 3
+a61 3
+	uniq() - generate a message id unique to this node
+		Parameters - none
+		Return - the id (as a long)
+d65 6
+a70 6
+	also calls chk_blocked() and dispatch() after the service
+	routine returns.  chk_blocked() will see if a blocked object
+	can unblock, and dispatch() will choose a new object to run.
+	The latter routine may, then, cause the object that called
+	serve() to relinquish control of the processor.  (But only
+	after its request has been serviced.)
+d72 11
+a82 11
+	The service routines themselves tend to be straightforward.
+	Most of their work (beyond some sanity checks) involves setting
+	up fields in the ocb's argblock.pkt_blk structure.  After all
+	fields are appropriately set, a blocking status is set.  After
+	the return from the service routine, serve() will call a routine
+	that checks the blocking status, and handles the situation
+	appropriately.
+	
+	sv_interrupt() was added in version 2.5.  It is called from
+	tw_interrupt and is used to allow Time Warp to regain control
+	from an object that is taking a very long time to execute.
+d84 11
+a94 11
+	sv_doit() is called by chk_blocked().  It extracts the 
+	information put into the argblock.pkt_blk structure.
+	Then it handles the nitty-gritty details of outputting the
+	message. It calls routines to allocate the memory for both the
+	message and anti-message, calls uniq() to get ids for the message,
+	sends out the message, and puts the anti-message in the
+	output queue, with appropriate marks to indicate their status.
+	Throughout, care is taken to ensure that things aren't done
+	halfway, and don't otherwise go wrong.  sv_doit() may well
+	end up blocked, because memory for the message and anitmessage
+	can't be found.
+d96 5
+a100 5
+	msgfind() tries to match a message in the ocb's output queue
+	that matches the one being searched for.  There are complications
+	based on marked and unmarked output messages, but, those aside,
+	the routine merely attempts to match parameters to message fields,
+	trying the easiest tests, and those most likely to fail, first.
+d102 4
+a105 4
+	uniq() simply keeps a static counter that it increments on each
+	call, returning the new value.  In combination with a node number,
+	this value can comprise an identifier unique to the entire 
+	simulation.
+d122 3
+a124 3
+    Debug
+    
+    dispatch();
+d131 5
+a135 5
+    Name * rcver;
+    VTime rcvtim;
+    Long selector;
+    int txtlen;
+    Byte * text;
+d137 1
+a137 1
+    register Ocb * o = xqting_ocb;
+d141 1
+a141 1
+    o->stats.evtmsg++;
+d143 5
+a147 5
+    if ( txtlen > pktlen )
+    {
+	object_error ( MSGLEN );
+	goto sv_tell_end;
+    }
+d149 4
+a152 4
+    if ( ltVTime ( rcvtim, o->svt )
+    || ( eqVTime ( rcvtim, o->svt ) && namecmp (rcver, o->name) == 0)
+    ||   gtSTime ( rcvtim.simtime, posinf.simtime ) )
+    {
+d154 3
+a156 3
+	twerror ("sv_tell I illegal %s at %f,%d,%d to %s at %f,%d,%d",
+		 o->name, o->svt.simtime, o->svt.sequence1, o->svt.sequence2,
+		rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2 );
+d158 3
+a160 3
+	object_error ( MSGTIME );
+	goto sv_tell_end;
+    }
+d162 2
+a163 2
+    if ( *(Byte *)rcver == 0 )
+    {
+d165 2
+a166 2
+	twerror ( "sv_tell I null receiver from %s at %f",
+		o->name, o->svt.simtime );
+d168 3
+a170 3
+	object_error ( MSGRCVER );
+	goto sv_tell_end;
+    }
+d172 1
+a172 1
+    arg.selector = selector;
+d174 1
+a174 1
+    arg.mtype = EMSG;
+d176 4
+a179 4
+    arg.rcver = rcver;
+    arg.rcvtim = rcvtim;
+    arg.len = txtlen;
+    arg.text = text;
+d181 2
+a182 2
+    arg.gid.node = miparm.me;
+    arg.gid.num = uniq ();
+d184 1
+a184 1
+    o->runstat = BLKPKT;	/* requests transmission */
+d188 1
+a188 1
+    dispatch ();
+d193 1
+a193 1
+    Ocb *o;
+d195 4
+a198 4
+    Msgh *buf, *antibuf, *themsg;
+    register int txtlen;
+    Byte * text;
+    extern int aggressive;
+d202 1
+a202 3
+    if ( aggressive )
+    {
+	if ( ( themsg = o->co ) == NULL )
+d204 10
+a213 2
+	    _pprintf ( "sv_doit null o->co for %s\n", o->name );
+	    tester();
+a214 6
+    }    
+    else
+    if ( ( themsg = msgfind ( o ) ) == NULL )
+    {
+	return SUCCESS;
+    }
+d216 2
+a217 2
+    text = arg.text,
+    txtlen = arg.len;
+d219 1
+a219 1
+    buf = mkomsg ( o, arg.rcvtim, arg.rcver, arg.mtype, txtlen, arg.selector );
+d221 3
+a223 3
+    if ( buf == NULL )
+    {
+	/* OK, be that way!  We'll try again later */
+d225 2
+a226 2
+	return FAILURE;
+    }
+d228 12
+a239 12
+    if ( ltVTime ( arg.rcvtim, gvt ) )
+    {
+	/* don't send the message -- if this condition is reached, 	 */
+	/* then you should have gotten a HIT in the output queue,  	 */
+	/* but didn't because user left some stack garbage in the  	 */
+	/* message that is different THIS time through from what it	 */
+	/* was LAST time through.  So, the message the user is 	 */
+	/* sending now should have been found in the output queue,	 */
+	/* but was MISSED.  What should we set o->co to be  ?  @@@@@@	 */
+	/* could be a bug sliming around here, but for now @@@@@@	 */
+	/* I won't disturb o->co since there is nothing @@@@@@		 */
+	/* reasonable to set it equal to. @@@@@@			 */
+d241 7
+a247 7
+	entcpy ( buf + 1, text, txtlen );
+	twerror ( "SV_DOIT E Message receive time earlier than GVT" );
+	showmsg ( buf );
+	tester ();
+	l_destroy ( (List_hdr *) buf ); /* and don't produce antimessage */
+	return FAILURE;
+    }
+d249 9
+a257 9
+    if ( ltVTime ( o->svt, gvt ) )
+    {
+	entcpy ( buf + 1, text, txtlen );
+	twerror ( "SV_DOIT E Message send time earlier than GVT" );
+	showmsg ( buf );
+	tester ();
+	l_destroy ( (List_hdr *) buf );
+	return FAILURE;
+    }
+d259 5
+a263 5
+    if ( (antibuf =
+	    mkomsg ( o, arg.rcvtim, arg.rcver, arg.mtype, txtlen, arg.selector
+	)) == NULL )
+    {
+	l_destroy ( (List_hdr *) buf );
+d265 2
+a266 2
+	return FAILURE;
+    }
+d268 2
+a269 2
+    entcpy ( buf + 1, text, txtlen );
+    entcpy ( antibuf + 1, text, txtlen );
+d271 2
+a272 2
+    buf->gid = arg.gid;
+    antibuf->gid = arg.gid;
+d274 1
+a274 1
+    buf->Ept = o->sb->Ept;
+d277 3
+a279 3
+    mark_macro ( buf );
+    mark_macro ( antibuf );
+    negate_macro ( antibuf );
+d281 1
+a281 1
+    l_insert ( themsg, antibuf );
+d283 4
+a286 4
+    if ( aggressive || o->co == o->oqh || neVTime ( o->co->sndtim, o->svt ) )
+    {
+	o->co = antibuf;
+    }
+d288 1
+a288 1
+    smsg_stat ( o, buf );
+d290 4
+a293 4
+    if ( cpulog && arg.mtype == EMSG )
+    {
+	HOST_fprintf ( cpulog, "M %s %f %d %s %f\n", o->name, o->svt.simtime,
+			o->stats.cputime, arg.rcver, arg.rcvtim.simtime );
+d295 1
+a295 6
+	buf->cputime = o->stats.cputime;
+    }
+
+    if ((arg.mtype == DYNCRMSG) || (arg.mtype == DYNDSMSG))
+	{	/* this is our own memory */
+	l_destroy((List_hdr *)arg.text);
+d298 4
+a301 1
+    deliver ( buf );
+d303 3
+a305 1
+    return SUCCESS;
+d311 1
+a311 1
+    Ocb		*o;
+d313 1
+a313 1
+    register Msgh  *p, *last_p;
+d317 5
+a321 5
+    if ( o->co == NULL )
+    {
+	_pprintf ( "msgfind: you blew it dummy!\n" );
+	tester ();
+    }
+d323 4
+a326 4
+    if ( o->co == o->oqh || neVTime ( o->co->sndtim, o->svt ) )
+    {
+	return ( o->co );
+    }
+d328 1
+a328 1
+    p = fstomb ( o->co );
+d330 1
+a330 1
+    last_p = (Msgh *) l_prev_macro ( p );
+d332 3
+a334 3
+    for ( ; p; last_p = p, p = nxtomb (p) )
+    {
+	if ( p->stype < o->centry ) break;
+d336 5
+a340 5
+	/*  In this case, the other message in the bundle already in the
+		output queue came from another node, due to migration.
+		If that node had a higher node number than the current node,
+		the new message should be queued before the message p currently
+		points to. */
+d342 2
+a343 2
+	if ( p->gid.node > arg.gid.node ) break;
+	
+d345 3
+a347 3
+	if ( p->gid.node < arg.gid.node
+	|| ( p->gid.node == arg.gid.node && p->gid.num < arg.gid.num ) )
+	    last_p = p;
+d350 1
+a350 1
+	if ( p->stype > o->centry ) continue;
+d352 3
+a354 3
+	/* only look at unmarked messages in the output queue so that  */
+	/* if the user produces several identical messages they will */
+	/* be "msgfound" once each                                   */
+d356 2
+a357 2
+	if ( isposi_macro ( p ) ) continue;
+	if ( ismarked_macro ( p ) ) continue;
+d359 6
+a364 6
+	if ( p->txtlen != arg.len ) continue;
+	if ( neVTime ( p->rcvtim, arg.rcvtim ) ) continue;
+	if ( p->mtype != arg.mtype ) continue;
+	if ( p->selector != arg.selector ) continue;
+	if ( namecmp ( p->rcver, arg.rcver ) != 0 ) continue;
+	if ( bytcmp ( (Byte *) (p + 1), arg.text, arg.len ) != 0 ) continue;
+d366 3
+a368 3
+	mark_macro ( p );
+	return ( NULL );
+    }
+d370 1
+a370 1
+    return ( last_p );
+d375 1
+a375 1
+    static long count = 1000;	/* Start at 1000 for initialization */
+d377 1
+a377 1
+    count++;	/* just a counter */
+d379 1
+a379 1
+    return count;
+d384 1
+a384 1
+	for dynamic creation messages.  */
+d388 3
+a390 3
+    Name *rcver;
+    VTime rcvtim;
+    Name *objtype;
+d392 3
+a394 3
+    register Ocb * o = xqting_ocb;
+    int txtlen = sizeof ( Crttext );
+    Crttext *create_text;
+d398 4
+a401 4
+    if ((create_text = (Crttext *)m_create(sizeof(Crttext),o->svt,NONCRITICAL))
+	== NULL)
+	_pprintf("sv_create: out of memory");
+    clear ( create_text, sizeof ( Crttext ) );
+d403 2
+a404 2
+    strcpy ( create_text->tp, objtype );
+    create_text->node = -1;
+d406 4
+a409 4
+    if ( ltVTime ( rcvtim, o->svt )
+    || ( eqVTime ( rcvtim, o->svt ) && namecmp (rcver, o->name) == 0)
+    ||   gtSTime ( rcvtim.simtime, posinf.simtime ) )
+    {
+d411 3
+a413 3
+	twerror ("sv_create I illegal %s at %f,%d,%d to %s at %f,%d,%d",
+		 o->name, o->svt.simtime, o->svt.sequence1, o->svt.sequence2,
+		rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2 );
+d415 3
+a417 3
+	object_error ( MSGTIME );
+	goto sv_create_end;
+    }
+d419 1
+a419 1
+    arg.mtype = DYNCRMSG;
+d421 4
+a424 4
+    arg.rcver = rcver;
+    arg.rcvtim = rcvtim;
+    arg.len = txtlen;
+    arg.text = (Byte *) create_text;
+d426 2
+a427 2
+    arg.gid.node = miparm.me;
+    arg.gid.num = uniq ();
+d429 1
+a429 1
+    o->runstat = BLKPKT;	/* requests transmission */
+d433 1
+a433 1
+    dispatch ();
+d438 2
+a439 2
+    Name *rcver;
+    VTime rcvtim;
+d441 3
+a443 3
+    register Ocb * o = xqting_ocb;
+    int txtlen = sizeof ( Crttext );
+    Crttext *create_text;
+d447 4
+a450 4
+    if ((create_text = (Crttext *)m_create(sizeof(Crttext),o->svt,NONCRITICAL))
+	== NULL)
+	_pprintf("sv_destroy: out of memory");
+    clear ( create_text, sizeof ( Crttext ) );
+d452 2
+a453 2
+    strcpy ( create_text->tp, "NULL" );
+    create_text->node = -1;
+d455 4
+a458 4
+    if ( ltVTime ( rcvtim, o->svt )
+    || ( eqVTime ( rcvtim, o->svt ) && namecmp (rcver, o->name) == 0)
+    ||   gtSTime ( rcvtim.simtime, posinf.simtime ) )
+    {
+d460 3
+a462 3
+	twerror ("sv_destroy I illegal %s at %f,%d,%d to %s at %f,%d,%d",
+		 o->name, o->svt.simtime, o->svt.sequence1, o->svt.sequence2,
+		rcver, rcvtim.simtime, rcvtim.sequence1, rcvtim.sequence2 );
+d464 3
+a466 3
+	object_error ( MSGTIME );
+	goto sv_destroy_end;
+    }
+d468 1
+a468 1
+    arg.mtype = DYNDSMSG;
+d470 4
+a473 4
+    arg.rcver = rcver;
+    arg.rcvtim = rcvtim;
+    arg.len = txtlen;
+    arg.text = (Byte *) create_text;
+d475 2
+a476 2
+    arg.gid.node = miparm.me;
+    arg.gid.num = uniq ();
+d478 1
+a478 1
+    o->runstat = BLKPKT;	/* requests transmission */
+d482 1
+a482 1
+    dispatch ();
+@
+
+
+1.5
+log
+@Use allocated memory for arg.text (bug 4)
+@
+text
+@d3 3
+d333 9
+d345 1
+@
+
+
+1.4
+log
+@Code to support Tapas Som's work.
+@
+text
+@d3 3
+d8 1
+a8 1
+ * 
+d292 5
+d378 1
+a378 1
+    Crttext create_text;
+d382 4
+a385 1
+    clear ( &create_text, sizeof ( Crttext ) );
+d387 2
+a388 2
+    strcpy ( create_text.tp, objtype );
+    create_text.node = -1;
+d408 1
+a408 1
+    arg.text = (Byte *) &create_text;
+d427 1
+a427 1
+    Crttext create_text;
+d431 4
+a434 1
+    clear ( &create_text, sizeof ( Crttext ) );
+d436 2
+a437 2
+    strcpy ( create_text.tp, "NULL" );
+    create_text.node = -1;
+d457 1
+a457 1
+    arg.text = (Byte *) &create_text;
+@
+
+
+1.3
+log
+@Add the service routine for tw_interrupt()
+@
+text
+@d3 3
+d264 3
+@
+
+
+1.2
+log
+@use .simtime field as necessary
+@
+text
+@d3 3
+d27 2
+d30 1
+a30 1
+	sv_tell(o,xrcvr,xrcvtim,xlen,xtext) - Handle an event
+d33 1
+a33 1
+			Int xlen, Char *xtext
+d67 4
+d104 10
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d120 1
+a120 1
+    ||   gtSTime ( rcvtim.simtime, posinf ) )
+d356 1
+a356 1
+    ||   gtSTime ( rcvtim.simtime, posinf ) )
+d402 1
+a402 1
+    ||   gtSTime ( rcvtim.simtime, posinf ) )
+@

@@ -1,0 +1,4 @@
+The .even file assigns each object to a unique node.  This will have the
+effect of distributing all objects evenly for any number of nodes because
+of the way Time Warp does node assignment.
+

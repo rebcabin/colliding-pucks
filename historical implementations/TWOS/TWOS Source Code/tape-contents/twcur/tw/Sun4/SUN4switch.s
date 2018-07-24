@@ -1,0 +1,190 @@
+!	Copyright (C) 1989, 1991, California Institute of Technology.
+!	U. S. Government Sponsorship under NASA Contract NAS7-918
+!	is acknowledged.
+!
+! $Log:	SUN4switch.s,v $
+! Revision 1.2  91/07/17  16:15:51  judy
+! New copyright notice.
+! 
+! Revision 1.1  90/08/07  13:36:07  configtw
+! Initial revision
+! 
+
+	.seg	"text"
+	.proc	4
+	.global	_switch_over
+_switch_over:
+	save	%sp,-104,%sp	! save registers
+	sethi	%hi(ssp),%g1	! save stack pointer
+	st	%sp,[%g1+%lo(ssp)]
+	sub	%i0,120,%sp	! load object stack pointer
+	sethi	%hi(sfp),%g1	! save object frame pointer
+	st	%sp,[%g1+%lo(sfp)]
+	ld	[%i0-4],%o1	! get object entry point
+	tst	%o1		! start or resume ?
+	bne	sws		!
+	nop
+
+	ld	[%i0-12],%g1	! restore object stack pointer
+	ld	[%i0-8],%g2
+	dec	28,%g2
+rest:
+	ld	[%g1+68],%g3
+	sub	%g3,%sp,%g3
+	save	%sp,%g3,%sp
+	ld	[%g1],%i7
+	inc	4,%g1
+	ld	[%g1],%i6
+	inc	4,%g1
+	ld	[%g1],%i5
+	inc	4,%g1
+	ld	[%g1],%i4
+	inc	4,%g1
+	ld	[%g1],%i3
+	inc	4,%g1
+	ld	[%g1],%i2
+	inc	4,%g1
+	ld	[%g1],%i1
+	inc	4,%g1
+	ld	[%g1],%i0
+	inc	4,%g1
+	ld	[%g1],%l7
+	inc	4,%g1
+	ld	[%g1],%l6
+	inc	4,%g1
+	ld	[%g1],%l5
+	inc	4,%g1
+	ld	[%g1],%l4
+	inc	4,%g1
+	ld	[%g1],%l3
+	inc	4,%g1
+	ld	[%g1],%l2
+	inc	4,%g1
+	ld	[%g1],%l1
+	inc	4,%g1
+	ld	[%g1],%l0
+	inc	4,%g1
+	cmp	%g1,%g2
+	bne	rest
+	nop
+	ld	[%g1],%o7
+	inc	4,%g1
+	ld	[%g1],%o6
+	inc	4,%g1
+	ld	[%g1],%o5
+	inc	4,%g1
+	ld	[%g1],%o4
+	inc	4,%g1
+	ld	[%g1],%o3
+	inc	4,%g1
+	ld	[%g1],%o2
+	inc	4,%g1
+	ld	[%g1],%o1
+	inc	4,%g1
+	ld	[%g1],%o0
+	retl			! return to object
+	nop
+sws:
+	st	%g0,[%i0-4]	! clear to indicate resume
+	mov	%i1,%o0		! state address
+	jmpl	%o1,%r15	! call object
+	nop
+	sethi	%hi(ssp),%l0	! restore main stack pointer
+	ld	[%l0+%lo(ssp)],%sp
+	nop
+	call	_tobjend,0	! call object end routine
+	nop
+	ret			! return to main
+	restore	%g0,0,%o0	! restore main registers
+
+	.global	_switch_back
+_switch_back:
+	mov	%sp,%g1		!
+	sethi	%hi(sfp),%g2	! restore object frame pointer
+	ld	[%g2+%lo(sfp)],%g2
+	mov	%o1,%g3
+	add	%sp,92,%g4
+	mov	%o0,%g5
+	st	%g1,[%g3-8]	! save object stack pointer
+	save	%sp,-64,%sp
+save:
+	restore	%g0,0,%g0
+	st	%o0,[%g1]
+	dec	4,%g1
+	st	%o1,[%g1]
+	dec	4,%g1
+	st	%o2,[%g1]
+	dec	4,%g1
+	st	%o3,[%g1]
+	dec	4,%g1
+	st	%o4,[%g1]
+	dec	4,%g1
+	st	%o5,[%g1]
+	dec	4,%g1
+	st	%o6,[%g1]
+	dec	4,%g1
+	st	%o7,[%g1]
+	dec	4,%g1
+	st	%l0,[%g1]
+	dec	4,%g1
+	st	%l1,[%g1]
+	dec	4,%g1
+	st	%l2,[%g1]
+	dec	4,%g1
+	st	%l3,[%g1]
+	dec	4,%g1
+	st	%l4,[%g1]
+	dec	4,%g1
+	st	%l5,[%g1]
+	dec	4,%g1
+	st	%l6,[%g1]
+	dec	4,%g1
+	st	%l7,[%g1]
+	dec	4,%g1
+	cmp	%fp,%g2
+	bne	save
+	nop
+	st	%i0,[%g1]
+	dec	4,%g1
+	st	%i1,[%g1]
+	dec	4,%g1
+	st	%i2,[%g1]
+	dec	4,%g1
+	st	%i3,[%g1]
+	dec	4,%g1
+	st	%i4,[%g1]
+	dec	4,%g1
+	st	%i5,[%g1]
+	dec	4,%g1
+	st	%i6,[%g1]
+	dec	4,%g1
+	st	%i7,[%g1]
+	st	%g1,[%g3-12]
+
+	restore	%g0,0,%g0	! switch_over frame
+
+	sethi	%hi(ssp),%g2	! restore main stack pointer
+	ld	[%g2+%lo(ssp)],%sp
+	nop
+	restore	%g0,0,%g0	! main frame
+
+	save	%sp,-104,%sp
+	ld	[%g3-8],%g1
+	ld	[%g1-8],%o0	! copy 8 arguments
+	ld	[%g1-12],%o1
+	ld	[%g1-16],%o2
+	ld	[%g1-20],%o3
+	ld	[%g4],%o4	!
+	ld	[%g4+4],%o5	!
+	ld	[%g4+8],%l1	!
+	st	%l1,[%sp+92]	!
+	ld	[%g4+12],%l1	!
+	st	%l1,[%sp+96]	!
+	jmpl	%g5,%r15	! call object service routine
+	nop
+	ret			! return to main
+	restore	%g0,0,%o0	! restore main registers
+
+	.seg	"data"
+	.common	ssp,4,"data"
+	.common	sfp,4,"data"

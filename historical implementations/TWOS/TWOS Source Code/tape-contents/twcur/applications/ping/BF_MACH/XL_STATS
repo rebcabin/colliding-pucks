@@ -1,0 +1,19 @@
+Version 2.51 Simulator
+
+Config File ../ping.cfg
+
+Elapsed time for this run was 2.70 seconds
+
+
+Node	Obj	E+FT	E-FT	E+FR	E-FR	E+FC	e starts	e cmps	e com	e zap	# ssave	# scom	E Sent
+	E+RT	E-RT	E+RR	E-RR	cr strts	ds strts	cm cr	cm ds	migr	stmigr	imigr	omigr	sqlen	iqlen	oqlen	sqmax,	iqmax,	oqmax	cpu
+
+
+0	ping	1251	0	1251	0	1251	1251	1251	0	0	0	0	1250	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.508500
+
+
+0	pong	1250	0	1250	0	1250	1250	1250	0	0	0	0	1250	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.541125
+
+
+0	stdout	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0.000000
+

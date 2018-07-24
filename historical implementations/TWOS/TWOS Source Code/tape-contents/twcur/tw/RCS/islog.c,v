@@ -1,0 +1,544 @@
+head     1.6;
+branch   ;
+access   ;
+symbols  TW2_7:1.6 TW2_6:1.6 TW2_5_1:1.6 TW2_5:1.4 TW2_4_2:1.2 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.6
+date     91.07.17.15.08.55;  author judy;  state Rel;
+branches ;
+next     1.5;
+
+1.5
+date     91.07.09.13.48.47;  author steve;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.06.03.12.24.26;  author configtw;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.04.01.15.37.29;  author reiher;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.12.10.10.41.58;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.36;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@handle instantaneous speedup log
+@
+
+
+1.6
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	islog.c,v $
+ * Revision 1.5  91/07/09  13:48:47  steve
+ * Added Sun support
+ * 
+ * Revision 1.4  91/06/03  12:24:26  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.3  91/04/01  15:37:29  reiher
+ * Cosmetic change to output statement for IS_LOG_ENTRY, setting the
+ * send_message() type field to a symbol, rather than an integer constant.
+ * 
+ * Revision 1.2  90/12/10  10:41:58  configtw
+ * use .simtime field as necessary
+ * 
+ * Revision 1.1  90/08/07  15:38:36  configtw
+ * Initial revision
+ * 
+*/
+char islog_id [] = "@@(#)islog.c 1.7\t9/26/89\t15:27:03\tTIMEWARP";
+
+
+#include <stdio.h>  
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+#include "logdefs.h"
+
+
+IS_LOG_ENTRY *IS_log, *IS_logp, *IS_loge;
+int num_IS_entries;
+
+#define MIN_IS_DELTA    100             /* .1 sec       */
+#define MAX_IS_DELTA    10000           /* 10 secs      */
+ 
+int     IS_delta;
+int     IS_clock1, IS_clock2;
+
+extern int host_input_waiting;
+
+FUNCTION I_speedup ()
+{
+	Ocb         *o;
+	VTime       t;
+	VTime       minreg;
+	double      cputime;
+
+  Debug
+
+	minreg = posinfPlus1;
+
+	if ( ltSTime ( gvt.simtime, posinfPlus1.simtime ) && !host_input_waiting )
+	{
+		t = posinfPlus1;
+		minmsg ( &t );
+
+		for (o = fstocb_macro; o; o = nxtocb_macro (o))
+		{ 
+			if ( o->runstat == ITS_STDOUT )
+				continue;
+
+			if ( ltVTime ( o->svt, minreg ) )
+			{
+				minreg = o->svt;
+			}
+		}
+ 
+		if ( ltVTime ( minreg, t ) )
+		{
+			t = minreg;
+		}
+
+		IS_clock2 = clock();
+#ifdef BBN
+		cputime = ( ( (IS_clock2 - IS_clock1 ) *62.5 ) /1000000.);
+		record_min_vt ( cputime, t);
+		malarm ( IS_delta );
+#endif
+	 }
+}
+
+init_islog ( IS_log_size, delta )
+
+	int *IS_log_size;
+	int *delta;
+{
+	if ( *delta < MIN_IS_DELTA || *delta > MAX_IS_DELTA )
+	{
+		_pprintf (" IS_delta setting out of bounds %d msecs\n", *delta );
+		return;
+	}
+
+	IS_log = IS_logp = (IS_LOG_ENTRY *) m_allocate
+						( *IS_log_size * sizeof (IS_LOG_ENTRY) );
+	if ( IS_log == NULL )
+	{
+		_pprintf ( "can't allocate IS_log space\n" );
+		tw_exit (0);
+	}
+
+	if ( tw_node_num == 0 )
+	{
+		_pprintf ("IS_logsize == %ld IS_delta == %ld\n",
+						*IS_log_size,
+						*delta
+						);
+	}
+
+	IS_loge = IS_log + *IS_log_size;
+	IS_delta = *delta;
+	IS_clock1 = IS_clock2 =clock();
+#ifdef BBN
+	butterfly_msigalarm ( I_speedup );
+	malarm ( IS_delta );
+#endif
+}
+
+FUNCTION record_min_vt ( cputime, vt )
+
+	double  cputime;
+	VTime   vt;
+{
+	extern STime gvt_sync;
+
+	if ( eqVTime (neginf, vt ) )
+	{  
+	  /* Don't record an instantaneous speedup log entry until we're
+			  past initialization. */
+	  return;
+	}  
+
+	num_IS_entries++;
+
+	if ( IS_logp == NULL )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "no IS log space\n" );
+		}
+		return;
+	}
+
+	if ( IS_logp >= IS_loge )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "IS log full\n" );
+		}
+		return;
+	}
+
+	IS_logp->seqnum = num_IS_entries;
+	IS_logp->cputime = cputime;
+	IS_logp->minvt = vt;
+	IS_logp++;
+}
+ 
+IS_dumplog ()
+{
+	register int i;
+
+	_pprintf ( "num_IS_entries = %d\n", num_IS_entries );
+
+	IS_logp->cputime = 1000000.;
+	IS_logp++;
+
+	while ( IS_log < IS_logp )
+	{
+		i = IS_logp - IS_log;
+
+		if ( i > 16 )
+			i = 16;
+
+#define ISLOG_DATA 10
+		/* Msg type 10 is ISLOG_DATA.  But using a "10" instead of the
+				symbol makes it mighty hard to find where these messages
+				get sent. */
+
+		send_message ( IS_log, sizeof(IS_LOG_ENTRY) * i, CP, ISLOG_DATA );
+
+		IS_log += i;
+
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+
+	if ( tw_node_num == 0 )
+	{
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+}
+@
+
+
+1.5
+log
+@Added Sun support
+@
+text
+@d1 4
+d7 3
+a25 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.4
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        islog.c,v $
+a171 1
+#ifdef MARK3_OR_BBN
+d188 3
+d203 3
+a214 1
+#endif
+@
+
+
+1.3
+log
+@Cosmetic change to output statement for IS_LOG_ENTRY, setting the
+send_message() type field to a symbol, rather than an integer constant.
+@
+text
+@d2 5
+a6 1
+ * $Log:	islog.c,v $
+d14 1
+a14 1
+char islog_id [] = "@@(#)islog.c	1.7\t9/26/89\t15:27:03\tTIMEWARP";
+d16 3
+a18 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d34 2
+a35 2
+int	IS_delta;
+int	IS_clock1, IS_clock2;
+d41 4
+a44 4
+    Ocb		*o;
+    VTime	t;
+    VTime	minreg;
+    double	cputime;
+d48 1
+a48 1
+    minreg = posinfPlus1;
+d50 4
+a53 4
+    if ( ltSTime ( gvt.simtime, posinfPlus1.simtime ) && !host_input_waiting )
+    {
+	t = posinfPlus1;
+	minmsg ( &t );
+d55 4
+a58 4
+	for (o = fstocb_macro; o; o = nxtocb_macro (o))
+	{ 
+	    if ( o->runstat == ITS_STDOUT )
+		continue;
+d60 5
+a64 5
+	    if ( ltVTime ( o->svt, minreg ) )
+	    {
+		minreg = o->svt;
+	    }
+	}
+d66 4
+a69 4
+	if ( ltVTime ( minreg, t ) )
+	{
+	    t = minreg;
+	}
+d71 1
+a71 1
+	IS_clock2 = clock();
+d73 3
+a75 3
+	cputime = ( ( (IS_clock2 - IS_clock1 ) *62.5 ) /1000000.);
+	record_min_vt ( cputime, t);
+	malarm ( IS_delta );
+d77 1
+a77 1
+     }
+d82 2
+a83 2
+    int *IS_log_size;
+    int *delta;
+d85 5
+a89 5
+    if ( *delta < MIN_IS_DELTA || *delta > MAX_IS_DELTA )
+    {
+	_pprintf (" IS_delta setting out of bounds %d msecs\n", *delta );
+	return;
+    }
+d91 7
+a97 7
+    IS_log = IS_logp = (IS_LOG_ENTRY *) m_allocate
+			( *IS_log_size * sizeof (IS_LOG_ENTRY) );
+    if ( IS_log == NULL )
+    {
+	_pprintf ( "can't allocate IS_log space\n" );
+	tw_exit (0);
+    }
+d99 7
+a105 7
+    if ( tw_node_num == 0 )
+    {
+	_pprintf ("IS_logsize == %ld IS_delta == %ld\n",
+			*IS_log_size,
+			*delta
+			);
+    }
+d107 3
+a109 3
+    IS_loge = IS_log + *IS_log_size;
+    IS_delta = *delta;
+    IS_clock1 = IS_clock2 =clock();
+d111 2
+a112 2
+    butterfly_msigalarm ( I_speedup );
+    malarm ( IS_delta );
+d118 2
+a119 2
+    double  cputime;
+    VTime   vt;
+d121 1
+a121 1
+    extern STime gvt_sync;
+d123 6
+a128 6
+    if ( eqVTime (neginf, vt ) )
+    {  
+      /* Don't record an instantaneous speedup log entry until we're
+              past initialization. */
+      return;
+    }  
+d130 1
+a130 1
+    num_IS_entries++;
+d132 1
+a132 4
+    if ( IS_logp == NULL )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d134 7
+a140 2
+	    print_once = 1;
+	    _pprintf ( "no IS log space\n" );
+a141 2
+	return;
+    }
+d143 1
+a143 4
+    if ( IS_logp >= IS_loge )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d145 7
+a151 2
+	    print_once = 1;
+	    _pprintf ( "IS log full\n" );
+a152 2
+	return;
+    }
+d154 4
+a157 4
+    IS_logp->seqnum = num_IS_entries;
+    IS_logp->cputime = cputime;
+    IS_logp->minvt = vt;
+    IS_logp++;
+d162 1
+a162 1
+    register int i;
+d164 1
+a164 1
+    _pprintf ( "num_IS_entries = %d\n", num_IS_entries );
+d166 2
+a167 2
+    IS_logp->cputime = 1000000.;
+    IS_logp++;
+d170 3
+a172 3
+    while ( IS_log < IS_logp )
+    {
+	i = IS_logp - IS_log;
+d174 2
+a175 2
+	if ( i > 16 )
+	    i = 16;
+d178 3
+a180 3
+        /* Msg type 10 is ISLOG_DATA.  But using a "10" instead of the
+                symbol makes it mighty hard to find where these messages
+                get sent. */
+d182 1
+a182 1
+        send_message ( IS_log, sizeof(IS_LOG_ENTRY) * i, CP, ISLOG_DATA );
+d184 1
+a184 1
+	IS_log += i;
+d187 1
+a187 1
+	recv.buf = rm_buf;
+d189 2
+a190 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d192 1
+a192 1
+	give_buf ( &recv );
+d194 1
+a194 1
+    }
+d196 2
+a197 2
+    if ( tw_node_num == 0 )
+    {
+d199 1
+a199 1
+	recv.buf = rm_buf;
+d201 2
+a202 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d204 1
+a204 1
+	give_buf ( &recv );
+d206 1
+a206 1
+    }
+@
+
+
+1.2
+log
+@use .simtime field as necessary
+@
+text
+@d3 3
+d119 7
+d173 6
+a178 1
+	send_message ( IS_log, sizeof(IS_LOG_ENTRY) * i, CP, 10 );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d43 1
+a43 1
+    if ( ltSTime ( gvt.simtime, posinfPlus1 ) && !host_input_waiting )
+@

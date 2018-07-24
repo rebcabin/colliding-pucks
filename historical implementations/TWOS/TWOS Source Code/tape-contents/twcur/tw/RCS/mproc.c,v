@@ -1,0 +1,2815 @@
+head     1.15;
+branch   ;
+access   ;
+symbols  TW2_7:1.15 TW2_6:1.13 TW2_5_1:1.10 TW2_5:1.8 TW2_4_2:1.2 TW2_4_1:1.2 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.15
+date     91.12.27.11.07.59;  author pls;  state Rel;
+branches ;
+next     1.14;
+
+1.14
+date     91.12.27.08.46.20;  author reiher;  state Dev;
+branches ;
+next     1.13;
+
+1.13
+date     91.11.06.11.12.12;  author configtw;  state Rel;
+branches ;
+next     1.12;
+
+1.12
+date     91.11.01.09.46.08;  author reiher;  state Dev;
+branches ;
+next     1.11;
+
+1.11
+date     91.08.08.13.04.55;  author reiher;  state Dev;
+branches ;
+next     1.10;
+
+1.10
+date     91.07.17.15.10.41;  author judy;  state Rel;
+branches ;
+next     1.9;
+
+1.9
+date     91.07.09.14.28.23;  author steve;  state Dev;
+branches ;
+next     1.8;
+
+1.8
+date     91.06.03.14.24.46;  author configtw;  state Rel;
+branches ;
+next     1.7;
+
+1.7
+date     91.06.03.12.25.31;  author configtw;  state Dev;
+branches ;
+next     1.6;
+
+1.6
+date     91.06.03.09.49.35;  author pls;  state Dev;
+branches ;
+next     1.5;
+
+1.5
+date     91.05.31.14.26.35;  author pls;  state Dev;
+branches ;
+next     1.4;
+
+1.4
+date     91.04.01.15.42.01;  author reiher;  state Dev;
+branches ;
+next     1.3;
+
+1.3
+date     91.03.26.09.26.59;  author pls;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     90.08.09.15.55.41;  author steve;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.23;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@handle incoming messages
+@
+
+
+1.15
+log
+@Make EVTLOG output the same as the Simulator's.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	mproc.c,v $
+ * Revision 1.14  91/12/27  08:46:20  reiher
+ * Added code to object creation routines to support event and event time
+ * throttling.
+ * 
+ * Revision 1.13  91/11/06  11:12:12  configtw
+ * Fix DLM link errors on Suns.
+ * 
+ * Revision 1.12  91/11/01  09:46:08  reiher
+ * Code to support critical path messages and changes to permit migration
+ * acks and naks to pass a message to their handling routines (PLR)
+ * 
+ * Revision 1.11  91/08/08  13:04:55  reiher
+ * Added tests for failure of mkocb() to createproc(), makephase(), and
+ * create_stdout()
+ * 
+ * Revision 1.10  91/07/17  15:10:41  judy
+ * New copyright notice.
+ * 
+ * Revision 1.9  91/07/09  14:28:23  steve
+ * Replaced 128 with IH_NODE and miparm.me with tw_node_num
+ * 
+ * Revision 1.8  91/06/03  14:24:46  configtw
+ * Fix code for DLM off
+ * 
+ * Revision 1.7  91/06/03  12:25:31  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.6  91/06/03  09:49:35  pls
+ * Add dispatch() call to error return of msgproc().
+ * 
+ * Revision 1.5  91/05/31  14:26:35  pls
+ * 1.  Add parameter to FindObject() call.
+ * 
+ * Revision 1.4  91/04/01  15:42:01  reiher
+ * Changes to handle phase creation and statistics stored in dead ocbs.
+ * 
+ * Revision 1.3  91/03/26  09:26:59  pls
+ * Add Steve's RBC code.
+ * 
+ * Revision 1.2  90/08/09  15:55:41  steve
+ * set state->ocb at create time
+ * 
+ * Revision 1.1  90/08/07  15:40:23  configtw
+ * Initial revision
+ * 
+*/
+char mproc_id [] = "@@(#)mproc.c 1.55\t9/28/89\t15:05:09\tTIMEWARP";
+
+
+/* 
+
+Purpose:
+
+		mproc.c contains routines for handling messages incoming to
+		a node.  The hardware and low level non-TW software handles
+		routing between nodes, and delivery of messages to this
+		module.  The code here is responsible for delivering the
+		message to the right place on this node.
+
+		Two basic types of messages are handled by this routine.
+		User messages are delivered to the appropriate object.
+		System messages are transferred to the appropriate
+		operating system routine for handling.  The routine
+		msgproc() is responsible for dealing with messages at
+		this level.  For systems messages, it consults a switch
+		statement based on the system message type.  For user
+		messages, it calls the routine deliver(), which will
+		deliver the message to the correct object.
+
+		Several auxiliary routines are also kept in mproc.c.
+		These include some of the routines called from
+		msgproc()'s switch for systems messages.  (But not
+		all of those routines are kept here.)  Also, some
+		small support functions are kept here.
+
+Functions:
+
+		msgproc() - determine what to do with a message delivered
+				to this node
+				Parameters - none
+				Return - Always returns 0
+
+		find_object_type(type) - consult the local type table
+				to find the entry for the requested type
+				Parameters - Type type
+				Return - Address of the correct entry in the
+						type table, or NULL ptr if not found
+
+
+		f(len) - performs the work of creating a context for
+				non-stdout objects.
+				Parameters -  int len
+				Return - Byte * to the newly created state for
+						the object
+
+		createproc(m) - set up (almost) everything needed by an object:
+				an ocb, pointer to code for its object type,input/output 
+				queues, etc.
+				Parameters - Msgh *m
+				Returns - Always returns 0
+
+		create_stdout() - similar to createproc(), but specific to
+				stdout objects
+				Parameters - none
+				Returns - Always returns 0
+
+		cinfproc(cinf) - create and install world map entries
+				Parameters - Wmr *cinf
+				Returns - Always returns 0
+
+Implementation:
+
+		The main code in mproc.c, msgproc(), is fairly simple.  If
+		an object is executing, call savout() for it.  Then take a
+		look at the newly arrived message.  (msgproc() is only 
+		called when a new message has arrived.)  If the message is
+		a system message, use a switch statement to determine what
+		action to take for each particular type of system message.
+		Generally speaking, the action is to call an appropriate
+		handling routine, then to clear the message out of the
+		buffer.
+
+		If the message is a user message, call deliver() to get it
+		into the right object's input queue.  
+
+		In either case, choose a new object to run, now that the
+		operating system has finished its work.
+
+		The rest of the code in mproc.c is related to various of
+		the system message handling routines.  
+
+		find_object_type() runs through the type table, trying to 
+		find a match on the object type provided.  The purpose is 
+		to locate the code that this type of object runs, information 
+		that is kept in the type table.  This routine is used by
+		createproc() and create_stdout().
+
+		createproc() is the routine used to handle a CREATSYS
+		system message.  Its purpose is to create a new object.
+		It allocates space for the object's ocb, and sets up
+		its input and output queues.  It copies the name of the
+		object from the CREATSYS message to the ocb.  It finds
+		the object's type (using find_object_type()), and copies
+		the returned pointer into the type table into the ocb,
+		thus linking the ocb with the code that implements the 
+		object.  This routine then sets the object's scheduler
+		time and local virtual time to POSINF.  Then the object's
+		state is set to 'blocked waiting rollback", its send time
+		field is set to NEGINF, and its serror field is set to
+		indicate that this state is not an error state.  save_state()
+		is called to save its starting state, so that it will always
+		have something to roll back to.  If the object is of type
+		stdout, set some state information, but do not allocate it
+		a private variable zone.  For any type of object, send
+		its "status" variable (local to this routine) to IH, whatever
+		that may be.  Insert the new object into the object list,
+		and increment the counter for number of local objects.
+
+		create_stdout() mostly duplicates the stdout portion of
+		the code in createproc().  In addition, it calls mkwmr()
+		and nqwmr() to put an entry for the local stdout object
+		into the local world map.
+
+		cinfproc() finds out if a specified object is locally
+		stored.  If it is, it changes the requesting message's 
+		po field to show where the object is.  It then calls 
+		mkwmr() and nqwmr() to put an entry for it into the 
+		local world map, whether or not the object is local.  
+		This routine is called as the result of a system message 
+		arrival.
+
+*/
+
+#include "twcommon.h"
+#include "twsys.h"
+
+#define INITIAL_EVENTS_PERMITTED 30
+#define INITIAL_EVENT_TIME_PERMITTED 15000
+#ifdef SOM
+extern long firstEst;
+extern unsigned int node_cputime;
+#endif SOM
+extern int migrGraph;
+
+int finishAddStats ();
+Ocb * makephase ();
+
+FUNCTION        msgproc ()
+
+{
+	Msgh           *peek;
+	Msgh           *peekmsg ();
+	Gvtmsg          g;
+	Loadmsg         l;
+	Critmsg			q;
+	Crttext       c;
+	Stattext      s;
+	HLmsg           locmsg;
+	VTime           Ctime;
+	Crttext         createtext;
+	Name            name;
+	Type            type;
+
+	extern int mlog;
+
+Debug
+
+	peek = peekmsg ();  /* lock and return pointer to message */
+	if (peek == NULLMSGH)
+	{  /* no message */
+		twerror ("msgproc E MI gave a NULL peek msg pointer");
+		dispatch();
+		return;
+	}
+	if (issys_macro (peek))
+	{
+		if ( mlog )
+			msglog_entry ( peek );      /* log the message */
+
+		switch (peek->mtype)
+		{  /* handle the message type */
+
+		case GVTSYS:                    /* GVT message */
+
+			g = ((Gvtmsg *) (peek + 1))[0];     /* point to msg body */
+			acceptmsg (NULLMSGH);       /* unlock & discard message */
+			gvtproc (&g);
+			break;
+
+#if DLM
+		case LOADSYS:
+			l = ((Loadmsg *) (peek + 1))[0];
+			acceptmsg (NULLMSGH);
+			loadproc (&l);
+			break;
+#endif
+
+		case CRITMSG:
+			q = ( ( Critmsg * ) ( peek + 1 )) [0];
+			acceptmsg ( NULLMSGH );
+			checkCritPath ( &q );
+			break;
+
+		case CRITSTEP:
+			q = ( ( Critmsg * ) ( peek + 1 )) [0];
+			acceptmsg ( NULLMSGH );
+			takeCritStep ( &q );
+			break;
+
+		case CRITEND:
+			q = ( ( Critmsg * ) ( peek + 1 )) [0];
+			acceptmsg ( NULLMSGH );
+			outputCritPath ( );
+			break;
+
+		case CRITRM:
+			q = ( ( Critmsg * ) ( peek + 1 )) [0];
+			acceptmsg ( NULLMSGH );
+			successorNotOnCP ( &q );
+			break;
+
+
+		case CREATESYS:
+			strcpy ( name, peek->rcver );
+			strcpy ( type, ((Crttext *)(peek+1))->tp );
+			acceptmsg (NULLMSGH);
+			createproc (name,type,neginf);
+			break;
+
+	  case PCREATESYS:
+		  strcpy ( name, peek->rcver );
+		  c = (( Crttext * ) ( peek + 1 ))[0];
+		  acceptmsg (NULLMSGH);
+		  makephase ( name, &c );
+		  break;
+
+	  case ADDSTATS:
+		  strcpy ( name, peek->rcver );
+		  addStats ( name, peek );
+		  acceptmsg ( NULLMSGH );
+		  break;
+
+		case MONINIT:
+#ifdef MONITOR
+			moninit ();
+#endif
+			acceptmsg (NULLMSGH);
+			break;
+
+		case STATEMSG:
+			recv_state ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case STATEACK:
+			recv_state_ack ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case STATENAK:
+			recv_state_nak ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case STATEDONE:
+			recv_state_done ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case MOVEPHASE:
+			recv_phase ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case PHASEACK:
+			recv_phase_ack ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case PHASENAK:
+			recv_phase_nak ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case PHASEDONE:
+			acceptmsg (NULLMSGH);
+			recv_phase_done ();
+			break;
+
+		case MOVEVTIME:
+			recv_vtime ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case VTIMEACK:
+			recv_vtime_ack ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case VTIMENAK:
+			recv_vtime_nak ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case VTIMEDONE:
+			recv_vtime_done ( peek );
+			acceptmsg (NULLMSGH);
+			break;
+
+		case HOMENOTIF:
+			createtext = ((Crttext *) (peek + 1))[0];
+			strcpy ( name, peek->rcver );
+			acceptmsg (NULLMSGH);
+			AddToHomeList ( name, createtext.phase_begin,
+				createtext.phase_end,createtext.node );
+			break;
+
+		case HOMEASK:
+			Ctime = peek->rcvtim;
+			locmsg = ((HLmsg *) (peek + 1))[0];
+			acceptmsg (NULLMSGH);
+			ServiceHLRequest ( &locmsg, Ctime );
+			break;
+
+		case HOMEANS:
+			locmsg = ((HLmsg *) (peek + 1))[0];
+			acceptmsg (NULLMSGH);
+			ObjectFound ( &locmsg );
+			break;
+
+		case HOMECHANGE:
+			locmsg = ((HLmsg *) (peek + 1))[0];
+			acceptmsg (NULLMSGH);
+			ChangeHLEntry( locmsg.object, locmsg.time,locmsg.newloc,locmsg.generation);
+			break;
+
+		case CACHEINVAL:
+			locmsg = ((HLmsg *) (peek + 1))[0];
+			acceptmsg(NULLMSGH);
+			RemoveFromCache(locmsg.object, locmsg.time);
+			break;
+
+		default:
+			acceptmsg (NULLMSGH);
+			twerror ("mproc: received unknown TW system message");
+			tester();
+			break;
+		}
+
+	}
+
+	else
+	{                           /* a user message */
+		lock_macro ( peek );
+		deliver ( peek );
+	}
+	dispatch ();
+}
+
+
+
+FUNCTION Typtbl *find_object_type ( type )
+	char * type;
+
+/* return pointer to the entry in type_table which matches "type" */
+
+{
+	register int i;
+
+	for ( i = 0; type_table[i].type && i < MAXNTYP; i++)
+	{
+		if ( namecmp ( type, type_table[i].type ) == SUCCESS )
+		{
+			return &type_table[i];
+		}
+	}
+
+	return (Typtbl *) NULL;
+}
+
+#ifdef RBC
+extern int rbc_present;
+#endif
+
+FUNCTION        Ocb * createproc (oname,type,time)
+	Name        oname;
+	Type        type;
+	VTime       time;
+{
+	Ocb            *o;
+	Msgh           *msg;
+	State          *state;
+	Int             status;
+
+Debug
+
+	o = mkocb ();       /* allocate space for the new object */
+
+	if ( o == NULL )
+	{
+		twerror ( "createproc unable to set up ocb for object %s\n",
+					oname );
+		tester();
+	}
+
+	strcpy (o->name, oname);    /* copy its name */
+
+	if ( strcmp ( type, "NULL" ) != 0 )
+	{  /* store its type if not null */
+		o->typepointer = find_object_type ( type );
+	}
+	else
+	{
+		/* type_table [1] contains the NULL object type. */
+
+		o->typepointer = &type_table[1];
+	}
+
+	if (o->typepointer == NULL)
+	{
+		twerror ("createproc E object type %s not found",type);
+		nukocb (o);     /* deallocate memory */
+		return ((Ocb *) NULL);
+	}
+
+	/* generate the unique object id */
+	o->oid = ( tw_node_num << 22 )        /* 10 bits for 1024 nodes */
+		   + ( unique_oid++ << 12 )     /* 10 bits for 1024 objects per node */
+		   + 0;                         /* 12 bits for 4096 sequence numbers */
+
+	o->svt = posinf;
+	o->control = EDGE;
+
+	/* phase boundaries */
+	o->phase_begin = neginfPlus1;
+	o->phase_end = posinfPlus1;
+	o->phase_limit = o->phase_end;
+
+	o->cycletime = 0;
+	o->eventTimePermitted = INITIAL_EVENT_TIME_PERMITTED;
+	o->eventsPermitted = INITIAL_EVENTS_PERMITTED;
+#ifdef SOM
+
+/*  This code initializes the ept information for the object.  Ept is
+	  taken off of the system clock, in 62.5 microsecond clock ticks,
+	  and it does not start at 0 at system initialization time.  This
+	  code currently only works for the Butterfly, and probably would
+	  bomb on any other machine. */
+
+	if ( firstEst == 0 )
+	{  
+#ifdef BBN
+	  butterflytime ();
+#endif
+	  firstEst = node_cputime;
+	}  
+
+/* I'm dubious that this is the correct thing to do for dynamically
+	  created objects.  Maybe it is, but consider more fully if we intend
+	  to use this code for that purpose. */
+
+		  o->Ept = firstEst;
+		  o->comEpt = o->Ept;
+		  o->lastComEpt = o->Ept;
+		  o->comWork = 0;
+		  o->lastComWork = 0;
+		  o->work = 0;
+#endif SOM
+
+
+	/* insert into the active object queue for this node */
+	l_insert ( l_prev_macro ( _prqhd ), o );
+
+	if ( namecmp (o->typepointer->type, "stdout") != 0 )
+	{  /* it's not stdout */
+		o->runstat = ARLBK;     /* activate on rollback */
+
+#ifdef RBC
+		if ( rbc_present )
+		{
+			o->uses_rbc = TRUE;
+			o->pvz_len = 0;
+		}
+		else
+#endif
+		o->pvz_len = o->typepointer->statesize;
+
+		/* set up a state for the object */
+		state = (State *) m_create ( sizeof(State) + o->pvz_len + 12,
+								time, CRITICAL );       /* allocate it */
+
+		clear ( state, sizeof(State) + o->pvz_len );    /* clear it */
+		strcpy ( ((Byte *)(state+1)) + o->pvz_len, "state limit" );
+		state->ocb = o;
+		state->resultingEvents = 1;
+
+#ifdef RBC
+		if ( o->uses_rbc )
+		{
+			int size_in_bytes = o->typepointer->statesize;
+
+			init_op ( o, size_in_bytes );
+			clear ( o->footer, size_in_bytes );
+		}
+#endif
+
+		/* Even if the create message itself is at a non-NEGINF virtual time,
+				the NULL state for the object should be created at NEGINF.    
+				In principle, the NULL version of the object has existed since
+				that time, and the NULL version hasn't done anything since     
+				that time, so a state at NEGINF is the "most current" state
+				of the NULL object. */
+
+		state->sndtim = neginf;
+		state->serror = NOERR;  /* state error code */
+
+		state->otype = o->typepointer;  /* type of the state's object */
+
+		l_insert ( o->sqh, state );     /* put into the state queue */
+
+		/* In the case of a CREATESYS message, we now want to run its init
+				section.  We do so by sending a CMSG to it, causing objhead()
+				to run its init section.  If the object was created because   
+				of a home list request, however, there is no point in running
+				its init section, at this time, as it is a NULL object.  When 
+				the user-level create message comes through, its init section 
+				will be scheduled. */
+
+		if ( strcmp ( type, "NULL" ) != 0 )
+		{  /* not a null type */
+			Byte mtype;
+			Name *snder, *rcver;
+			VTime sndtim, rcvtim;
+
+			mtype = CMSG;       /* create message */
+			snder = (Name *) "TW";
+			sndtim = neginf;
+			rcver = (Name *) o->name;   /* send to this new object */
+			rcvtim = neginfPlus1;
+
+			msg = make_message ( mtype, snder, sndtim, rcver, rcvtim, 0, 0 );
+#ifdef SOM
+			msg->Ept = 0;
+#endif SOM
+			nq_input_message ( o, msg );        /* put in the input queue */
+		}
+	}
+	else
+	{  /* it's type is stdout */
+		o->runstat = ITS_STDOUT ;
+
+		if ( namecmp ( o->name, "stdout" ) == 0 )
+			stdout_ocb = o;     /* it's name is stdout */
+		else
+			o->co = (Msgh *) open_output_file ( o->name );  /* it's a file */
+	}
+
+	status = SUCCESS;
+
+	if ( tw_node_num != 0 )
+		/* send create acknowledgement to node IH_NODE */
+		send_to_IH ( (Byte*) &status, sizeof(status), CRT_ACK);
+
+#ifdef DLM
+	if ( migrGraph )
+	{  
+	  char buff[MINPKTL];
+
+	  sprintf ( buff, "Create %s negInf posInf %d\n", o->name, tw_node_num );
+
+/*
+	  send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+*/
+	}
+#endif
+
+#ifdef EVTLOG
+	if ( chklog )
+	{
+		char name[20];
+		VTime vtime;
+		int evtcnt;
+		Evtlog *temp;
+		Byte * cp;
+		int tp;
+		Byte **lp;
+		int namelen;
+		static Byte ** logindex;
+		extern Byte * evtlog_area;
+
+#define MAX_EVTS 1000
+
+		if ( strncmp ( o->name, "init", 4 ) == 0
+		||   strncmp ( o->name, "user", 4 ) == 0 )
+			return NULL;
+
+		cp = evtlog_area;
+		if ( cp == 0 )
+		{
+			return NULL;
+		}
+		if ( logindex == 0 )
+		{
+			tp = 0;
+			while ( *cp != 0 )
+			{
+				while ( *cp++ != '\n' )
+					;
+				tp++;
+			}
+			logindex =  (Byte **) m_allocate ( (tp+1)*sizeof(*logindex));
+			if ( logindex == 0 )
+			{
+				_pprintf ( "can't allocate logindex of %d\n", tp );
+				tw_exit (0);
+			}
+			lp = logindex;
+			cp = evtlog_area;
+			while ( *cp != 0 )
+			{
+				*lp++ = cp;
+				while ( *cp++ != '\n' )
+					;
+			}
+			*lp = 0;
+		}
+		tp = 0;
+		lp = logindex;
+		namelen = strlen ( o->name );
+		temp = (Evtlog *) m_allocate ( (MAX_EVTS+1)*sizeof(*temp) );
+		if ( temp == 0 )
+		{
+			_pprintf ( "can't allocate temp of %d\n", MAX_EVTS );
+			tw_exit (0);
+		}
+		while ( *lp != 0 )
+		{
+			if ( strncmp ( o->name, *lp, namelen ) == 0 )
+			{
+				sscanf ( *lp, "%s %lf %d %d %d",
+					name, &vtime.simtime,&vtime.sequence1,
+					&vtime.sequence2,&evtcnt );
+
+				if ( name[namelen] == 0 )
+				{
+					if ( tp >= MAX_EVTS )
+					{
+						_pprintf ( "too many events for %s\n", o->name );
+						tw_exit (0);
+					}
+
+					if ( vtime.simtime == 0.0 )
+						vtime.simtime = 0.0;    /* Guess why */
+
+					temp[tp].vtime = vtime;
+					temp[tp++].cnt = evtcnt;
+				}
+			}
+			lp++;
+		}
+		temp[tp].vtime = posinfPlus1;
+		temp[tp++].cnt = 0;
+		o->evtlog = (Evtlog *) m_allocate ( tp*sizeof(*temp) );
+		if ( o->evtlog == 0 )
+		{
+			_pprintf ( "can't allocate evtlog for %s\n", o->name );
+			tw_exit (0);
+		}
+		entcpy ( o->evtlog, temp, tp*sizeof(*temp) );
+		m_release ( (Mem_hdr *) temp );
+		/*_pprintf ( "%s has %d events\n", o->name, tp-1 );*/
+	}
+#endif
+
+	return (o);
+}
+
+/* This function creates one phase of an object.  */
+
+FUNCTION        Ocb * makephase ( name, c )
+	Name        * name;
+	Crttext     * c;
+{
+	Ocb            *o;
+	Msgh           *msg;
+	State          *state;
+	Int             status;
+	VTime           phaseStart, phaseEnd;
+	Type            type;
+
+
+Debug
+
+	strcpy ( type, c->tp );
+
+	o = mkocb ();       /* allocate space for the new object */
+
+	if ( o == NULL )
+	{
+		twerror ( "makephase unable to set up ocb for phase %s,%f \n",
+					name, c->phase_begin.simtime  );
+		tester();
+	}
+
+	strcpy (o->name, name);     /* copy its name */
+
+	if ( strcmp ( type, "NULL" ) != 0 )
+	{  
+		/* store its type if not null */
+
+		o->typepointer = find_object_type ( type );
+	}
+	else
+	{
+		/* type_table [1] contains the NULL object type. */
+
+		o->typepointer = &type_table[1];
+	}
+
+	if (o->typepointer == NULL)
+	{
+		twerror ("makephase E object type %s not found",type);
+		nukocb (o);     /* deallocate memory */
+		return ((Ocb *) NULL);
+	}
+
+
+
+	/* No attempt is made to ensure that different phases of the same object
+		have the same oid.  The only purpose of the oid is to ensure that
+		all file output/stdout output from a given object for a given event
+		is kept together.  Since each event is handled by one and only one
+		phase, and since oids from two events at different times are never 
+		compared, it doesn't matter whether two phases of the same object
+		have the same oid.  The oid field should probably be scrapped,
+		anyway, in favor of a fully deterministic method of keeping file
+		output together. */
+
+	o->oid = ( tw_node_num << 22 )        /* 10 bits for 1024 nodes */
+		+ ( unique_oid++ << 12 )/* 10 bits for 1024 objects per node */
+		+ 0;                    /* 12 bits for 4096 sequence numbers */
+
+	o->svt = posinf;
+	o->control = EDGE;
+
+	/* phase boundaries */
+	o->phase_begin = c->phase_begin;
+	o->phase_end = c->phase_end;
+	o->phase_limit = o->phase_end;
+	o->eventTimePermitted = INITIAL_EVENT_TIME_PERMITTED;
+	o->eventsPermitted = INITIAL_EVENTS_PERMITTED;
+
+	/* insert into the active object queue for this node */
+
+	l_insert ( l_prev_macro ( _prqhd ), o );
+
+	if ( namecmp (o->typepointer->type, "stdout") != 0 )
+	{  
+		/* it's not stdout */
+
+		o->runstat = ARLBK;     /* activate on rollback */
+
+		o->pvz_len = o->typepointer->statesize;
+
+		/* If this isn't the first phase for the object, don't create
+				a state for it, yet.  Instead, leave it in a BLKSTATE
+				run status, indicating that it's waiting for a state from
+				an earlier phase. */
+
+		if ( eqVTime ( o->phase_begin, neginfPlus1 ) )
+		{
+			/* set up a state for the object */
+
+			state = (State *) m_create ( sizeof(State) + o->pvz_len + 12,
+								neginf, CRITICAL );     /* allocate it */
+
+			clear ( state, sizeof(State) + o->pvz_len );        /* clear it */
+			strcpy ( ((Byte *)(state+1)) + o->pvz_len, "state limit" );
+			state->ocb = o;
+
+			/* Even if the create message itself is at a non-NEGINF virtual 
+				time, the NULL state for the object should be created at 
+				NEGINF.  In principle, the NULL version of the object has 
+				existed since that time, and the NULL version hasn't done 
+				anything since that time, so a state at NEGINF is the "most 
+				current" state of the NULL object. */
+
+			state->sndtim = neginf;
+			state->serror = NOERR;      /* state error code */
+
+			state->otype = o->typepointer;      /* type of the state's object */
+
+			l_insert ( o->sqh, state ); /* put into the state queue */
+
+			/* In the case of a CREATESYS message, we now want to run its init
+				section.  We do so by sending a CMSG to it, causing objhead()
+				to run its init section.  If the object was created because   
+				of a home list request, however, there is no point in running
+				its init section, at this time, as it is a NULL object.  When 
+				the user-level create message comes through, its init section 
+				will be scheduled. */
+
+			if ( strcmp ( type, "NULL" ) != 0 )
+			{  
+				/* not a null type */
+
+				Byte mtype;
+				Name *snder, *rcver;
+				VTime sndtim, rcvtim;
+
+				mtype = CMSG;   /* create message */
+				snder = (Name *) "TW";
+				sndtim = neginf;
+				rcver = (Name *) o->name;       /* send to this new object */
+				rcvtim = neginfPlus1;
+
+				msg = make_message ( mtype, snder, sndtim, rcver, rcvtim, 
+									    0, 0 );
+				nq_input_message ( o, msg );    /* put in the input queue */
+			}
+		}
+		else
+		{
+			o->runstat = BLKSTATE;
+
+			/* If this is not the first phase of the object, set this phase's
+				create count to 1, indicating that it was properly created.
+				The first phase gets its create count set to 1 by the
+				CMSG sent to start up its init section.  This raises a
+				possibility that must be investigated - if we send a split
+				object a dynamic destroy message to its earlier phase,
+				will the later phase be properly destroyed?  */
+
+			o->crcount = 1;
+		}
+	}
+	else
+	{  
+		/* its type is stdout, but you can't divide a stdout type object
+				into phases */
+
+		twerror("makephase: Cannot divide object %s of type stdout into phases\n", 
+				o->name);  
+		tester();
+
+	}
+
+	status = SUCCESS;
+
+	if ( tw_node_num != 0 )
+		/* send create acknowledgement to node IH_NODE */
+		send_to_IH ( (Byte*) &status, sizeof(status), CRT_ACK);
+
+#ifdef EVTLOG
+/* There's no reason to believe event logging will work with static phase
+		creation. */
+
+	if ( chklog )
+	{
+		char name[20];
+		VTime vtime;
+		int evtcnt;
+		Evtlog *temp;
+		Byte * cp;
+		int tp;
+		Byte **lp;
+		int namelen;
+		static Byte ** logindex;
+		extern Byte * evtlog_area;
+
+#define MAX_EVTS 1000
+
+		if ( strncmp ( o->name, "init", 4 ) == 0
+		||   strncmp ( o->name, "user", 4 ) == 0 )
+			return NULL;
+
+		cp = evtlog_area;
+		if ( cp == 0 )
+		{
+			return NULL;
+		}
+		if ( logindex == 0 )
+		{
+			tp = 0;
+			while ( *cp != 0 )
+			{
+				while ( *cp++ != '\n' )
+					;
+				tp++;
+			}
+			logindex =  (Byte **) m_allocate ( (tp+1)*sizeof(*logindex));
+			if ( logindex == 0 )
+			{
+				_pprintf ( "can't allocate logindex of %d\n", tp );
+				tw_exit (0);
+			}
+			lp = logindex;
+			cp = evtlog_area;
+			while ( *cp != 0 )
+			{
+				*lp++ = cp;
+				while ( *cp++ != '\n' )
+					;
+			}
+			*lp = 0;
+		}
+		tp = 0;
+		lp = logindex;
+		namelen = strlen ( o->name );
+		temp = (Evtlog *) m_allocate ( (MAX_EVTS+1)*sizeof(*temp) );
+		if ( temp == 0 )
+		{
+			_pprintf ( "can't allocate temp of %d\n", MAX_EVTS );
+			tw_exit (0);
+		}
+		vtime.sequence1 = vtime.sequence2 = 0;
+		while ( *lp != 0 )
+		{
+			if ( strncmp ( o->name, *lp, namelen ) == 0 )
+			{
+				sscanf ( *lp, "%s %lf %d %d %d",
+					name, &vtime.simtime,&vtime.sequence1,
+					&vtime.sequence2,&evtcnt );
+
+				if ( name[namelen] == 0 )
+				{
+					if ( tp >= MAX_EVTS )
+					{
+						_pprintf ( "too many events for %s\n", o->name );
+						tw_exit (0);
+					}
+
+					if ( vtime.simtime == 0.0 )
+						vtime.simtime = 0.0;    /* Guess why */
+
+					temp[tp].vtime = vtime;
+					temp[tp++].cnt = evtcnt;
+				}
+			}
+			lp++;
+		}
+		temp[tp].vtime = posinfPlus1;
+		temp[tp++].cnt = 0;
+		o->evtlog = (Evtlog *) m_allocate ( tp*sizeof(*temp) );
+		if ( o->evtlog == 0 )
+		{
+			_pprintf ( "can't allocate evtlog for %s\n", o->name );
+			tw_exit (0);
+		}
+		entcpy ( o->evtlog, temp, tp*sizeof(*temp) );
+		m_release ( (Mem_hdr *) temp );
+		/*_pprintf ( "%s has %d events\n", o->name, tp-1 );*/
+	}
+#endif
+
+	return (o);
+}
+
+create_stdout ()
+{       /* create the stdout object */
+	Ocb            *o;
+
+	o = mkocb ();       /* create an object & init its queues */
+
+	if ( o == NULL )
+	{
+		twerror ( "create_stdout unable to set up ocb\n" );
+		tester();
+	}
+
+	if (o == NULL)
+	{
+		twerror ("create_stdout E couldn't allocate Ocb");
+	}
+
+	strcpy (o->name, "stdout"); /* name it */
+
+	o->typepointer = find_object_type ("stdout");  /* find it in the list */
+	if (o->typepointer == NULL)
+	{
+		twerror ("createproc E object type %s not found","stdout");
+		nukocb (o);     /* get rid of the object & its queues */
+		return;
+	}
+
+/* init some object fields */
+	o->svt = posinf;
+	o->runstat = ITS_STDOUT ;
+
+	o->phase_begin = neginfPlus1;
+	o->phase_end = posinfPlus1;
+
+	stdout_ocb = o;     /* init this global */
+
+	l_insert ( l_prev_macro ( _prqhd ), o );    /* add to processor ready q */
+}
+
+/* When an object is divided into several phases, the earlier phases will
+	  eventually be garbage collected.  As GVT catches up with a phase's
+	  end of interval, that phase packages its statistics in a system
+	  message and sends it to the next later phase.  That later phase
+	  adds them to its own statistics.  If the later phase has itself
+	  been garbage collected, then forward the message to the next
+	  phase.  Since the final phase is never garbage collected, eventually
+	  the message will find a phase.  A special "dead ocb" queue containing
+	  only the name of the object and the phase begin and end of garbage
+	  collected ocbs is kept for this purpose. */
+
+FUNCTION addStats ( object, statsMsg )
+
+	Name      * object;
+	Msgh    * statsMsg;
+{
+	Objloc    * location;
+	Stattext  * text;
+
+	text = ( Stattext * ) ( statsMsg + 1 );
+
+	location = GetLocation ( object, text->phaseEnd );
+
+	/* If the object isn't here, it could be a problem of the phase being
+	  migrated, or it could be that the phase has been garbage collected.
+	  If the object is here, all is well, so just add in the stats. */
+
+	if ( location == NULL || location->node != tw_node_num )
+	{  
+	  Int     newNode;
+	  Msgh    * tw_msg;
+
+	  /* The reason the actual make_message() calls are done below,
+			  rather than consolidated here, is that some of them have
+			  different times associated with the message. */
+
+	  if  ( location == NULL )
+	  {
+		  deadOcb     * dead;
+
+		  dead = findPhaseInDeadQ ( object, text->phaseEnd );
+
+		  if ( dead == NULL )
+		  {
+
+
+			  /* How inconvenient.  Someone migrated the phase elsewhere.
+					  Call FindObject() to figure out where, coming
+					  back to finishAddStats() when you do. */
+
+			  tw_msg = make_message ( ADDSTATS, object, statsMsg->sndtim,
+							  object, statsMsg->rcvtim, sizeof ( Stattext ),
+							  text );
+
+			  tw_msg->flags |= SYSMSG;
+
+			  /* We'll have to call FindObject. */
+
+			  FindObject ( object, statsMsg->rcvtim, tw_msg,
+							  finishAddStats,NOTMSG );
+		  }
+		  else
+		  {
+
+			  /* If the destination phase is dead, we'd better send the
+					  stats on to the next phase down the line. */
+
+			  tw_msg = make_message ( ADDSTATS, object, dead->phaseBegin,
+					  object, dead->phaseEnd, sizeof ( Stattext ), text );
+
+			  tw_msg->flags |= SYSMSG;
+
+			  /* We'll have to call FindObject. */
+
+			  FindObject (object, dead->phaseEnd, tw_msg,finishAddStats,NOTMSG);
+		  }
+	  }
+	  else
+	  {
+		  /* Package up a new ADDSTATS message for whoever hosts the next
+			  phase. */
+
+		  tw_msg = make_message ( ADDSTATS, object, statsMsg->sndtim,
+							  object, statsMsg->rcvtim, sizeof ( Stattext ),
+							  text );
+
+		  tw_msg->flags |= SYSMSG;
+
+		  sndmsg ( tw_msg, tw_msg->txtlen + sizeof (Msgh), location->node );
+	  }
+	}      
+else
+	{  
+	  finishAddStats ( statsMsg, location );
+	}  
+}
+
+/* finishAddStats() is called either from addStats() or after a request to
+	  the home node to find the phase in question returns.  It either
+	  sends the message off to another node, or it adds all the stats
+	  into the local phase's statistics. */
+
+FUNCTION finishAddStats ( m, location )
+	Msgh      * m;
+	Objloc    * location;
+{
+	Stattext  * statsPtr;
+	struct stats_s * earlyStats, * lateStats;
+	Ocb       * o;
+
+	o = location->po;
+
+	statsPtr = ( Stattext * ) ( m + 1 );
+
+  if ( location->node != tw_node_num )
+	{  
+
+	  _pprintf("finishAddStats forwarding msg to %d\n", location->node );
+	  /* Send message to wherever it goes. */
+
+	  sndmsg (m, m->txtlen + sizeof (Msgh), location->node);
+	}  
+	else
+	if ( location->po == NULL )
+	{  
+	  twerror("finishAddStats: cannot find supposedly local phase %s %f\n",
+					  location->name, location->phase_begin);
+	  tester();
+	}  
+	else
+	{  
+	  earlyStats = & (statsPtr->stats);
+	  lateStats = & (o->stats);
+
+	  lateStats->numestart += earlyStats->numestart;
+	  lateStats->numecomp += earlyStats->numecomp;
+	  lateStats->numcreate += earlyStats->numcreate;
+	  lateStats->numdestroy += earlyStats->numdestroy;
+	  lateStats->ccrmsgs += earlyStats->ccrmsgs;
+	  lateStats->cdsmsgs += earlyStats->cdsmsgs;
+	  lateStats->cemsgs += earlyStats->cemsgs;
+	  lateStats->cebdls += earlyStats->cebdls;
+	  lateStats->coemsgs += earlyStats->coemsgs;
+	  lateStats->coebdls += earlyStats->coebdls;
+	  lateStats->nssave += earlyStats->nssave;
+	  lateStats->nscom += earlyStats->nscom;
+	  lateStats->eposfs += earlyStats->eposfs;
+	  lateStats->eposfr += earlyStats->eposfr;
+	  lateStats->enegfs += earlyStats->enegfs;
+	  lateStats->enegfr += earlyStats->enegfr;
+	  lateStats->ezaps += earlyStats->ezaps;
+	  lateStats->evtmsg += earlyStats->evtmsg;
+	  lateStats->eposrs += earlyStats->eposrs;
+	  lateStats->eposrr += earlyStats->eposrr;
+	  lateStats->enegrs += earlyStats->enegrs;
+	  lateStats->enegrr += earlyStats->enegrr;
+	  lateStats->cputime += earlyStats->cputime;
+	  lateStats->rbtime += earlyStats->rbtime;
+	  lateStats->comtime += earlyStats->comtime;
+	  lateStats->nummigr += earlyStats->nummigr;
+	  lateStats->numstmigr += earlyStats->numstmigr;
+	  lateStats->numimmigr += earlyStats->numimmigr;
+	  lateStats->numommigr += earlyStats->numommigr;
+
+	/* Just adding is OK for these queue length stats, since these stats
+	  will be divided by the gvt count to get an average. */
+
+	  lateStats->sqlen += earlyStats->sqlen;
+	  lateStats->iqlen += earlyStats->iqlen;
+	  lateStats->oqlen += earlyStats->oqlen;
+
+	  if ( lateStats->sqmax < earlyStats->sqmax )
+		  lateStats->sqmax += earlyStats->sqmax;
+
+	  if ( lateStats->iqmax < earlyStats->iqmax )
+		  lateStats->iqmax += earlyStats->iqmax;
+
+	  if ( lateStats->oqmax < earlyStats->oqmax )
+		  lateStats->oqmax += earlyStats->oqmax;
+
+	  lateStats->stforw += earlyStats->stforw;
+
+	}  
+}
+
+
+@
+
+
+1.14
+log
+@Added code to object creation routines to support event and event time
+throttling.
+@
+text
+@d7 4
+a266 1
+			
+d268 1
+a681 1
+		vtime.sequence1 = vtime.sequence2 = 0;
+d686 3
+a688 1
+				sscanf ( *lp, "%s %lf %d", name, &vtime.simtime, &evtcnt );
+a735 1
+ 
+d737 1
+d741 1
+a741 1
+ 
+d784 1
+a784 1
+		
+d838 1
+a838 1
+	
+d856 1
+a856 1
+	
+d862 1
+a862 1
+	
+d967 3
+a969 1
+				sscanf ( *lp, "%s %lf %d", name, &vtime.simtime, &evtcnt );
+@
+
+
+1.13
+log
+@Fix DLM link errors on Suns.
+@
+text
+@d7 3
+d179 2
+d482 2
+d791 2
+@
+
+
+1.12
+log
+@Code to support critical path messages and changes to permit migration
+acks and naks to pass a message to their handling routines (PLR)
+@
+text
+@d7 4
+d227 1
+d233 1
+@
+
+
+1.11
+log
+@Added tests for failure of mkocb() to createproc(), makephase(), and
+create_stdout()
+@
+text
+@d7 4
+a175 1
+#ifdef DLM
+a176 1
+#endif
+a186 1
+#ifdef DLM
+d188 1
+a188 1
+#endif DLM
+a222 1
+#ifdef DLM
+a227 1
+#endif DLM
+d229 5
+d235 19
+d287 1
+a287 1
+			recv_state_ack ();
+d292 1
+a292 1
+			recv_state_nak ();
+d297 1
+a297 1
+			recv_state_done ();
+d307 1
+a307 1
+			recv_phase_ack ();
+d312 1
+a312 1
+			recv_phase_nak ();
+d377 1
+d524 1
+d571 3
+@
+
+
+1.10
+log
+@New copyright notice.
+@
+text
+@d7 3
+d406 7
+d698 7
+d960 7
+@
+
+
+1.9
+log
+@Replaced 128 with IH_NODE and miparm.me with tw_node_num
+@
+text
+@d1 4
+d7 3
+a36 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.8
+log
+@Fix code for DLM off
+@
+text
+@d3 3
+d420 1
+a420 1
+	o->oid = ( miparm.me << 22 )        /* 10 bits for 1024 nodes */
+d547 2
+a548 2
+	if ( miparm.me != 0 )
+		/* send create acknowledgement to node 128 */
+d556 1
+a556 1
+	  sprintf ( buff, "Create %s negInf posInf %d\n", o->name, miparm.me );
+d718 1
+a718 1
+	o->oid = ( miparm.me << 22 )        /* 10 bits for 1024 nodes */
+d827 2
+a828 2
+	if ( miparm.me != 0 )
+		/* send create acknowledgement to node 128 */
+d993 1
+a993 1
+	if ( location == NULL || location->node != miparm.me )
+d1080 1
+a1080 1
+  if ( location->node != miparm.me )
+@
+
+
+1.7
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        mproc.c,v $
+d162 1
+d164 1
+d548 2
+a549 1
+	 if ( migrGraph )
+d558 2
+a559 1
+	}  
+@
+
+
+1.6
+log
+@Add dispatch() call to error return of msgproc().
+@
+text
+@d2 4
+a5 1
+ * $Log:	mproc.c,v $
+d22 1
+a22 1
+char mproc_id [] = "@@(#)mproc.c	1.55\t9/28/89\t15:05:09\tTIMEWARP";
+d24 3
+a26 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d32 5
+a36 5
+	mproc.c contains routines for handling messages incoming to
+	a node.  The hardware and low level non-TW software handles
+	routing between nodes, and delivery of messages to this
+	module.  The code here is responsible for delivering the
+	message to the right place on this node.
+d38 9
+a46 9
+	Two basic types of messages are handled by this routine.
+	User messages are delivered to the appropriate object.
+	System messages are transferred to the appropriate
+	operating system routine for handling.  The routine
+	msgproc() is responsible for dealing with messages at
+	this level.  For systems messages, it consults a switch
+	statement based on the system message type.  For user
+	messages, it calls the routine deliver(), which will
+	deliver the message to the correct object.
+d48 5
+a52 5
+	Several auxiliary routines are also kept in mproc.c.
+	These include some of the routines called from
+	msgproc()'s switch for systems messages.  (But not
+	all of those routines are kept here.)  Also, some
+	small support functions are kept here.
+d56 4
+a59 4
+	msgproc() - determine what to do with a message delivered
+		to this node
+		Parameters - none
+		Return - Always returns 0
+d61 5
+a65 5
+	find_object_type(type) - consult the local type table
+		to find the entry for the requested type
+		Parameters - Type type
+		Return - Address of the correct entry in the
+			type table, or NULL ptr if not found
+d68 5
+a72 5
+	f(len) - performs the work of creating a context for
+		non-stdout objects.
+		Parameters -  int len
+		Return - Byte * to the newly created state for
+			the object
+d74 5
+a78 5
+	createproc(m) - set up (almost) everything needed by an object:
+		an ocb, pointer to code for its object type,input/output 
+		queues, etc.
+		Parameters - Msgh *m
+		Returns - Always returns 0
+d80 4
+a83 4
+	create_stdout() - similar to createproc(), but specific to
+		stdout objects
+		Parameters - none
+		Returns - Always returns 0
+d85 3
+a87 3
+	cinfproc(cinf) - create and install world map entries
+		Parameters - Wmr *cinf
+		Returns - Always returns 0
+d91 9
+a99 9
+	The main code in mproc.c, msgproc(), is fairly simple.  If
+	an object is executing, call savout() for it.  Then take a
+	look at the newly arrived message.  (msgproc() is only 
+	called when a new message has arrived.)  If the message is
+	a system message, use a switch statement to determine what
+	action to take for each particular type of system message.
+	Generally speaking, the action is to call an appropriate
+	handling routine, then to clear the message out of the
+	buffer.
+d101 2
+a102 2
+	If the message is a user message, call deliver() to get it
+	into the right object's input queue.  
+d104 2
+a105 2
+	In either case, choose a new object to run, now that the
+	operating system has finished its work.
+d107 2
+a108 2
+	The rest of the code in mproc.c is related to various of
+	the system message handling routines.  
+d110 5
+a114 5
+	find_object_type() runs through the type table, trying to 
+	find a match on the object type provided.  The purpose is 
+	to locate the code that this type of object runs, information 
+	that is kept in the type table.  This routine is used by
+	createproc() and create_stdout().
+d116 20
+a135 20
+	createproc() is the routine used to handle a CREATSYS
+	system message.  Its purpose is to create a new object.
+	It allocates space for the object's ocb, and sets up
+	its input and output queues.  It copies the name of the
+	object from the CREATSYS message to the ocb.  It finds
+	the object's type (using find_object_type()), and copies
+	the returned pointer into the type table into the ocb,
+	thus linking the ocb with the code that implements the 
+	object.  This routine then sets the object's scheduler
+	time and local virtual time to POSINF.  Then the object's
+	state is set to 'blocked waiting rollback", its send time
+	field is set to NEGINF, and its serror field is set to
+	indicate that this state is not an error state.  save_state()
+	is called to save its starting state, so that it will always
+	have something to roll back to.  If the object is of type
+	stdout, set some state information, but do not allocate it
+	a private variable zone.  For any type of object, send
+	its "status" variable (local to this routine) to IH, whatever
+	that may be.  Insert the new object into the object list,
+	and increment the counter for number of local objects.
+d137 4
+a140 4
+	create_stdout() mostly duplicates the stdout portion of
+	the code in createproc().  In addition, it calls mkwmr()
+	and nqwmr() to put an entry for the local stdout object
+	into the local world map.
+d142 7
+a148 7
+	cinfproc() finds out if a specified object is locally
+	stored.  If it is, it changes the requesting message's 
+	po field to show where the object is.  It then calls 
+	mkwmr() and nqwmr() to put an entry for it into the 
+	local world map, whether or not the object is local.  
+	This routine is called as the result of a system message 
+	arrival.
+d167 3
+a169 3
+    Msgh           *peek;
+    Msgh           *peekmsg ();
+    Gvtmsg          g;
+d171 1
+a171 1
+    Loadmsg	    l;
+d173 7
+a179 7
+    Crttext       c;
+    Stattext      s;
+    HLmsg	    locmsg;
+    VTime           Ctime;
+    Crttext	    createtext;
+    Name	    name;
+    Type	    type;
+d181 1
+a181 1
+    extern int mlog;
+d185 11
+a195 11
+    peek = peekmsg ();	/* lock and return pointer to message */
+    if (peek == NULLMSGH)
+    {  /* no message */
+	twerror ("msgproc E MI gave a NULL peek msg pointer");
+	dispatch();
+	return;
+    }
+    if (issys_macro (peek))
+    {
+	if ( mlog )
+	    msglog_entry ( peek );	/* log the message */
+d197 2
+a198 2
+	switch (peek->mtype)
+	{  /* handle the message type */
+d200 1
+a200 1
+	case GVTSYS:			/* GVT message */
+d202 4
+a205 4
+	    g = ((Gvtmsg *) (peek + 1))[0];	/* point to msg body */
+	    acceptmsg (NULLMSGH);	/* unlock & discard message */
+	    gvtproc (&g);
+	    break;
+d208 5
+a212 5
+	case LOADSYS:
+	    l = ((Loadmsg *) (peek + 1))[0];
+	    acceptmsg (NULLMSGH);
+	    loadproc (&l);
+	    break;
+d216 6
+a221 6
+	case CREATESYS:
+	    strcpy ( name, peek->rcver );
+	    strcpy ( type, ((Crttext *)(peek+1))->tp );
+	    acceptmsg (NULLMSGH);
+	    createproc (name,type,neginf);
+	    break;
+d223 6
+a228 6
+      case PCREATESYS:
+          strcpy ( name, peek->rcver );
+          c = (( Crttext * ) ( peek + 1 ))[0];
+          acceptmsg (NULLMSGH);
+          makephase ( name, &c );
+          break;
+d230 5
+a234 5
+      case ADDSTATS:
+          strcpy ( name, peek->rcver );
+          addStats ( name, peek );
+          acceptmsg ( NULLMSGH );
+          break;
+d236 1
+a236 1
+	case MONINIT:
+d238 1
+a238 1
+	    moninit ();
+d240 2
+a241 2
+	    acceptmsg (NULLMSGH);
+	    break;
+d243 4
+a246 4
+	case STATEMSG:
+	    recv_state ( peek );
+	    acceptmsg (NULLMSGH);
+	    break;
+d248 4
+a251 4
+	case STATEACK:
+	    recv_state_ack ();
+	    acceptmsg (NULLMSGH);
+	    break;
+d253 4
+a256 4
+	case STATENAK:
+	    recv_state_nak ();
+	    acceptmsg (NULLMSGH);
+	    break;
+d258 4
+a261 4
+	case STATEDONE:
+	    recv_state_done ();
+	    acceptmsg (NULLMSGH);
+	    break;
+d263 4
+a266 4
+	case MOVEPHASE:
+	    recv_phase ( peek );
+	    acceptmsg (NULLMSGH);
+	    break;
+d268 4
+a271 4
+	case PHASEACK:
+	    recv_phase_ack ();
+	    acceptmsg (NULLMSGH);
+	    break;
+d273 4
+a276 4
+	case PHASENAK:
+	    recv_phase_nak ();
+	    acceptmsg (NULLMSGH);
+	    break;
+d278 4
+a281 4
+	case PHASEDONE:
+	    acceptmsg (NULLMSGH);
+	    recv_phase_done ();
+	    break;
+d283 4
+a286 4
+	case MOVEVTIME:
+	    recv_vtime ( peek );
+	    acceptmsg (NULLMSGH);
+	    break;
+d288 4
+a291 4
+	case VTIMEACK:
+	    recv_vtime_ack ( peek );
+	    acceptmsg (NULLMSGH);
+	    break;
+d293 4
+a296 4
+	case VTIMENAK:
+	    recv_vtime_nak ( peek );
+	    acceptmsg (NULLMSGH);
+	    break;
+d298 4
+a301 4
+	case VTIMEDONE:
+	    recv_vtime_done ( peek );
+	    acceptmsg (NULLMSGH);
+	    break;
+d303 7
+a309 7
+	case HOMENOTIF:
+	    createtext = ((Crttext *) (peek + 1))[0];
+	    strcpy ( name, peek->rcver );
+	    acceptmsg (NULLMSGH);
+	    AddToHomeList ( name, createtext.phase_begin,
+		createtext.phase_end,createtext.node );
+	    break;
+d311 6
+a316 6
+	case HOMEASK:
+	    Ctime = peek->rcvtim;
+	    locmsg = ((HLmsg *) (peek + 1))[0];
+	    acceptmsg (NULLMSGH);
+	    ServiceHLRequest ( &locmsg, Ctime );
+	    break;
+d318 5
+a322 5
+	case HOMEANS:
+	    locmsg = ((HLmsg *) (peek + 1))[0];
+	    acceptmsg (NULLMSGH);
+	    ObjectFound ( &locmsg );
+	    break;
+d324 5
+a328 5
+	case HOMECHANGE:
+	    locmsg = ((HLmsg *) (peek + 1))[0];
+	    acceptmsg (NULLMSGH);
+	    ChangeHLEntry( locmsg.object, locmsg.time,locmsg.newloc,locmsg.generation);
+	    break;
+d330 5
+a334 5
+	case CACHEINVAL:
+	    locmsg = ((HLmsg *) (peek + 1))[0];
+	    acceptmsg(NULLMSGH);
+	    RemoveFromCache(locmsg.object, locmsg.time);
+	    break;
+d336 6
+a341 4
+	default:
+	    acceptmsg (NULLMSGH);
+	    twerror ("mproc: received unknown TW system message");
+	    break;
+d344 6
+a349 8
+    }
+
+    else
+    {				/* a user message */
+	lock_macro ( peek );
+	deliver ( peek );
+    }
+    dispatch ();
+d355 1
+a355 1
+    char * type;
+d360 1
+a360 1
+    register int i;
+d362 1
+a362 3
+    for ( i = 0; type_table[i].type && i < MAXNTYP; i++)
+    {
+	if ( namecmp ( type, type_table[i].type ) == SUCCESS )
+d364 4
+a367 1
+	    return &type_table[i];
+a368 1
+    }
+d370 1
+a370 1
+    return (Typtbl *) NULL;
+d378 3
+a380 3
+    Name	oname;
+    Type	type;
+    VTime	time;
+d382 4
+a385 4
+    Ocb            *o;
+    Msgh           *msg;
+    State          *state;
+    Int             status;
+d389 1
+a389 1
+    o = mkocb ();	/* allocate space for the new object */
+d391 1
+a391 1
+    strcpy (o->name, oname);	/* copy its name */
+d393 7
+a399 7
+    if ( strcmp ( type, "NULL" ) != 0 )
+    {  /* store its type if not null */
+	o->typepointer = find_object_type ( type );
+    }
+    else
+    {
+	/* type_table [1] contains the NULL object type. */
+d401 2
+a402 2
+	o->typepointer = &type_table[1];
+    }
+d404 6
+a409 6
+    if (o->typepointer == NULL)
+    {
+	twerror ("createproc E object type %s not found",type);
+	nukocb (o);	/* deallocate memory */
+	return ((Ocb *) NULL);
+    }
+d411 4
+a414 4
+    /* generate the unique object id */
+    o->oid = ( miparm.me << 22 )	/* 10 bits for 1024 nodes */
+	   + ( unique_oid++ << 12 )	/* 10 bits for 1024 objects per node */
+	   + 0;				/* 12 bits for 4096 sequence numbers */
+d416 2
+a417 2
+    o->svt = posinf;
+    o->control = EDGE;
+d419 4
+a422 4
+    /* phase boundaries */
+    o->phase_begin = neginfPlus1;
+    o->phase_end = posinfPlus1;
+    o->phase_limit = o->phase_end;
+d424 1
+a424 1
+    o->cycletime = 0;
+d428 4
+a431 4
+      taken off of the system clock, in 62.5 microsecond clock ticks,
+      and it does not start at 0 at system initialization time.  This
+      code currently only works for the Butterfly, and probably would
+      bomb on any other machine. */
+d433 2
+a434 2
+    if ( firstEst == 0 )
+    {  
+d436 1
+a436 1
+      butterflytime ();
+d438 2
+a439 2
+      firstEst = node_cputime;
+    }  
+d442 2
+a443 2
+      created objects.  Maybe it is, but consider more fully if we intend
+      to use this code for that purpose. */
+d445 6
+a450 6
+          o->Ept = firstEst;
+          o->comEpt = o->Ept;
+          o->lastComEpt = o->Ept;
+          o->comWork = 0;
+          o->lastComWork = 0;
+          o->work = 0;
+d454 2
+a455 2
+    /* insert into the active object queue for this node */
+    l_insert ( l_prev_macro ( _prqhd ), o );
+d457 3
+a459 3
+    if ( namecmp (o->typepointer->type, "stdout") != 0 )
+    {  /* it's not stdout */
+	o->runstat = ARLBK;	/* activate on rollback */
+d462 6
+a467 6
+	if ( rbc_present )
+	{
+	    o->uses_rbc = TRUE;
+	    o->pvz_len = 0;
+	}
+	else
+d469 1
+a469 1
+	o->pvz_len = o->typepointer->statesize;
+d471 3
+a473 3
+	/* set up a state for the object */
+	state = (State *) m_create ( sizeof(State) + o->pvz_len + 12,
+				time, CRITICAL );	/* allocate it */
+d475 3
+a477 3
+	clear ( state, sizeof(State) + o->pvz_len );	/* clear it */
+	strcpy ( ((Byte *)(state+1)) + o->pvz_len, "state limit" );
+	state->ocb = o;
+d480 3
+a482 3
+        if ( o->uses_rbc )
+        {
+            int size_in_bytes = o->typepointer->statesize;
+d484 3
+a486 3
+            init_op ( o, size_in_bytes );
+            clear ( o->footer, size_in_bytes );
+        }
+d489 6
+a494 6
+        /* Even if the create message itself is at a non-NEGINF virtual time,
+                the NULL state for the object should be created at NEGINF.    
+                In principle, the NULL version of the object has existed since
+                that time, and the NULL version hasn't done anything since     
+                that time, so a state at NEGINF is the "most current" state
+                of the NULL object. */
+d496 2
+a497 2
+	state->sndtim = neginf;
+	state->serror = NOERR;	/* state error code */
+d499 1
+a499 1
+	state->otype = o->typepointer;	/* type of the state's object */
+d501 1
+a501 1
+	l_insert ( o->sqh, state );	/* put into the state queue */
+d503 7
+a509 7
+        /* In the case of a CREATESYS message, we now want to run its init
+                section.  We do so by sending a CMSG to it, causing objhead()
+                to run its init section.  If the object was created because   
+                of a home list request, however, there is no point in running
+                its init section, at this time, as it is a NULL object.  When 
+                the user-level create message comes through, its init section 
+                will be scheduled. */
+d511 5
+a515 5
+	if ( strcmp ( type, "NULL" ) != 0 )
+	{  /* not a null type */
+	    Byte mtype;
+	    Name *snder, *rcver;
+	    VTime sndtim, rcvtim;
+d517 5
+a521 5
+	    mtype = CMSG;	/* create message */
+	    snder = (Name *) "TW";
+	    sndtim = neginf;
+	    rcver = (Name *) o->name;	/* send to this new object */
+	    rcvtim = neginfPlus1;
+d523 3
+a525 2
+	    msg = make_message ( mtype, snder, sndtim, rcver, rcvtim, 0, 0 );
+	    nq_input_message ( o, msg );	/* put in the input queue */
+a526 7
+    }
+    else
+    {  /* it's type is stdout */
+	o->runstat = ITS_STDOUT ;
+
+	if ( namecmp ( o->name, "stdout" ) == 0 )
+	    stdout_ocb = o;	/* it's name is stdout */
+d528 2
+a529 2
+	    o->co = (Msgh *) open_output_file ( o->name );  /* it's a file */
+    }
+d531 5
+a535 1
+    status = SUCCESS;
+d537 1
+a537 3
+    if ( miparm.me != 0 )
+    	/* send create acknowledgement to node 128 */
+	send_to_IH ( (Byte*) &status, sizeof(status), CRT_ACK);
+d539 3
+a541 3
+     if ( migrGraph )
+    {  
+      char buff[MINPKTL];
+d543 3
+a545 1
+      sprintf ( buff, "Create %s negInf posInf %d\n", o->name, miparm.me );
+d547 2
+d550 1
+a550 1
+      send_to_IH ( buff, strlen ( buff ) + 1, MIGR_LOG );
+d552 1
+a552 1
+    }  
+d555 12
+a566 12
+    if ( chklog )
+    {
+	char name[20];
+	VTime vtime;
+	int evtcnt;
+	Evtlog *temp;
+	Byte * cp;
+	int tp;
+	Byte **lp;
+	int namelen;
+	static Byte ** logindex;
+	extern Byte * evtlog_area;
+d570 3
+a572 3
+	if ( strncmp ( o->name, "init", 4 ) == 0
+	||   strncmp ( o->name, "user", 4 ) == 0 )
+	    return NULL;
+d574 2
+a575 47
+	cp = evtlog_area;
+	if ( cp == 0 )
+	{
+	    return NULL;
+	}
+	if ( logindex == 0 )
+	{
+	    tp = 0;
+	    while ( *cp != 0 )
+	    {
+		while ( *cp++ != '\n' )
+		    ;
+		tp++;
+	    }
+	    logindex =  (Byte **) m_allocate ( (tp+1)*sizeof(*logindex));
+	    if ( logindex == 0 )
+	    {
+		_pprintf ( "can't allocate logindex of %d\n", tp );
+		tw_exit (0);
+	    }
+	    lp = logindex;
+	    cp = evtlog_area;
+	    while ( *cp != 0 )
+	    {
+		*lp++ = cp;
+		while ( *cp++ != '\n' )
+		    ;
+	    }
+	    *lp = 0;
+	}
+	tp = 0;
+	lp = logindex;
+	namelen = strlen ( o->name );
+	temp = (Evtlog *) m_allocate ( (MAX_EVTS+1)*sizeof(*temp) );
+	if ( temp == 0 )
+	{
+	    _pprintf ( "can't allocate temp of %d\n", MAX_EVTS );
+	    tw_exit (0);
+	}
+	vtime.sequence1 = vtime.sequence2 = 0;
+	while ( *lp != 0 )
+	{
+	    if ( strncmp ( o->name, *lp, namelen ) == 0 )
+	    {
+		sscanf ( *lp, "%s %lf %d", name, &vtime.simtime, &evtcnt );
+
+		if ( name[namelen] == 0 )
+d577 34
+a610 3
+		    if ( tp >= MAX_EVTS )
+		    {
+			_pprintf ( "too many events for %s\n", o->name );
+d612 7
+a618 1
+		    }
+d620 7
+a626 2
+		    if ( vtime.simtime == 0.0 )
+			vtime.simtime = 0.0;	/* Guess why */
+d628 8
+a635 2
+		    temp[tp].vtime = vtime;
+		    temp[tp++].cnt = evtcnt;
+d637 11
+a647 2
+	    }
+	    lp++;
+a648 12
+	temp[tp].vtime = posinfPlus1;
+	temp[tp++].cnt = 0;
+	o->evtlog = (Evtlog *) m_allocate ( tp*sizeof(*temp) );
+	if ( o->evtlog == 0 )
+	{
+	    _pprintf ( "can't allocate evtlog for %s\n", o->name );
+	    tw_exit (0);
+	}
+	entcpy ( o->evtlog, temp, tp*sizeof(*temp) );
+	m_release ( (Mem_hdr *) temp );
+	/*_pprintf ( "%s has %d events\n", o->name, tp-1 );*/
+    }
+d651 1
+a651 1
+    return (o);
+d657 2
+a658 2
+    Name	* name;
+    Crttext	* c;
+d660 6
+a665 6
+    Ocb            *o;
+    Msgh           *msg;
+    State          *state;
+    Int             status;
+    VTime 	    phaseStart, phaseEnd;
+    Type	    type;
+d670 1
+a670 1
+    strcpy ( type, c->tp );
+d672 1
+a672 1
+    o = mkocb ();	/* allocate space for the new object */
+d674 1
+a674 1
+    strcpy (o->name, name);	/* copy its name */
+d676 3
+a678 3
+    if ( strcmp ( type, "NULL" ) != 0 )
+    {  
+	/* store its type if not null */
+d680 5
+a684 5
+	o->typepointer = find_object_type ( type );
+    }
+    else
+    {
+	/* type_table [1] contains the NULL object type. */
+d686 2
+a687 2
+	o->typepointer = &type_table[1];
+    }
+d689 6
+a694 6
+    if (o->typepointer == NULL)
+    {
+	twerror ("makephase E object type %s not found",type);
+	nukocb (o);	/* deallocate memory */
+	return ((Ocb *) NULL);
+    }
+d698 13
+a710 13
+    /* No attempt is made to ensure that different phases of the same object
+	have the same oid.  The only purpose of the oid is to ensure that
+	all file output/stdout output from a given object for a given event
+	is kept together.  Since each event is handled by one and only one
+	phase, and since oids from two events at different times are never 
+	compared, it doesn't matter whether two phases of the same object
+	have the same oid.  The oid field should probably be scrapped,
+	anyway, in favor of a fully deterministic method of keeping file
+	output together. */
+	
+    o->oid = ( miparm.me << 22 )	/* 10 bits for 1024 nodes */
+       	+ ( unique_oid++ << 12 )/* 10 bits for 1024 objects per node */
+       	+ 0;			/* 12 bits for 4096 sequence numbers */
+d712 2
+a713 2
+    o->svt = posinf;
+    o->control = EDGE;
+d715 4
+a718 4
+    /* phase boundaries */
+    o->phase_begin = c->phase_begin;
+    o->phase_end = c->phase_end;
+    o->phase_limit = o->phase_end;
+d720 1
+a720 1
+    /* insert into the active object queue for this node */
+d722 1
+a722 1
+    l_insert ( l_prev_macro ( _prqhd ), o );
+d724 3
+a726 3
+    if ( namecmp (o->typepointer->type, "stdout") != 0 )
+    {  
+	/* it's not stdout */
+d728 1
+a728 1
+	o->runstat = ARLBK;	/* activate on rollback */
+d730 1
+a730 1
+	o->pvz_len = o->typepointer->statesize;
+d732 4
+a735 4
+	/* If this isn't the first phase for the object, don't create
+		a state for it, yet.  Instead, leave it in a BLKSTATE
+		run status, indicating that it's waiting for a state from
+		an earlier phase. */
+d737 3
+a739 3
+	if ( eqVTime ( o->phase_begin, neginfPlus1 ) )
+	{
+	    /* set up a state for the object */
+d741 2
+a742 2
+	    state = (State *) m_create ( sizeof(State) + o->pvz_len + 12,
+				neginf, CRITICAL );	/* allocate it */
+d744 3
+a746 3
+	    clear ( state, sizeof(State) + o->pvz_len );	/* clear it */
+	    strcpy ( ((Byte *)(state+1)) + o->pvz_len, "state limit" );
+	    state->ocb = o;
+d748 6
+a753 6
+            /* Even if the create message itself is at a non-NEGINF virtual 
+		time, the NULL state for the object should be created at 
+		NEGINF.  In principle, the NULL version of the object has 
+		existed since that time, and the NULL version hasn't done 
+		anything since that time, so a state at NEGINF is the "most 
+		current" state of the NULL object. */
+d755 2
+a756 2
+	    state->sndtim = neginf;
+	    state->serror = NOERR;	/* state error code */
+d758 3
+a760 3
+	    state->otype = o->typepointer;	/* type of the state's object */
+    
+	    l_insert ( o->sqh, state );	/* put into the state queue */
+d762 7
+a768 7
+            /* In the case of a CREATESYS message, we now want to run its init
+                section.  We do so by sending a CMSG to it, causing objhead()
+                to run its init section.  If the object was created because   
+                of a home list request, however, there is no point in running
+                its init section, at this time, as it is a NULL object.  When 
+                the user-level create message comes through, its init section 
+                will be scheduled. */
+d770 3
+a772 3
+	    if ( strcmp ( type, "NULL" ) != 0 )
+	    {  
+ 	        /* not a null type */
+d774 29
+a802 14
+	        Byte mtype;
+	        Name *snder, *rcver;
+	        VTime sndtim, rcvtim;
+    
+	        mtype = CMSG;	/* create message */
+	        snder = (Name *) "TW";
+	        sndtim = neginf;
+	        rcver = (Name *) o->name;	/* send to this new object */
+	        rcvtim = neginfPlus1;
+    
+	        msg = make_message ( mtype, snder, sndtim, rcver, rcvtim, 
+					0, 0 );
+	        nq_input_message ( o, msg );	/* put in the input queue */
+	    }
+d805 3
+a807 2
+	{
+	    o->runstat = BLKSTATE;
+d809 3
+a811 7
+	    /* If this is not the first phase of the object, set this phase's
+		create count to 1, indicating that it was properly created.
+		The first phase gets its create count set to 1 by the
+		CMSG sent to start up its init section.  This raises a
+		possibility that must be investigated - if we send a split
+		object a dynamic destroy message to its earlier phase,
+		will the later phase be properly destroyed?  */
+a812 1
+	    o->crcount = 1;
+a813 5
+    }
+    else
+    {  
+	/* its type is stdout, but you can't divide a stdout type object
+		into phases */
+d815 1
+a815 3
+	twerror("makephase: Cannot divide object %s of type stdout into phases\n", 
+		o->name);  
+	tester();
+d817 3
+a819 1
+    }
+a820 6
+    status = SUCCESS;
+
+    if ( miparm.me != 0 )
+    	/* send create acknowledgement to node 128 */
+	send_to_IH ( (Byte*) &status, sizeof(status), CRT_ACK);
+
+d823 1
+a823 1
+	creation. */
+d825 12
+a836 12
+    if ( chklog )
+    {
+	char name[20];
+	VTime vtime;
+	int evtcnt;
+	Evtlog *temp;
+	Byte * cp;
+	int tp;
+	Byte **lp;
+	int namelen;
+	static Byte ** logindex;
+	extern Byte * evtlog_area;
+d840 3
+a842 3
+	if ( strncmp ( o->name, "init", 4 ) == 0
+	||   strncmp ( o->name, "user", 4 ) == 0 )
+	    return NULL;
+d844 2
+a845 47
+	cp = evtlog_area;
+	if ( cp == 0 )
+	{
+	    return NULL;
+	}
+	if ( logindex == 0 )
+	{
+	    tp = 0;
+	    while ( *cp != 0 )
+	    {
+		while ( *cp++ != '\n' )
+		    ;
+		tp++;
+	    }
+	    logindex =  (Byte **) m_allocate ( (tp+1)*sizeof(*logindex));
+	    if ( logindex == 0 )
+	    {
+		_pprintf ( "can't allocate logindex of %d\n", tp );
+		tw_exit (0);
+	    }
+	    lp = logindex;
+	    cp = evtlog_area;
+	    while ( *cp != 0 )
+	    {
+		*lp++ = cp;
+		while ( *cp++ != '\n' )
+		    ;
+	    }
+	    *lp = 0;
+	}
+	tp = 0;
+	lp = logindex;
+	namelen = strlen ( o->name );
+	temp = (Evtlog *) m_allocate ( (MAX_EVTS+1)*sizeof(*temp) );
+	if ( temp == 0 )
+	{
+	    _pprintf ( "can't allocate temp of %d\n", MAX_EVTS );
+	    tw_exit (0);
+	}
+	vtime.sequence1 = vtime.sequence2 = 0;
+	while ( *lp != 0 )
+	{
+	    if ( strncmp ( o->name, *lp, namelen ) == 0 )
+	    {
+		sscanf ( *lp, "%s %lf %d", name, &vtime.simtime, &evtcnt );
+
+		if ( name[namelen] == 0 )
+d847 34
+a880 3
+		    if ( tp >= MAX_EVTS )
+		    {
+			_pprintf ( "too many events for %s\n", o->name );
+d882 7
+a888 1
+		    }
+d890 7
+a896 2
+		    if ( vtime.simtime == 0.0 )
+			vtime.simtime = 0.0;	/* Guess why */
+d898 8
+a905 2
+		    temp[tp].vtime = vtime;
+		    temp[tp++].cnt = evtcnt;
+d907 11
+a917 2
+	    }
+	    lp++;
+a918 12
+	temp[tp].vtime = posinfPlus1;
+	temp[tp++].cnt = 0;
+	o->evtlog = (Evtlog *) m_allocate ( tp*sizeof(*temp) );
+	if ( o->evtlog == 0 )
+	{
+	    _pprintf ( "can't allocate evtlog for %s\n", o->name );
+	    tw_exit (0);
+	}
+	entcpy ( o->evtlog, temp, tp*sizeof(*temp) );
+	m_release ( (Mem_hdr *) temp );
+	/*_pprintf ( "%s has %d events\n", o->name, tp-1 );*/
+    }
+d921 1
+a921 1
+    return (o);
+d925 2
+a926 2
+{	/* create the stdout object */
+    Ocb            *o;
+d928 5
+a932 5
+    o = mkocb ();	/* create an object & init its queues */
+    if (o == NULL)
+    {
+	twerror ("create_stdout E couldn't allocate Ocb");
+    }
+d934 1
+a934 1
+    strcpy (o->name, "stdout");	/* name it */
+d936 7
+a942 7
+    o->typepointer = find_object_type ("stdout");  /* find it in the list */
+    if (o->typepointer == NULL)
+    {
+	twerror ("createproc E object type %s not found","stdout");
+	nukocb (o);	/* get rid of the object & its queues */
+	return;
+    }
+d945 2
+a946 2
+    o->svt = posinf;
+    o->runstat = ITS_STDOUT ;
+d948 2
+a949 2
+    o->phase_begin = neginfPlus1;
+    o->phase_end = posinfPlus1;
+d951 1
+a951 1
+    stdout_ocb = o;	/* init this global */
+d953 1
+a953 1
+    l_insert ( l_prev_macro ( _prqhd ), o );	/* add to processor ready q */
+d957 9
+a965 9
+      eventually be garbage collected.  As GVT catches up with a phase's
+      end of interval, that phase packages its statistics in a system
+      message and sends it to the next later phase.  That later phase
+      adds them to its own statistics.  If the later phase has itself
+      been garbage collected, then forward the message to the next
+      phase.  Since the final phase is never garbage collected, eventually
+      the message will find a phase.  A special "dead ocb" queue containing
+      only the name of the object and the phase begin and end of garbage
+      collected ocbs is kept for this purpose. */
+d969 2
+a970 2
+    Name      * object;
+    Msgh    * statsMsg;
+d972 2
+a973 2
+    Objloc    * location;
+    Stattext  * text;
+d975 1
+a975 1
+    text = ( Stattext * ) ( statsMsg + 1 );
+d977 1
+a977 1
+    location = GetLocation ( object, text->phaseEnd );
+d979 3
+a981 3
+    /* If the object isn't here, it could be a problem of the phase being
+      migrated, or it could be that the phase has been garbage collected.
+      If the object is here, all is well, so just add in the stats. */
+d983 4
+a986 4
+    if ( location == NULL || location->node != miparm.me )
+    {  
+      Int     newNode;
+      Msgh    * tw_msg;
+d988 3
+a990 3
+      /* The reason the actual make_message() calls are done below,
+              rather than consolidated here, is that some of them have
+              different times associated with the message. */
+d992 3
+a994 3
+      if  ( location == NULL )
+      {
+          deadOcb     * dead;
+d996 1
+a996 1
+          dead = findPhaseInDeadQ ( object, text->phaseEnd );
+d998 2
+a999 2
+          if ( dead == NULL )
+          {
+d1002 3
+a1004 3
+              /* How inconvenient.  Someone migrated the phase elsewhere.
+                      Call FindObject() to figure out where, coming
+                      back to finishAddStats() when you do. */
+d1006 3
+a1008 3
+              tw_msg = make_message ( ADDSTATS, object, statsMsg->sndtim,
+                              object, statsMsg->rcvtim, sizeof ( Stattext ),
+                              text );
+d1010 1
+a1010 1
+              tw_msg->flags |= SYSMSG;
+d1012 1
+a1012 1
+              /* We'll have to call FindObject. */
+d1014 5
+a1018 5
+              FindObject ( object, statsMsg->rcvtim, tw_msg,
+                              finishAddStats,NOTMSG );
+          }
+          else
+          {
+d1020 2
+a1021 2
+              /* If the destination phase is dead, we'd better send the
+                      stats on to the next phase down the line. */
+d1023 2
+a1024 2
+              tw_msg = make_message ( ADDSTATS, object, dead->phaseBegin,
+                      object, dead->phaseEnd, sizeof ( Stattext ), text );
+d1026 1
+a1026 1
+              tw_msg->flags |= SYSMSG;
+d1028 1
+a1028 1
+              /* We'll have to call FindObject. */
+d1030 7
+a1036 7
+              FindObject (object, dead->phaseEnd, tw_msg,finishAddStats,NOTMSG);
+          }
+      }
+      else
+      {
+          /* Package up a new ADDSTATS message for whoever hosts the next
+              phase. */
+d1038 3
+a1040 3
+          tw_msg = make_message ( ADDSTATS, object, statsMsg->sndtim,
+                              object, statsMsg->rcvtim, sizeof ( Stattext ),
+                              text );
+d1042 1
+a1042 1
+          tw_msg->flags |= SYSMSG;
+d1044 3
+a1046 3
+          sndmsg ( tw_msg, tw_msg->txtlen + sizeof (Msgh), location->node );
+      }
+    }      
+d1048 3
+a1050 3
+    {  
+      finishAddStats ( statsMsg, location );
+    }  
+d1054 3
+a1056 3
+      the home node to find the phase in question returns.  It either
+      sends the message off to another node, or it adds all the stats
+      into the local phase's statistics. */
+d1059 2
+a1060 2
+    Msgh      * m;
+    Objloc    * location;
+d1062 3
+a1064 3
+    Stattext  * statsPtr;
+    struct stats_s * earlyStats, * lateStats;
+    Ocb       * o;
+d1066 1
+a1066 1
+    o = location->po;
+d1068 1
+a1068 1
+    statsPtr = ( Stattext * ) ( m + 1 );
+d1071 1
+a1071 1
+    {  
+d1073 2
+a1074 2
+      _pprintf("finishAddStats forwarding msg to %d\n", location->node );
+      /* Send message to wherever it goes. */
+d1076 13
+a1088 13
+      sndmsg (m, m->txtlen + sizeof (Msgh), location->node);
+    }  
+    else
+    if ( location->po == NULL )
+    {  
+      twerror("finishAddStats: cannot find supposedly local phase %s %f\n",
+                      location->name, location->phase_begin);
+      tester();
+    }  
+    else
+    {  
+      earlyStats = & (statsPtr->stats);
+      lateStats = & (o->stats);
+d1090 29
+a1118 29
+      lateStats->numestart += earlyStats->numestart;
+      lateStats->numecomp += earlyStats->numecomp;
+      lateStats->numcreate += earlyStats->numcreate;
+      lateStats->numdestroy += earlyStats->numdestroy;
+      lateStats->ccrmsgs += earlyStats->ccrmsgs;
+      lateStats->cdsmsgs += earlyStats->cdsmsgs;
+      lateStats->cemsgs += earlyStats->cemsgs;
+      lateStats->cebdls += earlyStats->cebdls;
+      lateStats->coemsgs += earlyStats->coemsgs;
+      lateStats->coebdls += earlyStats->coebdls;
+      lateStats->nssave += earlyStats->nssave;
+      lateStats->nscom += earlyStats->nscom;
+      lateStats->eposfs += earlyStats->eposfs;
+      lateStats->eposfr += earlyStats->eposfr;
+      lateStats->enegfs += earlyStats->enegfs;
+      lateStats->enegfr += earlyStats->enegfr;
+      lateStats->ezaps += earlyStats->ezaps;
+      lateStats->evtmsg += earlyStats->evtmsg;
+      lateStats->eposrs += earlyStats->eposrs;
+      lateStats->eposrr += earlyStats->eposrr;
+      lateStats->enegrs += earlyStats->enegrs;
+      lateStats->enegrr += earlyStats->enegrr;
+      lateStats->cputime += earlyStats->cputime;
+      lateStats->rbtime += earlyStats->rbtime;
+      lateStats->comtime += earlyStats->comtime;
+      lateStats->nummigr += earlyStats->nummigr;
+      lateStats->numstmigr += earlyStats->numstmigr;
+      lateStats->numimmigr += earlyStats->numimmigr;
+      lateStats->numommigr += earlyStats->numommigr;
+d1120 2
+a1121 2
+    /* Just adding is OK for these queue length stats, since these stats
+      will be divided by the gvt count to get an average. */
+d1123 3
+a1125 3
+      lateStats->sqlen += earlyStats->sqlen;
+      lateStats->iqlen += earlyStats->iqlen;
+      lateStats->oqlen += earlyStats->oqlen;
+d1127 2
+a1128 2
+      if ( lateStats->sqmax < earlyStats->sqmax )
+          lateStats->sqmax += earlyStats->sqmax;
+d1130 2
+a1131 2
+      if ( lateStats->iqmax < earlyStats->iqmax )
+          lateStats->iqmax += earlyStats->iqmax;
+d1133 2
+a1134 2
+      if ( lateStats->oqmax < earlyStats->oqmax )
+          lateStats->oqmax += earlyStats->oqmax;
+d1136 1
+a1136 1
+      lateStats->stforw += earlyStats->stforw;
+d1138 1
+a1138 1
+    }  
+@
+
+
+1.5
+log
+@1.  Add parameter to FindObject() call.
+@
+text
+@d3 3
+d186 1
+@
+
+
+1.4
+log
+@Changes to handle phase creation and statistics stored in dead ocbs.
+@
+text
+@d3 3
+d154 4
+d183 1
+d1008 1
+a1008 1
+                              finishAddStats );
+d1023 1
+a1023 1
+              FindObject ( object, dead->phaseEnd, tw_msg, finishAddStats );
+@
+
+
+1.3
+log
+@Add Steve's RBC code.
+@
+text
+@d3 3
+d146 5
+d160 2
+d208 13
+d409 30
+d528 11
+d639 270
+d940 187
+@
+
+
+1.2
+log
+@set state->ocb at create time
+@
+text
+@d3 3
+d335 3
+d393 8
+d410 10
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d395 1
+@

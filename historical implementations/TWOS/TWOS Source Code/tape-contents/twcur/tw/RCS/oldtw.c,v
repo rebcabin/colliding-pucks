@@ -1,0 +1,186 @@
+head     1.3;
+branch   ;
+access   ;
+symbols  TW2_7:1.3 TW2_6:1.3 TW2_5_1:1.3 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.3
+date     91.07.17.15.11.43;  author judy;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.26.06;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.40.46;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@interface for old Time Warp calls
+@
+
+
+1.3
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	oldtw.c,v $
+ * Revision 1.2  91/06/03  12:26:06  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:40:46  configtw
+ * Initial revision
+ * 
+*/
+
+#include "twcommon.h"
+#include "twsys.h"
+
+FUNCTION tellI ( rcver, ircvtim, selector, txtlen, message )
+
+	Name * rcver;
+	int ircvtim;
+	Long selector;
+	int txtlen;
+	char * message;
+{
+	VTime rcvtim;
+
+	rcvtim = newVTime ( (STime) ircvtim, 0, 0 );
+
+	tell ( rcver, rcvtim, selector, txtlen, message );
+}
+
+FUNCTION newObjI ( rcver, ircvtim, objtype )
+
+	Name *rcver;
+	int ircvtim;
+	Name *objtype;
+{
+	VTime rcvtim;
+
+	rcvtim = newVTime ( (STime) ircvtim, 0, 0 );
+
+	newObj ( rcver, rcvtim, objtype );
+}
+
+FUNCTION delObjI ( rcver, ircvtim )
+
+	Name *rcver;
+	int ircvtim;
+{
+	VTime rcvtim;
+
+	rcvtim = newVTime ( (STime) ircvtim, 0, 0 );
+
+	delObj ( rcver, rcvtim );
+}
+
+int obj_nowI ()
+{
+	return ( (int) xqting_ocb->svt.simtime );
+}
+
+int msgSendTimeI ( n )
+
+	int n;
+{
+	return ( (int) GetSimTime ( msgSendTime ( n ) ) );
+}
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        oldtw.c,v $
+a13 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d8 2
+a9 2
+        U. S. Government Sponsorship under NASA Contract NAS7-918
+        is acknowledged.        */
+d16 5
+a20 5
+    Name * rcver;
+    int ircvtim;
+    Long selector;
+    int txtlen;
+    char * message;
+d22 1
+a22 1
+    VTime rcvtim;
+d24 1
+a24 1
+    rcvtim = newVTime ( (STime) ircvtim, 0, 0 );
+d26 1
+a26 1
+    tell ( rcver, rcvtim, selector, txtlen, message );
+d31 3
+a33 3
+    Name *rcver;
+    int ircvtim;
+    Name *objtype;
+d35 1
+a35 1
+    VTime rcvtim;
+d37 1
+a37 1
+    rcvtim = newVTime ( (STime) ircvtim, 0, 0 );
+d39 1
+a39 1
+    newObj ( rcver, rcvtim, objtype );
+d44 2
+a45 2
+    Name *rcver;
+    int ircvtim;
+d47 1
+a47 1
+    VTime rcvtim;
+d49 1
+a49 1
+    rcvtim = newVTime ( (STime) ircvtim, 0, 0 );
+d51 1
+a51 1
+    delObj ( rcver, rcvtim );
+d56 1
+a56 1
+    return ( (int) xqting_ocb->svt.simtime );
+d61 1
+a61 1
+    int n;
+d63 1
+a63 1
+    return ( (int) GetSimTime ( msgSendTime ( n ) ) );
+@

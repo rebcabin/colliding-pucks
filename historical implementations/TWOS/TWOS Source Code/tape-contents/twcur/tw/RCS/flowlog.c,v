@@ -1,0 +1,374 @@
+head     1.4;
+branch   ;
+access   ;
+symbols  TW2_7:1.4 TW2_6:1.4 TW2_5_1:1.4 TW2_5:1.2 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.4
+date     91.07.17.15.08.12;  author judy;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.07.09.13.39.30;  author steve;  state Dev;
+branches ;
+next     1.2;
+
+1.2
+date     91.06.03.12.24.07;  author configtw;  state Rel;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.38.18;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@handle flow log
+@
+
+
+1.4
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	flowlog.c,v $
+ * Revision 1.3  91/07/09  13:39:30  steve
+ * Replaced 7 with FLOW_DATA. Added Sun support.
+ * 
+ * Revision 1.2  91/06/03  12:24:07  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.1  90/08/07  15:38:18  configtw
+ * Initial revision
+ * 
+*/
+char flowlog_id [] = "@@(#)flowlog.c     1.7\t9/26/89\t15:27:42\tTIMEWARP";
+
+
+#include <stdio.h>  
+#include "twcommon.h"
+#include "twsys.h"
+#include "tester.h"
+#include "machdep.h"
+#include "logdefs.h"
+
+
+FLOW_LOG_ENTRY *flog, *flogp, *floge;
+int num_flow_entries;
+
+flowlog ( flow_log_size )
+
+	int *flow_log_size;
+{
+	flog = flogp = (FLOW_LOG_ENTRY *) m_allocate
+								( *flow_log_size * sizeof (FLOW_LOG_ENTRY) );
+	if ( flog == NULL )
+	{
+		_pprintf ( "can't allocate flow log space\n" );
+		tw_exit (0);
+	}
+	floge = flog + *flow_log_size;
+}
+
+flowlog_entry ()
+{
+	extern STime gvt_sync;
+
+	if ( leSTime ( xqting_ocb->svt.simtime, gvt_sync )
+	||   geSTime ( xqting_ocb->svt.simtime, posinf ) )
+		return;
+
+	num_flow_entries++;
+
+	if ( flogp == NULL )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "no flow log space\n" );
+		}
+		return;
+	}
+
+	if ( flogp >= floge )
+	{
+		static int print_once;
+		if ( print_once == 0 )
+		{
+			print_once = 1;
+			_pprintf ( "flow log full\n" );
+		}
+		return;
+	}
+
+	flogp->start_time = object_start_time;
+	flogp->end_time = object_end_time;
+	flogp->svt = xqting_ocb->svt.simtime;
+	strcpy ( flogp->object, xqting_ocb->name );
+	flogp++;
+}
+
+dumplog ()
+{
+#ifdef BBN_SMALL
+	char filename[10];
+	FILE * fp;
+
+	_pprintf ( "num_flow_entries = %d\n", num_flow_entries );
+
+	sprintf ( filename, "flog%d", tw_node_num );
+
+	fp = (FILE *) HOST_fopen ( filename, "w" );
+
+	HOST_fwrite ( flog, (char *)flogp - (char *)flog, 1, fp );
+
+	HOST_fclose ( fp );
+
+	_pprintf ( "flowlog done\n" );
+#else 
+	register int i;
+
+	_pprintf ( "num_flow_entries = %d\n", num_flow_entries );
+
+	flogp->start_time = MAXINT;
+	flogp++;
+
+	while ( flog < flogp )
+	{
+		i = flogp - flog;
+
+		if ( i > 20 )
+			i = 20;
+		
+		send_message ( flog, sizeof(FLOW_LOG_ENTRY) * i, CP, FLOW_DATA );
+
+		flog += i;
+
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+
+	if ( tw_node_num == 0 )
+	{
+#ifdef SUN
+		recv.buf = rm_buf;
+#endif
+#ifdef BBN
+		recv.buf = rm_buf;
+#endif
+		recv.source = ANY;
+		get_msg_w ( &recv );
+#ifdef MARK3
+		give_buf ( &recv );
+#endif
+	}
+#endif
+}
+@
+
+
+1.3
+log
+@Replaced 7 with FLOW_DATA. Added Sun support.
+@
+text
+@d1 4
+d7 3
+a18 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.2
+log
+@Tab conversion.
+@
+text
+@d2 4
+a5 1
+ * $Log:        flowlog.c,v $
+a104 1
+#ifdef MARK3_OR_BBN
+d112 1
+a112 1
+		send_message ( flog, sizeof(FLOW_LOG_ENTRY) * i, CP, 7 );
+d116 3
+d131 3
+a142 1
+#endif
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d7 1
+a7 1
+char flowlog_id [] = "@@(#)flowlog.c	1.7\t9/26/89\t15:27:42\tTIMEWARP";
+d9 3
+a11 3
+/*	Copyright (C) 1989, California Institute of Technology.
+	U. S. Government Sponsorship under NASA Contract NAS7-918
+	is acknowledged.	*/
+d26 1
+a26 1
+    int *flow_log_size;
+d28 8
+a35 8
+    flog = flogp = (FLOW_LOG_ENTRY *) m_allocate
+				( *flow_log_size * sizeof (FLOW_LOG_ENTRY) );
+    if ( flog == NULL )
+    {
+	_pprintf ( "can't allocate flow log space\n" );
+	tw_exit (0);
+    }
+    floge = flog + *flow_log_size;
+d40 1
+a40 1
+    extern STime gvt_sync;
+d42 3
+a44 3
+    if ( leSTime ( xqting_ocb->svt.simtime, gvt_sync )
+    ||   geSTime ( xqting_ocb->svt.simtime, posinf ) )
+	return;
+d46 1
+a46 1
+    num_flow_entries++;
+d48 1
+a48 4
+    if ( flogp == NULL )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d50 7
+a56 2
+	    print_once = 1;
+	    _pprintf ( "no flow log space\n" );
+a57 2
+	return;
+    }
+d59 1
+a59 4
+    if ( flogp >= floge )
+    {
+	static int print_once;
+	if ( print_once == 0 )
+d61 7
+a67 2
+	    print_once = 1;
+	    _pprintf ( "flow log full\n" );
+a68 2
+	return;
+    }
+d70 5
+a74 5
+    flogp->start_time = object_start_time;
+    flogp->end_time = object_end_time;
+    flogp->svt = xqting_ocb->svt.simtime;
+    strcpy ( flogp->object, xqting_ocb->name );
+    flogp++;
+d80 2
+a81 2
+    char filename[10];
+    FILE * fp;
+d83 1
+a83 1
+    _pprintf ( "num_flow_entries = %d\n", num_flow_entries );
+d85 1
+a85 1
+    sprintf ( filename, "flog%d", tw_node_num );
+d87 1
+a87 1
+    fp = (FILE *) HOST_fopen ( filename, "w" );
+d89 1
+a89 1
+    HOST_fwrite ( flog, (char *)flogp - (char *)flog, 1, fp );
+d91 1
+a91 1
+    HOST_fclose ( fp );
+d93 1
+a93 1
+    _pprintf ( "flowlog done\n" );
+d95 1
+a95 1
+    register int i;
+d97 1
+a97 1
+    _pprintf ( "num_flow_entries = %d\n", num_flow_entries );
+d99 2
+a100 2
+    flogp->start_time = MAXINT;
+    flogp++;
+d103 3
+a105 3
+    while ( flog < flogp )
+    {
+	i = flogp - flog;
+d107 4
+a110 4
+	if ( i > 20 )
+	    i = 20;
+	
+	send_message ( flog, sizeof(FLOW_LOG_ENTRY) * i, CP, 7 );
+d112 1
+a112 1
+	flog += i;
+d115 1
+a115 1
+	recv.buf = rm_buf;
+d117 2
+a118 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d120 1
+a120 1
+	give_buf ( &recv );
+d122 1
+a122 1
+    }
+d124 2
+a125 2
+    if ( tw_node_num == 0 )
+    {
+d127 1
+a127 1
+	recv.buf = rm_buf;
+d129 2
+a130 2
+	recv.source = ANY;
+	get_msg_w ( &recv );
+d132 1
+a132 1
+	give_buf ( &recv );
+d134 1
+a134 1
+    }
+@

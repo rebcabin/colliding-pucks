@@ -1,0 +1,631 @@
+timeval 5
+nostdout
+objstksize	6000
+
+obcreate  sector_00_00    sector     14
+obcreate  sector_00_01    sector     32
+obcreate  sector_00_02    sector     20
+obcreate  sector_00_03    sector      23
+obcreate  sector_00_04    sector      34
+obcreate  sector_00_05    sector      22
+obcreate  sector_00_06    sector     13
+obcreate  sector_00_07    sector       5
+obcreate  sector_00_08    sector       3
+obcreate  sector_00_09  sector      15
+obcreate  sector_00_10    sector   28
+obcreate  sector_00_11    sector    26
+obcreate  sector_00_12    sector   11
+obcreate  sector_00_13    sector    10
+obcreate  sector_00_14    sector    25
+obcreate  sector_00_15    sector    15
+obcreate  sector_01_00    sector    35
+obcreate  sector_01_01    sector   14
+obcreate  sector_01_02    sector   42
+obcreate  sector_01_03    sector   29
+obcreate  sector_01_04    sector   24
+obcreate  sector_01_05    sector   46
+obcreate  sector_01_06    sector   41
+obcreate  sector_01_07    sector    22
+obcreate  sector_01_08    sector    54
+obcreate  sector_01_09    sector    49
+obcreate  sector_01_10    sector    48
+obcreate  sector_01_11    sector   55
+obcreate  sector_01_12    sector     53
+obcreate  sector_01_13    sector    47
+obcreate  sector_01_14    sector    16
+obcreate  sector_01_15    sector     19
+obcreate  sector_02_00    sector     33
+obcreate  sector_02_01    sector     3
+obcreate  sector_02_02    sector   25
+obcreate  sector_02_03    sector   40
+obcreate  sector_02_04    sector   39
+obcreate  sector_02_05    sector    50
+obcreate  sector_02_06    sector   21
+obcreate  sector_02_07    sector   13
+obcreate  sector_02_08    sector    44
+obcreate  sector_02_09    sector     46
+obcreate  sector_02_10    sector    45
+obcreate  sector_02_11    sector   41
+obcreate  sector_02_12    sector   42
+obcreate  sector_02_13    sector     50
+obcreate  sector_02_14    sector   40
+obcreate  sector_02_15    sector    1
+obcreate  sector_03_00    sector     9
+obcreate  sector_03_01    sector    27
+obcreate  sector_03_02    sector   56
+obcreate  sector_03_03    sector    48
+obcreate  sector_03_04    sector   39
+obcreate  sector_03_05    sector    36
+obcreate  sector_03_06    sector    51
+obcreate  sector_03_07    sector   45
+obcreate  sector_03_08    sector    30
+obcreate  sector_03_09    sector   31
+obcreate  sector_03_10    sector    28
+obcreate  sector_03_11    sector    51
+obcreate  sector_03_12    sector    57
+obcreate  sector_03_13    sector    58
+obcreate  sector_03_14    sector   43
+obcreate  sector_03_15    sector    0
+obcreate  sector_04_00    sector     6
+obcreate  sector_04_01    sector    34
+obcreate  sector_04_02    sector     58
+obcreate  sector_04_03    sector   38
+obcreate  sector_04_04    sector   47
+obcreate  sector_04_05    sector   44
+obcreate  sector_04_06    sector   37
+obcreate  sector_04_07    sector   19
+obcreate  sector_04_08    sector   11
+obcreate  sector_04_09    sector    10
+obcreate  sector_04_10    sector   18
+obcreate  sector_04_11    sector   53
+obcreate  sector_04_12    sector   59
+obcreate  sector_04_13    sector   49
+obcreate  sector_04_14    sector    55
+obcreate  sector_04_15    sector    8
+obcreate  sector_05_00    sector     7
+obcreate  sector_05_01    sector    23
+obcreate  sector_05_02    sector   32
+obcreate  sector_05_03    sector   35
+obcreate  sector_05_04    sector   15
+obcreate  sector_05_05    sector     6
+obcreate  sector_05_06    sector     1
+obcreate  sector_05_07    sector      5
+obcreate  sector_05_08    sector     9
+obcreate  sector_05_09    sector    12
+obcreate  sector_05_10    sector   36
+obcreate  sector_05_11    sector    54
+obcreate  sector_05_12    sector   43
+obcreate  sector_05_13    sector   17
+obcreate  sector_05_14    sector   33
+obcreate  sector_05_15    sector    21
+obcreate  sector_06_00    sector    2
+obcreate  sector_06_01    sector   37
+obcreate  sector_06_02    sector    52
+obcreate  sector_06_03    sector   56
+obcreate  sector_06_04    sector   26
+obcreate  sector_06_05    sector    8
+obcreate  sector_06_06    sector     0
+obcreate  sector_06_07    sector     2
+obcreate  sector_06_08    sector     7
+obcreate  sector_06_09    sector      4
+obcreate  sector_06_10    sector   20
+obcreate  sector_06_11    sector   59
+obcreate  sector_06_12    sector   52
+obcreate  sector_06_13    sector   38
+obcreate  sector_06_14    sector    57
+obcreate  sector_06_15    sector    18
+obcreate  sector_07_00    sector    17
+obcreate  sector_07_01    sector    16
+obcreate  sector_07_02    sector      2
+obcreate  sector_07_03    sector     3
+obcreate  sector_07_04    sector     4
+obcreate  sector_07_05    sector   17
+obcreate  sector_07_06    sector   27
+obcreate  sector_07_07    sector   31
+obcreate  sector_07_08    sector   29
+obcreate  sector_07_09    sector     30
+obcreate  sector_07_10    sector   24
+obcreate  sector_07_11    sector   14
+obcreate  sector_07_12    sector    16
+obcreate  sector_07_13    sector    12
+obcreate  sector_07_14    sector     1
+obcreate  sector_07_15    sector     5
+obcreate  cushion_0_00    cushion       0
+obcreate  cushion_0_01    cushion     18
+obcreate  cushion_0_02    cushion     28
+obcreate  cushion_0_03    cushion   52
+obcreate  cushion_0_04    cushion     38
+obcreate  cushion_0_05    cushion    7
+obcreate  cushion_0_06    cushion     47
+obcreate  cushion_0_07    cushion   44
+obcreate  cushion_1_00    cushion    12
+obcreate  cushion_1_01    cushion     59
+obcreate  cushion_1_02    cushion     56
+obcreate  cushion_1_03    cushion     54
+obcreate  cushion_1_04    cushion    13
+obcreate  cushion_1_05    cushion    39
+obcreate  cushion_1_06    cushion    17
+obcreate  cushion_1_07    cushion    2
+obcreate  cushion_1_08    cushion   14
+obcreate  cushion_1_09    cushion    15
+obcreate  cushion_1_10    cushion    51
+obcreate  cushion_1_11    cushion   42
+obcreate  cushion_1_12    cushion    36
+obcreate  cushion_1_13    cushion      5
+obcreate  cushion_1_14    cushion   41
+obcreate  cushion_1_15    cushion   53
+obcreate  cushion_2_00    cushion    9
+obcreate  cushion_2_01    cushion    21
+obcreate  cushion_2_02    cushion   57
+obcreate  cushion_2_03    cushion    49
+obcreate  cushion_2_04    cushion    6
+obcreate  cushion_2_05    cushion    10
+obcreate  cushion_2_06    cushion     25
+obcreate  cushion_2_07    cushion   46
+obcreate  cushion_3_00    cushion      7
+obcreate  cushion_3_01    cushion     3
+obcreate  cushion_3_02    cushion   58
+obcreate  cushion_3_03    cushion    16
+obcreate  cushion_3_04    cushion      1
+obcreate  cushion_3_05    cushion    55
+obcreate  cushion_3_06    cushion    43
+obcreate  cushion_3_07    cushion   48
+obcreate  cushion_3_08    cushion   45
+obcreate  cushion_3_09    cushion     4
+obcreate  cushion_3_10    cushion   40
+obcreate  cushion_3_11    cushion   50
+obcreate  cushion_3_12    cushion    13
+obcreate  cushion_3_13    cushion    37
+obcreate  cushion_3_14    cushion     4
+obcreate  cushion_3_15    cushion   12
+obcreate	puck0000		puck	  13
+obcreate	puck0001		puck	  53
+obcreate	puck0002	puck	 58
+obcreate	puck0003	puck	 59
+obcreate	puck0004	puck	  14
+obcreate	puck0005	puck	  0
+obcreate	puck0006	puck	 31
+obcreate	puck0007	puck	 38
+obcreate	puck0008	puck	 29
+obcreate	puck0009	puck	 57
+obcreate	puck0010	puck	 30
+obcreate	puck0011	puck	 23
+obcreate	puck0012	puck	  33
+obcreate	puck0013	puck	 37
+obcreate	puck0014	puck	 18
+obcreate	puck0015	puck	  26
+obcreate	puck0016	puck	   28
+obcreate	puck0017	puck	 26
+obcreate	puck0018	puck	 21
+obcreate	puck0019	puck	 23
+obcreate	puck0020	puck	  2
+obcreate	puck0021	puck	 56
+obcreate	puck0022	puck	   42
+obcreate	puck0023	puck	   15
+obcreate	puck0024	puck	  41
+obcreate	puck0025	puck	  36
+obcreate	puck0026	puck	 45
+obcreate	puck0027	puck	  28
+obcreate	puck0028	puck	   6
+obcreate	puck0029	puck	 12
+obcreate	puck0030	puck	 18
+obcreate	puck0031	puck	 31
+obcreate	puck0032	puck	 33
+obcreate	puck0033	puck	   3
+obcreate	puck0034	puck	 46
+obcreate	puck0035	puck	 38
+obcreate	puck0036	puck	 40
+obcreate	puck0037	puck	 33
+obcreate	puck0038	puck	 46
+obcreate	puck0039	puck	 27
+obcreate	puck0040	puck	 47
+obcreate	puck0041	puck	 44
+obcreate	puck0042	puck	   48
+obcreate	puck0043	puck	  50
+obcreate	puck0044	puck	  56
+obcreate	puck0045	puck	 20
+obcreate	puck0046	puck	 24
+obcreate	puck0047	puck	 55
+obcreate	puck0048	puck	 39
+obcreate	puck0049	puck	 35
+obcreate	puck0050	puck	 19
+obcreate	puck0051	puck	 34
+obcreate	puck0052	puck	  54
+obcreate	puck0053	puck	  19
+obcreate	puck0054	puck	 34
+obcreate	puck0055	puck	   49
+obcreate	puck0056	puck	 57
+obcreate	puck0057	puck	  20
+obcreate	puck0058	puck	 41
+obcreate	puck0059	puck	  45
+obcreate	puck0060	puck	 53
+obcreate	puck0061	puck	  52
+obcreate	puck0062	puck	 23
+obcreate	puck0063	puck	 35
+obcreate	puck0064	puck	 21
+obcreate	puck0065	puck	 11
+obcreate	puck0066	puck	 26
+obcreate	puck0067	puck	 35
+obcreate	puck0068	puck	 29
+obcreate	puck0069	puck	 11
+obcreate	puck0070	puck	 30
+obcreate	puck0071	puck	  17
+obcreate	puck0072	puck	   52
+obcreate	puck0073	puck	  22
+obcreate	puck0074	puck	 11
+obcreate	puck0075	puck	 32
+obcreate	puck0076	puck	 22
+obcreate	puck0077	puck	 48
+obcreate	puck0078	puck	   7
+obcreate	puck0079	puck	   4
+obcreate	puck0080	puck	  44
+obcreate	puck0081	puck	  49
+obcreate	puck0082	puck	 50
+obcreate	puck0083	puck	  27
+obcreate	puck0084	puck	 40
+obcreate	puck0085	puck	   4
+obcreate	puck0086	puck	 36
+obcreate	puck0087	puck	   8
+obcreate	puck0088	puck	 10
+obcreate	puck0089	puck	  19
+obcreate	puck0090	puck	 51
+obcreate	puck0091	puck	  16
+obcreate	puck0092	puck	  24
+obcreate	puck0093	puck	  27
+obcreate	puck0094	puck	 37
+obcreate	puck0095	puck	   0
+obcreate	puck0096	puck	   1
+obcreate	puck0097	puck	 43
+obcreate	puck0098	puck	  58
+obcreate	puck0099	puck	 22
+obcreate	puck0100	puck	    6
+obcreate	puck0101	puck	   8
+obcreate	puck0102	puck	 51
+obcreate	puck0103	puck	  55
+obcreate	puck0104	puck	  54
+obcreate	puck0105	puck	  10
+obcreate	puck0106	puck	 42
+obcreate	puck0107	puck	    8
+obcreate	puck0108	puck	   9
+obcreate	puck0109	puck	   34
+obcreate	puck0110	puck	 25
+obcreate	puck0111	puck	  32
+obcreate	puck0112	puck	  25
+obcreate	puck0113	puck	 59
+obcreate	puck0114	puck	 12
+obcreate	puck0115	puck	  39
+obcreate	puck0116	puck	  5
+obcreate	puck0117	puck	  7
+obcreate	puck0118	puck	 13
+obcreate	puck0119	puck	 24
+obcreate	puck0120	puck	  29
+obcreate	puck0121	puck	  31
+obcreate	puck0122	puck	 47
+obcreate	puck0123	puck	   9
+obcreate	puck0124	puck	 30
+obcreate	puck0125	puck	  20
+obcreate	puck0126	puck	 32
+obcreate	puck0127	puck	  43
+tell cushion_0_00 -1.0 2    "0 0 0 256 0 0 2048 2048" 
+tell cushion_0_01 -1.0 2    "0 256 0 512 0 0 2048 2048" 
+tell cushion_0_02 -1.0 2    "0 512 0 768 0 0 2048 2048" 
+tell cushion_0_03 -1.0 2    "0 768 0 1024 0 0 2048 2048" 
+tell cushion_0_04 -1.0 2    "0 1024 0 1280 0 0 2048 2048" 
+tell cushion_0_05 -1.0 2    "0 1280 0 1536 0 0 2048 2048" 
+tell cushion_0_06 -1.0 2     "0 1536 0 1792 0 0 2048 2048" 
+tell cushion_0_07 -1.0 2    "0 1792 0 2048 0 0 2048 2048" 
+tell cushion_1_00 -1.0 2    "0 0 128 0 0 0 2048 2048" 
+tell cushion_1_01 -1.0 2    "128 0 256 0 0 0 2048 2048" 
+tell cushion_1_02 -1.0 2     "256 0 384 0 0 0 2048 2048" 
+tell cushion_1_03 -1.0 2    "384 0 512 0 0 0 2048 2048" 
+tell cushion_1_04 -1.0 2    "512 0 640 0 0 0 2048 2048" 
+tell cushion_1_05 -1.0 2    "640 0 768 0 0 0 2048 2048" 
+tell cushion_1_06 -1.0 2     "768 0 896 0 0 0 2048 2048" 
+tell cushion_1_07 -1.0 2    "896 0 1024 0 0 0 2048 2048" 
+tell cushion_1_08 -1.0 2    "1024 0 1152 0 0 0 2048 2048" 
+tell cushion_1_09 -1.0 2    "1152 0 1280 0 0 0 2048 2048" 
+tell cushion_1_10 -1.0 2     "1280 0 1408 0 0 0 2048 2048" 
+tell cushion_1_11 -1.0 2    "1408 0 1536 0 0 0 2048 2048" 
+tell cushion_1_12 -1.0 2     "1536 0 1664 0 0 0 2048 2048" 
+tell cushion_1_13 -1.0 2     "1664 0 1792 0 0 0 2048 2048" 
+tell cushion_1_14 -1.0 2     "1792 0 1920 0 0 0 2048 2048" 
+tell cushion_1_15 -1.0 2     "1920 0 2048 0 0 0 2048 2048" 
+tell cushion_2_00 -1.0 2    "2048 0 2048 256 0 0 2048 2048" 
+tell cushion_2_01 -1.0 2     "2048 256 2048 512 0 0 2048 2048" 
+tell cushion_2_02 -1.0 2     "2048 512 2048 768 0 0 2048 2048" 
+tell cushion_2_03 -1.0 2    "2048 768 2048 1024 0 0 2048 2048" 
+tell cushion_2_04 -1.0 2     "2048 1024 2048 1280 0 0 2048 2048" 
+tell cushion_2_05 -1.0 2     "2048 1280 2048 1536 0 0 2048 2048" 
+tell cushion_2_06 -1.0 2     "2048 1536 2048 1792 0 0 2048 2048" 
+tell cushion_2_07 -1.0 2     "2048 1792 2048 2048 0 0 2048 2048" 
+tell cushion_3_00 -1.0 2    "0 2048 128 2048 0 0 2048 2048" 
+tell cushion_3_01 -1.0 2     "128 2048 256 2048 0 0 2048 2048" 
+tell cushion_3_02 -1.0 2     "256 2048 384 2048 0 0 2048 2048" 
+tell cushion_3_03 -1.0 2     "384 2048 512 2048 0 0 2048 2048" 
+tell cushion_3_04 -1.0 2    "512 2048 640 2048 0 0 2048 2048" 
+tell cushion_3_05 -1.0 2    "640 2048 768 2048 0 0 2048 2048" 
+tell cushion_3_06 -1.0 2     "768 2048 896 2048 0 0 2048 2048" 
+tell cushion_3_07 -1.0 2    "896 2048 1024 2048 0 0 2048 2048" 
+tell cushion_3_08 -1.0 2    "1024 2048 1152 2048 0 0 2048 2048" 
+tell cushion_3_09 -1.0 2     "1152 2048 1280 2048 0 0 2048 2048" 
+tell cushion_3_10 -1.0 2     "1280 2048 1408 2048 0 0 2048 2048" 
+tell cushion_3_11 -1.0 2     "1408 2048 1536 2048 0 0 2048 2048" 
+tell cushion_3_12 -1.0 2    "1536 2048 1664 2048 0 0 2048 2048" 
+tell cushion_3_13 -1.0 2     "1664 2048 1792 2048 0 0 2048 2048" 
+tell cushion_3_14 -1.0 2     "1792 2048 1920 2048 0 0 2048 2048" 
+tell cushion_3_15 -1.0 2   "1920 2048 2048 2048 0 0 2048 2048" 
+
+tell sector_00_00 -1.0 3   "8 16 0 0 256 128"
+tell sector_00_01 -1.0 3   "8 16 128 0 256 128"
+tell sector_00_02 -1.0 3   "8 16 256 0 256 128"
+tell sector_00_03 -1.0 3   "8 16 384 0 256 128"
+tell sector_00_04 -1.0 3   "8 16 512 0 256 128"
+tell sector_00_05 -1.0 3   "8 16 640 0 256 128"
+tell sector_00_06 -1.0 3   "8 16 768 0 256 128"
+tell sector_00_07 -1.0 3   "8 16 896 0 256 128"
+tell sector_00_08 -1.0 3   "8 16 1024 0 256 128"
+tell sector_00_09 -1.0 3   "8 16 1152 0 256 128"
+tell sector_00_10 -1.0 3   "8 16 1280 0 256 128"
+tell sector_00_11 -1.0 3   "8 16 1408 0 256 128"
+tell sector_00_12 -1.0 3   "8 16 1536 0 256 128"
+tell sector_00_13 -1.0 3   "8 16 1664 0 256 128"
+tell sector_00_14 -1.0 3   "8 16 1792 0 256 128"
+tell sector_00_15 -1.0 3   "8 16 1920 0 256 128"
+tell sector_01_00 -1.0 3   "8 16 0 256 256 128"
+tell sector_01_01 -1.0 3   "8 16 128 256 256 128"
+tell sector_01_02 -1.0 3   "8 16 256 256 256 128"
+tell sector_01_03 -1.0 3   "8 16 384 256 256 128"
+tell sector_01_04 -1.0 3   "8 16 512 256 256 128"
+tell sector_01_05 -1.0 3   "8 16 640 256 256 128"
+tell sector_01_06 -1.0 3   "8 16 768 256 256 128"
+tell sector_01_07 -1.0 3   "8 16 896 256 256 128"
+tell sector_01_08 -1.0 3   "8 16 1024 256 256 128"
+tell sector_01_09 -1.0 3   "8 16 1152 256 256 128"
+tell sector_01_10 -1.0 3   "8 16 1280 256 256 128"
+tell sector_01_11 -1.0 3   "8 16 1408 256 256 128"
+tell sector_01_12 -1.0 3   "8 16 1536 256 256 128"
+tell sector_01_13 -1.0 3   "8 16 1664 256 256 128"
+tell sector_01_14 -1.0 3   "8 16 1792 256 256 128"
+tell sector_01_15 -1.0 3   "8 16 1920 256 256 128"
+tell sector_02_00 -1.0 3   "8 16 0 512 256 128"
+tell sector_02_01 -1.0 3   "8 16 128 512 256 128"
+tell sector_02_02 -1.0 3   "8 16 256 512 256 128"
+tell sector_02_03 -1.0 3   "8 16 384 512 256 128"
+tell sector_02_04 -1.0 3   "8 16 512 512 256 128"
+tell sector_02_05 -1.0 3   "8 16 640 512 256 128"
+tell sector_02_06 -1.0 3   "8 16 768 512 256 128"
+tell sector_02_07 -1.0 3   "8 16 896 512 256 128"
+tell sector_02_08 -1.0 3   "8 16 1024 512 256 128"
+tell sector_02_09 -1.0 3   "8 16 1152 512 256 128"
+tell sector_02_10 -1.0 3   "8 16 1280 512 256 128"
+tell sector_02_11 -1.0 3   "8 16 1408 512 256 128"
+tell sector_02_12 -1.0 3   "8 16 1536 512 256 128"
+tell sector_02_13 -1.0 3   "8 16 1664 512 256 128"
+tell sector_02_14 -1.0 3   "8 16 1792 512 256 128"
+tell sector_02_15 -1.0 3   "8 16 1920 512 256 128"
+tell sector_03_00 -1.0 3   "8 16 0 768 256 128"
+tell sector_03_01 -1.0 3   "8 16 128 768 256 128"
+tell sector_03_02 -1.0 3   "8 16 256 768 256 128"
+tell sector_03_03 -1.0 3   "8 16 384 768 256 128"
+tell sector_03_04 -1.0 3   "8 16 512 768 256 128"
+tell sector_03_05 -1.0 3   "8 16 640 768 256 128"
+tell sector_03_06 -1.0 3   "8 16 768 768 256 128"
+tell sector_03_07 -1.0 3   "8 16 896 768 256 128"
+tell sector_03_08 -1.0 3   "8 16 1024 768 256 128"
+tell sector_03_09 -1.0 3   "8 16 1152 768 256 128"
+tell sector_03_10 -1.0 3   "8 16 1280 768 256 128"
+tell sector_03_11 -1.0 3   "8 16 1408 768 256 128"
+tell sector_03_12 -1.0 3   "8 16 1536 768 256 128"
+tell sector_03_13 -1.0 3   "8 16 1664 768 256 128"
+tell sector_03_14 -1.0 3   "8 16 1792 768 256 128"
+tell sector_03_15 -1.0 3   "8 16 1920 768 256 128"
+tell sector_04_00 -1.0 3   "8 16 0 1024 256 128"
+tell sector_04_01 -1.0 3   "8 16 128 1024 256 128"
+tell sector_04_02 -1.0 3   "8 16 256 1024 256 128"
+tell sector_04_03 -1.0 3   "8 16 384 1024 256 128"
+tell sector_04_04 -1.0 3   "8 16 512 1024 256 128"
+tell sector_04_05 -1.0 3   "8 16 640 1024 256 128"
+tell sector_04_06 -1.0 3   "8 16 768 1024 256 128"
+tell sector_04_07 -1.0 3   "8 16 896 1024 256 128"
+tell sector_04_08 -1.0 3   "8 16 1024 1024 256 128"
+tell sector_04_09 -1.0 3   "8 16 1152 1024 256 128"
+tell sector_04_10 -1.0 3   "8 16 1280 1024 256 128"
+tell sector_04_11 -1.0 3   "8 16 1408 1024 256 128"
+tell sector_04_12 -1.0 3   "8 16 1536 1024 256 128"
+tell sector_04_13 -1.0 3   "8 16 1664 1024 256 128"
+tell sector_04_14 -1.0 3   "8 16 1792 1024 256 128"
+tell sector_04_15 -1.0 3   "8 16 1920 1024 256 128"
+tell sector_05_00 -1.0 3   "8 16 0 1280 256 128"
+tell sector_05_01 -1.0 3   "8 16 128 1280 256 128"
+tell sector_05_02 -1.0 3   "8 16 256 1280 256 128"
+tell sector_05_03 -1.0 3   "8 16 384 1280 256 128"
+tell sector_05_04 -1.0 3   "8 16 512 1280 256 128"
+tell sector_05_05 -1.0 3   "8 16 640 1280 256 128"
+tell sector_05_06 -1.0 3   "8 16 768 1280 256 128"
+tell sector_05_07 -1.0 3   "8 16 896 1280 256 128"
+tell sector_05_08 -1.0 3   "8 16 1024 1280 256 128"
+tell sector_05_09 -1.0 3   "8 16 1152 1280 256 128"
+tell sector_05_10 -1.0 3   "8 16 1280 1280 256 128"
+tell sector_05_11 -1.0 3   "8 16 1408 1280 256 128"
+tell sector_05_12 -1.0 3   "8 16 1536 1280 256 128"
+tell sector_05_13 -1.0 3   "8 16 1664 1280 256 128"
+tell sector_05_14 -1.0 3   "8 16 1792 1280 256 128"
+tell sector_05_15 -1.0 3   "8 16 1920 1280 256 128"
+tell sector_06_00 -1.0 3   "8 16 0 1536 256 128"
+tell sector_06_01 -1.0 3   "8 16 128 1536 256 128"
+tell sector_06_02 -1.0 3   "8 16 256 1536 256 128"
+tell sector_06_03 -1.0 3   "8 16 384 1536 256 128"
+tell sector_06_04 -1.0 3   "8 16 512 1536 256 128"
+tell sector_06_05 -1.0 3   "8 16 640 1536 256 128"
+tell sector_06_06 -1.0 3   "8 16 768 1536 256 128"
+tell sector_06_07 -1.0 3   "8 16 896 1536 256 128"
+tell sector_06_08 -1.0 3   "8 16 1024 1536 256 128"
+tell sector_06_09 -1.0 3   "8 16 1152 1536 256 128"
+tell sector_06_10 -1.0 3   "8 16 1280 1536 256 128"
+tell sector_06_11 -1.0 3   "8 16 1408 1536 256 128"
+tell sector_06_12 -1.0 3   "8 16 1536 1536 256 128"
+tell sector_06_13 -1.0 3   "8 16 1664 1536 256 128"
+tell sector_06_14 -1.0 3   "8 16 1792 1536 256 128"
+tell sector_06_15 -1.0 3   "8 16 1920 1536 256 128"
+tell sector_07_00 -1.0 3   "8 16 0 1792 256 128"
+tell sector_07_01 -1.0 3   "8 16 128 1792 256 128"
+tell sector_07_02 -1.0 3   "8 16 256 1792 256 128"
+tell sector_07_03 -1.0 3   "8 16 384 1792 256 128"
+tell sector_07_04 -1.0 3   "8 16 512 1792 256 128"
+tell sector_07_05 -1.0 3   "8 16 640 1792 256 128"
+tell sector_07_06 -1.0 3   "8 16 768 1792 256 128"
+tell sector_07_07 -1.0 3   "8 16 896 1792 256 128"
+tell sector_07_08 -1.0 3   "8 16 1024 1792 256 128"
+tell sector_07_09 -1.0 3   "8 16 1152 1792 256 128"
+tell sector_07_10 -1.0 3   "8 16 1280 1792 256 128"
+tell sector_07_11 -1.0 3   "8 16 1408 1792 256 128"
+tell sector_07_12 -1.0 3   "8 16 1536 1792 256 128"
+tell sector_07_13 -1.0 3   "8 16 1664 1792 256 128"
+tell sector_07_14 -1.0 3   "8 16 1792 1792 256 128"
+tell sector_07_15 -1.0 3   "8 16 1920 1792 256 128"
+tell puck0000 0 1   "6 10 1493 1625 61.9 89.3 sector_06_11 128 256 0 0 2048 2048" 
+tell puck0001 0 1   "6 10 890 314 -52.6 70.8 sector_01_07 128 256 0 0 2048 2048" 
+tell puck0001 0 1   "6 10 890 314 -52.6 70.8 sector_01_06 128 256 0 0 2048 2048" 
+tell puck0002 0 1   "6 10 768 1659 -4.5 98.0 sector_06_05 128 256  0 0 2048 2048" 
+tell puck0002 0 1   "6 10 768 1659 -4.5 98.0 sector_06_06 128 256 0 0 2048 2048" 
+tell puck0003 0 1   "6 10 200 336 63.0 -59.3 sector_01_01 128 256 0 0 2048 2048" 
+tell puck0004 0 1   "6 10 1432 910 102.6 99.6 sector_03_11 128 256 0 0 2048 2048" 
+tell puck0005 0 1   "6 10 68 834 75.5 -48.0 sector_03_00 128 256 0 0 2048 2048" 
+tell puck0006 0 1   "6 10 1186 919 -29.0 -50.8 sector_03_09 128 256 0 0 2048 2048" 
+tell puck0007 0 1   "6 10 1101 589 -59.5 85.1 sector_02_08 128 256 0 0 2048 2048" 
+tell puck0008 0 1   "6 10 1183 1571 -54.4 103.4 sector_06_09 128 256 0 0 2048 2048" 
+tell puck0009 0 1   "6 10 1877 1610 -54.2 -55.9 sector_06_14 128 256 0 0 2048 2048" 
+tell puck0010 0 1   "6 10 205 966 -33.9 104.4 sector_03_01 128 256 0 0 2048 2048" 
+tell puck0011 0 1   "6 10 270 1408 -43.7 -17.7 sector_05_02 128 256 0 0 2048 2048" 
+tell puck0012 0 1   "6 10 1286 1731 117.4 -50.3 sector_06_09 128 256  0 0 2048 2048" 
+tell puck0012 0 1   "6 10 1286 1731 117.4 -50.3 sector_06_10 128 256 0 0 2048 2048" 
+tell puck0013 0 1   "6 10 526 672 98.3 69.2 sector_02_04 128 256 0 0 2048 2048" 
+tell puck0014 0 1   "6 10 559 228 0.0 -1.6 sector_00_04 128 256 0 0 2048 2048" 
+tell puck0015 0 1   "6 10 810 1702 86.7 -47.5 sector_06_06 128 256 0 0 2048 2048" 
+tell puck0016 0 1   "6 10 1233 1904 -30.9 109.4 sector_07_09 128 256 0 0 2048 2048" 
+tell puck0017 0 1   "6 10 451 60 -45.3 72.6 sector_00_03 128 256 0 0 2048 2048" 
+tell puck0018 0 1   "6 10 2026 865 -57.0 -33.2 sector_03_15 128 256 0 0 2048 2048" 
+tell puck0019 0 1   "6 10 1241 1222 -50.9 -28.3 sector_04_09 128 256 0 0 2048 2048" 
+tell puck0020 0 1   "6 10 1922 363 78.6 -35.1 sector_01_14 128 256  0 0 2048 2048" 
+tell puck0020 0 1   "6 10 1922 363 78.6 -35.1 sector_01_15 128 256 0 0 2048 2048" 
+tell puck0021 0 1   "6 10 2035 1406 104.3 -58.1 sector_05_15 128 256 0 0 2048 2048" 
+tell puck0022 0 1   "6 10 1627 655 -59.6 94.1 sector_02_12 128 256 0 0 2048 2048" 
+tell puck0023 0 1   "6 10 1326 1316 -21.7 104.8 sector_05_10 128 256 0 0 2048 2048" 
+tell puck0024 0 1   "6 10 1181 296 94.2 -55.3 sector_01_09 128 256 0 0 2048 2048" 
+tell puck0025 0 1   "6 10 1356 169 -7.8 -41.4 sector_00_10 128 256 0 0 2048 2048" 
+tell puck0026 0 1   "6 10 1026 1247 74.7 -34.8 sector_04_07 128 256  0 0 2048 2048" 
+tell puck0026 0 1   "6 10 1026 1247 74.7 -34.8 sector_04_08 128 256 0 0 2048 2048" 
+tell puck0027 0 1   "6 10 1437 470 63.0 -52.6 sector_01_11 128 256 0 0 2048 2048" 
+tell puck0028 0 1   "6 10 826 1469 87.7 -55.1 sector_05_06 128 256 0 0 2048 2048" 
+tell puck0029 0 1   "6 10 835 760 113.1 -22.7 sector_02_06 128 256 0 0 2048 2048" 
+tell puck0030 0 1   "6 10 383 1510 116.8 100.3 sector_05_03 128 256 0 0 2048 2048" 
+tell puck0030 0 1   "6 10 383 1510 116.8 100.3 sector_05_02 128 256 0 0 2048 2048" 
+tell puck0031 0 1   "6 10 787 105 85.1 -6.4 sector_00_06 128 256 0 0 2048 2048" 
+tell puck0032 0 1   "6 10 394 715 61.6 88.7 sector_02_03 128 256 0 0 2048 2048" 
+tell puck0033 0 1   "6 10 876 1752 -10.2 -57.5 sector_06_06 128 256 0 0 2048 2048" 
+tell puck0034 0 1   "6 10 1967 1604 92.2 -59.9 sector_06_15 128 256 0 0 2048 2048" 
+tell puck0035 0 1   "6 10 34 1757 112.5 -24.3 sector_06_00 128 256 0 0 2048 2048" 
+tell puck0036 0 1   "6 10 1186 1332 79.4 -15.3 sector_05_09 128 256 0 0 2048 2048" 
+tell puck0037 0 1   "6 10 1060 978 -37.9 88.6 sector_03_08 128 256 0 0 2048 2048" 
+tell puck0038 0 1   "6 10 1456 1168 68.9 84.3 sector_04_11 128 256 0 0 2048 2048" 
+tell puck0039 0 1   "6 10 1265 230 90.7 -4.2 sector_00_09 128 256 0 0 2048 2048" 
+tell puck0040 0 1   "6 10 937 619 93.0 -52.0 sector_02_07 128 256 0 0 2048 2048" 
+tell puck0041 0 1   "6 10 332 343 109.4 116.1 sector_01_02 128 256 0 0 2048 2048" 
+tell puck0042 0 1   "6 10 915 679 -56.0 -38.5 sector_02_07 128 256 0 0 2048 2048" 
+tell puck0043 0 1   "6 10 396 205 62.8 -53.7 sector_00_03 128 256 0 0 2048 2048" 
+tell puck0044 0 1   "6 10 505 1380 68.9 -40.9 sector_05_03 128 256 0 0 2048 2048" 
+tell puck0045 0 1   "6 10 318 1905 -9.6 100.0 sector_07_02 128 256 0 0 2048 2048" 
+tell puck0046 0 1   "6 10 9 2025 64.3 74.7 sector_07_00 128 256 0 0 2048 2048" 
+tell puck0047 0 1   "6 10 215 1037 79.0 85.6 sector_04_01 128 256 0 0 2048 2048" 
+tell puck0048 0 1   "6 10 1649 1184 -17.6 -49.0 sector_04_12 128 256 0 0 2048 2048" 
+tell puck0049 0 1   "6 10 495 482 -45.1 103.2 sector_01_03 128 256 0 0 2048 2048" 
+tell puck0050 0 1   "6 10 1153 761 -21.7 85.6 sector_02_08 128 256  0 0 2048 2048" 
+tell puck0050 0 1   "6 10 1153 761 -21.7 85.6 sector_02_09 128 256 0 0 2048 2048" 
+tell puck0051 0 1   "6 10 1966 18 -19.2 -38.3 sector_00_15 128 256 0 0 2048 2048" 
+tell puck0052 0 1   "6 10 1390 1562 79.2 81.4 sector_06_10 128 256 0 0 2048 2048" 
+tell puck0053 0 1   "6 10 403 1900 61.4 96.5 sector_07_03 128 256 0 0 2048 2048" 
+tell puck0054 0 1   "6 10 862 1316 -51.2 -39.7 sector_05_06 128 256 0 0 2048 2048" 
+tell puck0055 0 1   "6 10 314 1494 -5.3 107.9 sector_05_02 128 256 0 0 2048 2048" 
+tell puck0056 0 1 "6 10 639 1028 -37.0 97.3 sector_03_05 128 256 0 0 2048 2048" 
+tell puck0056 0 1   "6 10 639 1028 -37.0 97.3 sector_03_04 128 256 0 0 2048 2048" 
+tell puck0056 0 1   "6 10 639 1028 -37.0 97.3 sector_04_05 128 256 0 0 2048 2048" 
+tell puck0056 0 1   "6 10 639 1028 -37.0 97.3 sector_04_04 128 256 0 0 2048 2048" 
+tell puck0057 0 1   "6 10 1502 8 80.5 118.7 sector_00_11 128 256 0 0 2048 2048" 
+tell puck0058 0 1   "6 10 1769 1777 84.2 92.9 sector_06_13 128 256 0 0 2048 2048" 
+tell puck0059 0 1   "6 10 763 131 -11.2 -53.3 sector_00_06 128 256 0 0 2048 2048" 
+tell puck0059 0 1   "6 10 763 131 -11.2 -53.3 sector_00_05 128 256 0 0 2048 2048" 
+tell puck0060 0 1   "6 10 661 1034 -14.7 -26.5 sector_04_05 128 256 0 0 2048 2048" 
+tell puck0061 0 1   "6 10 1903 135 -3.0 106.4 sector_00_14 128 256 0 0 2048 2048" 
+tell puck0062 0 1   "6 10 1444 37 -26.1 -2.6 sector_00_11 128 256 0 0 2048 2048" 
+tell puck0063 0 1   "6 10 1524 896 110.5 -6.6 sector_03_11 128 256 0 0 2048 2048" 
+tell puck0064 0 1   "6 10 1916 1481 103.9 84.4 sector_05_15 128 256 0 0 2048 2048" 
+tell puck0064 0 1   "6 10 1916 1481 103.9 84.4 sector_05_14 128 256 0 0 2048 2048" 
+tell puck0065 0 1   "6 10 1481 682 83.1 -52.9 sector_02_11 128 256 0 0 2048 2048" 
+tell puck0066 0 1   "6 10 1427 33 -25.7 113.1 sector_00_11 128 256 0 0 2048 2048" 
+tell puck0067 0 1   "6 10 1164 1937 -46.4 102.3 sector_07_09 128 256 0 0 2048 2048" 
+tell puck0068 0 1   "6 10 1939 996 -8.8 66.4 sector_03_15 128 256 0 0 2048 2048" 
+tell puck0069 0 1   "6 10 100 215 -52.8 99.3 sector_00_00 128 256 0 0 2048 2048" 
+tell puck0070 0 1   "6 10 244 1226 101.9 -10.5 sector_04_01 128 256 0 0 2048 2048" 
+tell puck0071 0 1   "6 10 82 1863 -17.1 -44.8 sector_07_00 128 256 0 0 2048 2048" 
+tell puck0072 0 1   "6 10 1304 1045 -9.2 109.5 sector_04_10 128 256 0 0 2048 2048" 
+tell puck0073 0 1   "6 10 1719 237 -42.3 112.0 sector_00_13 128 256 0 0 2048 2048" 
+tell puck0074 0 1   "6 10 1270 1751 105.1 -50.4 sector_06_09 128 256 0 0 2048 2048" 
+tell puck0075 0 1   "6 10 1648 1465 -32.7 112.2 sector_05_12 128 256 0 0 2048 2048" 
+tell puck0076 0 1   "6 10 421 1988 -58.6 110.1 sector_07_03 128 256 0 0 2048 2048" 
+tell puck0077 0 1   "6 10 163 1773 89.3 119.4 sector_06_01 128 256 0 0 2048 2048" 
+tell puck0078 0 1   "6 10 1967 207 -9.9 60.8 sector_00_15 128 256 0 0 2048 2048" 
+tell puck0079 0 1   "6 10 1038 1956 105.6 -43.4 sector_07_08 128 256 0 0 2048 2048" 
+tell puck0080 0 1   "6 10 961 1251 -32.9 93.5 sector_04_07 128 256 0 0 2048 2048" 
+tell puck0081 0 1   "6 10 456 900 85.5 106.8 sector_03_03 128 256 0 0 2048 2048" 
+tell puck0082 0 1   "6 10 1619 1941 -37.2 -8.3 sector_07_12 128 256 0 0 2048 2048" 
+tell puck0083 0 1   "6 10 1366 219 -0.5 74.8 sector_00_10 128 256 0 0 2048 2048" 
+tell puck0084 0 1   "6 10 167 997 64.8 -44.7 sector_03_01 128 256 0 0 2048 2048" 
+tell puck0085 0 1   "6 10 1738 222 -44.0 -0.7 sector_00_13 128 256 0 0 2048 2048" 
+tell puck0086 0 1   "6 10 422 795 61.5 -28.9 sector_03_03 128 256 0 0 2048 2048" 
+tell puck0087 0 1   "6 10 711 565 72.3 109.0 sector_02_05 128 256 0 0 2048 2048" 
+tell puck0088 0 1   "6 10 784 1723 82.5 -9.1 sector_06_06 128 256 0 0 2048 2048" 
+tell puck0089 0 1   "6 10 1591 956 116.0 83.9 sector_03_12 128 256 0 0 2048 2048" 
+tell puck0090 0 1   "6 10 857 1966 92.2 100.5 sector_07_06 128 256 0 0 2048 2048" 
+tell puck0091 0 1   "6 10 145 45 -55.3 94.4 sector_00_01 128 256 0 0 2048 2048" 
+tell puck0092 0 1   "6 10 10 120 -19.0 82.1 sector_00_00 128 256 0 0 2048 2048" 
+tell puck0093 0 1   "6 10 334 270 82.8 -19.6 sector_01_02 128 256 0 0 2048 2048" 
+tell puck0094 0 1   "6 10 1058 963 -48.5 77.8 sector_03_08 128 256 0 0 2048 2048" 
+tell puck0095 0 1   "6 10 1520 844 66.8 113.4 sector_03_11 128 256 0 0 2048 2048" 
+tell puck0096 0 1   "6 10 527 1611 -2.5 -46.7 sector_06_04 128 256 0 0 2048 2048" 
+tell puck0097 0 1   "6 10 527 1350 -10.6 75.6 sector_05_04 128 256 0 0 2048 2048" 
+tell puck0098 0 1   "6 10 252 552 -56.1 -14.7 sector_02_02 128 256 0 0 2048 2048" 
+tell puck0098 0 1   "6 10 252 552 -56.1 -14.7 sector_02_01 128 256 0 0 2048 2048" 
+tell puck0099 0 1   "6 10 1597 1419 109.1 107.1 sector_05_12 128 256 0 0 2048 2048" 
+tell puck0100 0 1   "6 10 1531 1249 69.2 -25.8 sector_04_12 128 256 0 0 2048 2048" 
+tell puck0100 0 1   "6 10 1531 1249 69.2 -25.8 sector_04_11 128 256 0 0 2048 2048" 
+tell puck0101 0 1   "6 10 1511 1620 -45.4 68.1 sector_06_11 128 256 0 0 2048 2048" 
+tell puck0102 0 1   "6 10 543 687 -25.9 -7.8 sector_02_04 128 256 0 0 2048 2048" 
+tell puck0103 0 1   "6 10 1523 573 -1.2 80.7 sector_02_11 128 256 0 0 2048 2048" 
+tell puck0104 0 1   "6 10 1152 1727 -7.4 79.1 sector_06_08 128 256  0 0 2048 2048" 
+tell puck0104 0 1   "6 10 1152 1727 -7.4 79.1 sector_06_09 128 256 0 0 2048 2048" 
+tell puck0105 0 1   "6 10 13 258 -34.8 -33.9 sector_00_00 128 256 0 0 2048 2048" 
+tell puck0105 0 1   "6 10 13 258 -34.8 -33.9 sector_01_00 128 256 0 0 2048 2048" 
+tell puck0106 0 1   "6 10 1810 1497 -48.6 76.2 sector_05_14 128 256 0 0 2048 2048" 
+tell puck0107 0 1   "6 10 1884 1283 63.4 73.9 sector_04_14 128 256 0 0 2048 2048" 
+tell puck0107 0 1   "6 10 1884 1283 63.4 73.9 sector_05_14 128 256 0 0 2048 2048" 
+tell puck0108 0 1   "6 10 492 1181 99.7 116.9 sector_04_03 128 256 0 0 2048 2048" 
+tell puck0109 0 1   "6 10 761 696 65.0 101.1 sector_02_05 128 256 0 0 2048 2048" 
+tell puck0110 0 1   "6 10 1376 1704 108.9 93.6 sector_06_10 128 256 0 0 2048 2048" 
+tell puck0111 0 1   "6 10 1245 542 -54.3 65.5 sector_02_09 128 256 0 0 2048 2048" 
+tell puck0112 0 1   "6 10 229 887 -24.7 116.1 sector_03_01 128 256 0 0 2048 2048" 
+tell puck0113 0 1   "6 10 1137 1981 -30.0 80.5 sector_07_08 128 256 0 0 2048 2048" 
+tell puck0114 0 1   "6 10 414 1097 -36.7 112.6 sector_04_03 128 256 0 0 2048 2048" 
+tell puck0115 0 1   "6 10 340 1140 66.5 -42.1 sector_04_02 128 256 0 0 2048 2048" 
+tell puck0116 0 1   "6 10 281 1757 -38.9 -37.4 sector_06_02 128 256 0 0 2048 2048" 
+tell puck0117 0 1   "6 10 413 1226 -18.5 70.2 sector_04_03 128 256 0 0 2048 2048" 
+tell puck0118 0 1   "6 10 1899 1561 -43.8 -18.3 sector_06_14 128 256 0 0 2048 2048" 
+tell puck0119 0 1   "6 10 63 1407 83.9 111.3 sector_05_00 128 256 0 0 2048 2048" 
+tell puck0120 0 1   "6 10 1262 1419 107.4 119.5 sector_05_09 128 256 0 0 2048 2048" 
+tell puck0121 0 1   "6 10 336 953 80.0 78.3 sector_03_02 128 256 0 0 2048 2048" 
+tell puck0122 0 1   "6 10 10 1471 71.0 92.4 sector_05_00 128 256 0 0 2048 2048" 
+tell puck0123 0 1   "6 10 1579 549 -14.5 89.5 sector_02_12 128 256 0 0 2048 2048" 
+tell puck0124 0 1   "6 10 266 876 -7.0 -14.9 sector_03_02 128 256 0 0 2048 2048" 
+tell puck0125 0 1   "6 10 1071 72 85.1 112.0 sector_00_08 128 256 0 0 2048 2048" 
+tell puck0126 0 1   "6 10 1625 958 -10.4 -30.2 sector_03_12 128 256 0 0 2048 2048" 
+tell puck0127 0 1   "6 10 325 400 -21.5 -26.8 sector_01_02 128 256 0 0 2048 2048"
+

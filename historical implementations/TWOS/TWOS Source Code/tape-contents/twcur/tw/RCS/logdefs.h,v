@@ -1,0 +1,316 @@
+head     1.4;
+branch   ;
+access   ;
+symbols  TW2_7:1.4 TW2_6:1.4 TW2_5_1:1.4 TW2_5:1.3 TW2_4_2:1.1 TW2_4_1:1.1 TW2_4:1.1;
+locks    ; strict;
+comment  @ * @;
+
+
+1.4
+date     91.07.17.15.09.20;  author judy;  state Rel;
+branches ;
+next     1.3;
+
+1.3
+date     91.06.03.12.24.40;  author configtw;  state Rel;
+branches ;
+next     1.2;
+
+1.2
+date     91.03.25.16.21.05;  author csupport;  state Dev;
+branches ;
+next     1.1;
+
+1.1
+date     90.08.07.15.39.59;  author configtw;  state Rel;
+branches ;
+next     ;
+
+
+desc
+@typedefs for logs
+@
+
+
+1.4
+log
+@New copyright notice.
+@
+text
+@/*      Copyright (C) 1989, 1991, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+
+/*
+ * $Log:	logdefs.h,v $
+ * Revision 1.3  91/06/03  12:24:40  configtw
+ * Tab conversion.
+ * 
+ * Revision 1.2  91/03/25  16:21:05  csupport
+ * Declare snder[] and rcver[] properly.
+ * 
+ * Revision 1.1  90/08/07  15:39:59  configtw
+ * Initial revision
+ * 
+*/
+
+
+/******************************************************************/
+/*  logdefs.h                           04-01-90  pjh             */
+/*                                                                */
+/* This file contains all of the definitions for the various      */
+/* data logging facilities within Time Warp. These logging        */
+/* facilities include 'flowlog', 'msglog', 'islog' and 'quelog'.  */
+/* Some of the definitions given here are of two types ( as is    */
+/* flowlog ): 1.) is a definition of the data as kept internally  */
+/* within Time Warp. 2.) is a defintion of the data as written    */
+/* out to a log file.                                             */
+/******************************************************************/
+
+
+/******************************************************************/
+/* Definitions for Instantaneous Speedup logging. (islog)         */
+/******************************************************************/
+
+
+typedef struct
+{
+	int seqnum;
+	VTime minvt;
+	double cputime;
+}
+	IS_LOG_ENTRY;
+
+/******************************************************************/
+/* Definitions for Queue logging.                                 */
+/******************************************************************/
+
+
+ 
+typedef struct
+{
+#ifdef DLM
+	int loadCount;
+#endif DLM
+	VTime gvt;
+	float utilization;
+}
+	Q_LOG_ENTRY;
+ 
+
+/******************************************************************/
+/* Definitions for event logging. (flowlog)                       */
+/******************************************************************/
+
+ 
+typedef struct          /* This is the log record as stored     */
+{                       /* internally withing Time Warp.        */
+	int start_time;
+	int end_time;
+	float svt;
+	char object[16];
+}
+	FLOW_LOG_ENTRY;
+ 
+
+ 
+typedef struct          /* This is the log record as stored   */
+{                       /* on the disk.                       */
+	int objno;  /* To save space we id the object with an int */
+	float vt;
+	int cpuf;
+	int cput;
+}
+	FLOW_COBJ;
+ 
+/******************************************************************/
+/* Definitions for message logging. (msglog)                      */
+/******************************************************************/
+
+
+typedef struct          /* This is the log record as stored     */
+{                       /* internally withing Time Warp.        */
+	int twtimef;
+	int twtimet;
+	int hgtimef;
+	int hgtimet;
+	Name snder;
+	float sndtim;
+	Name rcver;
+	float rcvtim;
+	int id_num;
+	unsigned char mtype;
+	unsigned char flags;
+	short len;
+}
+	MSG_LOG_ENTRY;
+
+typedef struct          /* This is the log record as stored   */
+{                       /* on the disk.                       */
+	int twtimef;
+	int twtimet;
+	int hgtimef;
+	int hgtimet;
+	float sndtim;
+	float rcvtim;
+	int id_num;
+	short snder;
+	short rcver;
+	short len;
+	char mtype;
+	char flags;
+}
+	MSG_COBJ;
+
+
+@
+
+
+1.3
+log
+@Tab conversion.
+@
+text
+@d1 4
+d6 4
+a9 1
+ * $Log:        logdefs.h,v $
+a17 3
+/*      Copyright (C) 1989, California Institute of Technology.
+		U. S. Government Sponsorship under NASA Contract NAS7-918
+		is acknowledged.        */
+@
+
+
+1.2
+log
+@Declare snder[] and rcver[] properly.
+@
+text
+@d2 4
+a5 1
+ * $Log:	logdefs.h,v $
+d12 2
+a13 2
+        U. S. Government Sponsorship under NASA Contract NAS7-918
+        is acknowledged.        */
+d16 4
+a19 4
+/*  logdefs.h   			04-01-90  pjh 		  */
+/*								  */
+/* This file contains all of the definitions for the various	  */
+/* data logging facilities within Time Warp. These logging	  */
+d21 1
+a21 1
+/* Some of the definitions given here are of two types ( as is	  */
+d24 1
+a24 1
+/* out to a log file.						  */
+d29 1
+a29 1
+/* Definitions for Instantaneous Speedup logging. (islog)	  */
+d35 3
+a37 3
+    int seqnum;
+    VTime minvt;
+    double cputime;
+d39 1
+a39 1
+    IS_LOG_ENTRY;
+d42 1
+a42 1
+/* Definitions for Queue logging.				  */
+d50 1
+a50 1
+    int loadCount;
+d52 2
+a53 2
+    VTime gvt;
+    float utilization;
+d55 1
+a55 1
+    Q_LOG_ENTRY;
+d59 1
+a59 1
+/* Definitions for event logging. (flowlog)			  */
+d63 6
+a68 6
+typedef struct		/* This is the log record as stored	*/
+{			/* internally withing Time Warp.	*/
+    int start_time;
+    int end_time;
+    float svt;
+    char object[16];
+d70 1
+a70 1
+    FLOW_LOG_ENTRY;
+d74 6
+a79 6
+typedef struct		/* This is the log record as stored   */
+{			/* on the disk.			      */
+    int objno;	/* To save space we id the object with an int */
+    float vt;
+    int cpuf;
+    int cput;
+d81 1
+a81 1
+    FLOW_COBJ;
+d84 1
+a84 1
+/* Definitions for message logging. (msglog)			  */
+d88 14
+a101 14
+typedef struct		/* This is the log record as stored	*/
+{			/* internally withing Time Warp.	*/
+    int twtimef;
+    int twtimet;
+    int hgtimef;
+    int hgtimet;
+    Name snder;
+    float sndtim;
+    Name rcver;
+    float rcvtim;
+    int id_num;
+    unsigned char mtype;
+    unsigned char flags;
+    short len;
+d103 1
+a103 1
+    MSG_LOG_ENTRY;
+d105 14
+a118 14
+typedef struct		/* This is the log record as stored   */
+{			/* on the disk.			      */
+    int twtimef;
+    int twtimet;
+    int hgtimef;
+    int hgtimet;
+    float sndtim;
+    float rcvtim;
+    int id_num;
+    short snder;
+    short rcver;
+    short len;
+    char mtype;
+    char flags;
+d120 1
+a120 1
+    MSG_COBJ;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 4
+a5 1
+ * $Log$
+d91 1
+a91 1
+    char snder[16];
+d93 1
+a93 1
+    char rcver[16];
+@
