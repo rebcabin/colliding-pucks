@@ -363,7 +363,7 @@ class ScheduleQueue(TWQueue):
             # TODO: move the drawing out of here!
             lp.draw()
             pygame.display.flip()
-            time.sleep(0.05)
+            time.sleep(0.005)
 
             lp.sq.insert(state_prime)
             lp.vt = lp.iq.earliest_later_time(lp.now)
