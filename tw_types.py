@@ -332,7 +332,7 @@ class ScheduleQueue(TWQueue):
         self.world_map[lp.me] = lp
         super().insert(lp)
 
-    def run(self):
+    def run(self, drawing=True, pause=0.0):
         """Pop he first (earliest) lp in the queue (if there is one). Run it
         until it terminates or until it's interrupted by arrival of a new
         message to the processor. If the new message causes some other LP to
@@ -361,9 +361,10 @@ class ScheduleQueue(TWQueue):
             state_prime = lp.event_main(lvt, state, input_bundle)
 
             # TODO: move the drawing out of here!
-            lp.draw()
-            pygame.display.flip()
-            time.sleep(0.005)
+            if drawing:
+                lp.draw()
+                pygame.display.flip()
+                time.sleep(pause)
 
             lp.sq.insert(state_prime)
             lp.vt = lp.iq.earliest_later_time(lp.now)

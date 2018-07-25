@@ -220,6 +220,13 @@ class PuckLP(LogicalProcess):
                     'walls': walls,
                     'dt':dt}))
                 return state_prime
+            # elif msg.body['action'] == 'init':
+            #     state_prime = self.new_state(Body({
+            #         'center': self.puck.center,
+            #         'velocity': self.puck.velocity,
+            #         'walls': walls,
+            #         'dt': dt}))
+            #     return state_prime
             elif msg.body['action'] == 'move':
                 wall_pred = wall_prediction(self.puck, walls, dt)
                 if self.me == 'small puck':
@@ -229,7 +236,7 @@ class PuckLP(LogicalProcess):
                     puck_pred = self.puck.predict_a_puck_collision(it, dt)
                     then = puck_pred['tau']
                     if puck_pred['gonna_hit'] and then < wall_pred['tau']:
-                        return self.bounce_pucks(puck_pred, then, walls, dt)
+                        return self._bounce_pucks(puck_pred, then, walls, dt)
                     else:
                         return self._bounce_off_wall(wall_pred, walls, dt)
                 else:
@@ -240,7 +247,7 @@ class PuckLP(LogicalProcess):
                                  f'{pp.pformat(msg)} '
                                  f'for puck {pp.pformat(self.puck)}')
 
-    def bounce_pucks(self, puck_pred, then, walls, dt):
+    def _bounce_pucks(self, puck_pred, then, walls, dt):
         state_prime = self.new_state(Body({
             'center': puck_pred['c1_prime'],
             'velocity': puck_pred['v1_prime'],
@@ -334,7 +341,7 @@ def demo_cage_time_warp(pause=0.75, dt=1):
         }),
         force_send_time=EARLIEST_VT)
 
-    globals.sched_q.run()
+    globals.sched_q.run(drawing=True, pause=0.5)
 
     pygame.display.flip()
     time.sleep(pause)
