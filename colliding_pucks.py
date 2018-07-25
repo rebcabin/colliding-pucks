@@ -63,7 +63,7 @@ class WallLP(LogicalProcess):
 
 
 class Puck(object):
-
+    """Double duty with time warp and standard sim."""
     def __init__(self, center, velocity, mass, radius, color, dont_fill_bit=0):
 
         self._original_center = center
@@ -219,14 +219,8 @@ class PuckLP(LogicalProcess):
                     'velocity': msg.body['velocity'],
                     'walls': walls,
                     'dt':dt}))
+                # self._visualize_puck_puck_collision(msg)
                 return state_prime
-            # elif msg.body['action'] == 'init':
-            #     state_prime = self.new_state(Body({
-            #         'center': self.puck.center,
-            #         'velocity': self.puck.velocity,
-            #         'walls': walls,
-            #         'dt': dt}))
-            #     return state_prime
             elif msg.body['action'] == 'move':
                 wall_pred = wall_prediction(self.puck, walls, dt)
                 if self.me == 'small puck':
@@ -236,7 +230,10 @@ class PuckLP(LogicalProcess):
                     puck_pred = self.puck.predict_a_puck_collision(it, dt)
                     then = puck_pred['tau']
                     if puck_pred['gonna_hit'] and then < wall_pred['tau']:
-                        return self._bounce_pucks(puck_pred, then, walls, dt)
+                        state_prime = \
+                            self._bounce_pucks(puck_pred, then, walls, dt)
+                        # self._visualize_puck_puck_collision(state_prime)
+                        return state_prime
                     else:
                         return self._bounce_off_wall(wall_pred, walls, dt)
                 else:
@@ -246,6 +243,20 @@ class PuckLP(LogicalProcess):
                 raise ValueError(f'unknown message body '
                                  f'{pp.pformat(msg)} '
                                  f'for puck {pp.pformat(self.puck)}')
+
+    def _visualize_puck_puck_collision(self, msg):
+        """Temporary method for debugging collisions. Aso of Tue,
+        24 July 2018, I'm convinced the collision geometry is
+        correct."""
+        pygame.draw.circle(
+            globals.screen,
+            self.puck.COLOR,
+            msg.body['center'].int_tuple,
+            self.puck.RADIUS,
+            self.puck.DONT_FILL_BIT
+        )
+        pygame.display.flip()
+        time.sleep(0.5)
 
     def _bounce_pucks(self, puck_pred, then, walls, dt):
         state_prime = self.new_state(Body({
@@ -299,7 +310,7 @@ class PuckLP(LogicalProcess):
 # |___/\___|_|_|_\___/__/
 
 
-def demo_cage_time_warp(pause=0.75, dt=1):
+def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
     """"""
     clear_screen()
     # TODO: Drawing should happen as side effect of first event messages
@@ -341,7 +352,7 @@ def demo_cage_time_warp(pause=0.75, dt=1):
         }),
         force_send_time=EARLIEST_VT)
 
-    globals.sched_q.run(drawing=True, pause=0.5)
+    globals.sched_q.run(drawing=drawing, pause=pause)
 
     pygame.display.flip()
     time.sleep(pause)
@@ -628,7 +639,7 @@ def main():
     for _ in range(CAGES):
         demo_cage(pause=PAUSE, dt=DT)
     # input()
-    demo_cage_time_warp(pause=PAUSE, dt=DT)
+    demo_cage_time_warp(drawing=True, pause=0, dt=DT)
 
 
 if __name__ == "__main__":

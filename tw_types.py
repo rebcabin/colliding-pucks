@@ -358,7 +358,11 @@ class ScheduleQueue(TWQueue):
             assert len(states) == 1
             state = states[0]
             lp.now = lvt
-            state_prime = lp.event_main(lvt, state, input_bundle)
+            # TODO: Query messages are handled synchronously, in-line.
+            try:
+                state_prime = lp.event_main(lvt, state, input_bundle)
+            except:
+                print("likely process self-preemption: ", sys.exc_info()[0])
 
             # TODO: move the drawing out of here!
             if drawing:
@@ -412,12 +416,14 @@ class LogicalProcess(Timestamped):
              receive_time: VirtualTime,
              body: Body,
              force_send_time=None):  # for boot only
-        # TODO: Does the rest of this stuff belongs in the Schedule Queue?
+        # TODO: Does the rest of this stuff belong in the Schedule Queue?
         other_lp = globals.sched_q.world_map[other_pid]
         msg, antimsg = self._message_pair(
             other_pid, force_send_time, receive_time, body)
         self.oq.insert(antimsg)
         if self.oq.annihilation:
+            # TODO: This won't be an error when flow-control by cancelback
+            # TODO: is implemented.
             raise ValueError(
                 f'unexpected annihilation from antimessage '
                 f'{pp.pformat(antimsg)} at process '
@@ -427,6 +433,14 @@ class LogicalProcess(Timestamped):
         if other_lp.iq.rollback:
             self.reschedule(other_lp)
             # TODO: Eager cancellation:
+            # TODO: If I'm cancelling output to myself, I must terminate my
+            # TODO: current thread of execution. One good way to do that is
+            # TODO: to raise an exception, which must be caught in the
+            # TODO: scheduler-queue's "run" method. Exceptions are a legitimate,
+            # TODO: if one-way, form of continuation. Continuation-Passing Style
+            # TODO: is probably the best way to terminate and restart logical
+            # TODO: processes.
+            #
             # for am_bundle_keys in other_lp.oq.elements:
             #     for ams in other_lp.oq.elements[am_bundle_keys]:
             #         receiver_pid = ams.receiver
@@ -436,8 +450,8 @@ class LogicalProcess(Timestamped):
             # other_lp.oq = OutputQueue()
             other_lp.iq.rollback = False
 
-    def reschedule(self, other_lp):
-        new_lp_vt = other_lp.iq.vt
+    def reschedule(self, lp):
+        new_lp_vt = lp.iq.vt
         lp_bundle = globals.sched_q.elements.pop(self.now)
         # find self in the bundle
         # TODO: abstract the following operation into the queues

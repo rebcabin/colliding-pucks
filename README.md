@@ -20,10 +20,12 @@ Known limitations:
   intentional shortcuts. I documented them meticulously with "TODO," but
   certainly missed some.
 
-* Cancellation is not implemented at all.
+* Cancellation is not implemented at all (I'm working on it).
 
 * Puck-puck collisions have at least one bug: the big green puck eventually
-  leaks and disappears from the simulation. I'm working on it.
+  leaks and disappears from the simulation. The likely cause is lack of
+  cancellation. Puck collisions don't cancel scheduled wall collisions. I
+  verified that puck-puck collisions have correct geometry.
 
 * A better method is to have table regions coordinate all events. I intend to
   get there some day.
