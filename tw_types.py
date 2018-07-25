@@ -358,11 +358,12 @@ class ScheduleQueue(TWQueue):
             assert len(states) == 1
             state = states[0]
             lp.now = lvt
+
             # TODO: Query messages are handled synchronously, in-line.
             try:
                 state_prime = lp.event_main(lvt, state, input_bundle)
-            except:
-                print("likely process self-preemption: ", sys.exc_info()[0])
+            except Exception as e:
+                print(f"likely process self-preemption: {e}")
 
             # TODO: move the drawing out of here!
             if drawing:
@@ -412,14 +413,14 @@ class LogicalProcess(Timestamped):
                      body=body)
 
     def send(self,
-             other_pid: ProcessID,
+             rcvr_pid: ProcessID,
              receive_time: VirtualTime,
              body: Body,
              force_send_time=None):  # for boot only
         # TODO: Does the rest of this stuff belong in the Schedule Queue?
-        other_lp = globals.sched_q.world_map[other_pid]
+        rcvr_lp = globals.sched_q.world_map[rcvr_pid]
         msg, antimsg = self._message_pair(
-            other_pid, force_send_time, receive_time, body)
+            rcvr_pid, force_send_time, receive_time, body)
         self.oq.insert(antimsg)
         if self.oq.annihilation:
             # TODO: This won't be an error when flow-control by cancelback
@@ -429,9 +430,9 @@ class LogicalProcess(Timestamped):
                 f'{pp.pformat(antimsg)} at process '
                 f'{pp.pformat(self)}')
         # TODO: When distributed, the other machine will do the following:
-        other_lp.iq.insert(msg)
-        if other_lp.iq.rollback:
-            self.reschedule(other_lp)
+        rcvr_lp.iq.insert(msg)
+        if rcvr_lp.iq.rollback:
+            self.reschedule(rcvr_lp)
             # TODO: Eager cancellation:
             # TODO: If I'm cancelling output to myself, I must terminate my
             # TODO: current thread of execution. One good way to do that is
@@ -440,15 +441,20 @@ class LogicalProcess(Timestamped):
             # TODO: if one-way, form of continuation. Continuation-Passing Style
             # TODO: is probably the best way to terminate and restart logical
             # TODO: processes.
-            #
-            # for am_bundle_keys in other_lp.oq.elements:
-            #     for ams in other_lp.oq.elements[am_bundle_keys]:
-            #         receiver_pid = ams.receiver
-            #         receiver_lp = globals.sched_q.world_map[receiver_pid]
-            #         receiver_lp.iq.insert(ams)
-            # # blow away its output queue
-            # other_lp.oq = OutputQueue()
-            other_lp.iq.rollback = False
+
+            if not force_send_time:
+                for am_bundle_keys in rcvr_lp.oq.elements:
+                    for ams in rcvr_lp.oq.elements[am_bundle_keys]:
+                        receiver_pid = ams.receiver
+                        receiver_lp = globals.sched_q.world_map[receiver_pid]
+                        receiver_lp.iq.insert(ams)
+                # blow away its output queue
+                rcvr_lp.oq = OutputQueue()
+                if rcvr_lp is self:
+                    # TODO: this never happens (and it should)
+                    raise Exception('self cancellation')
+
+            rcvr_lp.iq.rollback = False
 
     def reschedule(self, lp):
         new_lp_vt = lp.iq.vt

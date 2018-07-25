@@ -264,10 +264,10 @@ class PuckLP(LogicalProcess):
             'velocity': puck_pred['v1_prime'],
             'walls': walls,
             'dt': dt}))
-        self.send(other_pid=self.me,
+        self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
-        self.send(other_pid='big puck',
+        self.send(rcvr_pid='big puck',
                   receive_time=self.now + then,
                   body=Body({
                       'action': 'suffer',
@@ -285,7 +285,7 @@ class PuckLP(LogicalProcess):
                 - wall_pred['v_n'] * wall_pred['n'],
             'walls': walls,
             'dt': dt}))
-        self.send(other_pid=self.me,
+        self.send(rcvr_pid=self.me,
                   receive_time=self.now + int(wall_pred['tau']),
                   body=Body({'action': 'move'}))
         return state_prime
@@ -337,7 +337,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
 
     # boot the simulation:
     small_puck_lp.send(
-        other_pid=ProcessID('small puck'),
+        rcvr_pid=ProcessID('small puck'),
         receive_time=VirtualTime(0),
         body=Body({
             'action': 'move'
@@ -345,7 +345,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
         force_send_time=EARLIEST_VT)
 
     big_puck_lp.send(
-        other_pid=ProcessID('big puck'),
+        rcvr_pid=ProcessID('big puck'),
         receive_time=VirtualTime(0),
         body=Body({
             'action': 'move'
