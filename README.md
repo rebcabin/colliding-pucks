@@ -28,4 +28,5 @@ Known limitations:
 * A better method is to have table regions coordinate all events. I intend to
   get there some day.
 
-* Use ROSS from Georgia Tech for real work with Time Warp.
+* Use ROSS from Rensselaer (http://carothersc.github.io/ROSS/,
+  https://github.com/carothersc/ROSS) for real work with Time Warp.
