@@ -226,6 +226,7 @@ class PuckLP(LogicalProcess):
                     state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
                 else:
                     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+                print({'velocity': state_prime.body['velocity']})
                 return state_prime
             else:
                 raise ValueError(f'unknown message action & body '
@@ -251,13 +252,6 @@ class PuckLP(LogicalProcess):
             'velocity': puck_pred['v1_prime'],
             'walls': walls,
             'dt': dt}))
-        print({
-            'bouncing': 'puck',
-            'sending': 'move',
-            'sender': self.me,
-            'receiver': self.me,
-            'send time': self.now,
-            'receive_time': self.now + then})
         self._visualize_puck(state_prime)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
@@ -275,13 +269,6 @@ class PuckLP(LogicalProcess):
                 - wall_pred['v_n'] * wall_pred['n'],
             'walls': walls,
             'dt': dt}))
-        print({
-            'bouncing': 'wall',
-            'sending': 'move',
-            'sender': self.me,
-            'receiver': self.me,
-            'send time': self.now,
-            'receive_time': self.now + then})
         self._visualize_puck(state_prime)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
@@ -636,8 +623,8 @@ def main():
     set_up_screen()
 
     PAUSE = 0.75
-    STEPS = 3000
-    CAGES = 5
+    STEPS = 5000
+    CAGES = 15
     DT = 0.001
 
     # demo_classic(steps=STEPS)
