@@ -117,6 +117,7 @@ class Puck(object):
         predicted_step_time = distance_to_wall / projected_speed / dt \
             if projected_speed != 0 else np.inf
         # TODO: do reflection calculation in here, as with puck_collision
+        # TODO: puck collision returns integer time; this returns float time
         return {'tau': predicted_step_time,
                 'puck_strike_point': point_on_circle,
                 'wall_strike_point': q_prime,
@@ -221,7 +222,7 @@ class PuckLP(LogicalProcess):
                 # TODO: Use tw state rather than puck object.
                 puck_pred = self.puck.predict_a_puck_collision(it, dt)
                 then = puck_pred['tau']
-                if puck_pred['gonna_hit'] and then < wall_pred['tau']:
+                if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
                     state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
                 else:
                     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
@@ -257,6 +258,7 @@ class PuckLP(LogicalProcess):
             'receiver': self.me,
             'send time': self.now,
             'receive_time': self.now + then})
+        self._visualize_puck(state_prime)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
@@ -416,6 +418,7 @@ def mk_big_puck(walls, dt):
 
 
 def wall_prediction(puck, walls, dt):
+    """Dual-use function (classic and time warp). TODO: Move to puck class."""
     predictions = \
         [puck.predict_a_wall_collision(wall, dt) for wall in walls]
     prediction = min(
