@@ -85,6 +85,7 @@ class Puck(object):
 
     def step(self, dt: float):
         """not used yet"""
+        raise NotImplementedError
         self.center += dt * self.velocity
 
     def draw(self):
@@ -97,7 +98,7 @@ class Puck(object):
     def step_many(self, steps, dt: float):
         self.center += steps * dt * self.velocity
 
-    def predict_a_wall_collision(self, wall: Wall, dt):
+    def _predict_a_wall_collision_old(self, wall: Wall, dt):
         p = self.center
         q, t = collinear_point_and_parameter(wall.left, wall.right, p)
         contact_normal = (q - p).normalized()
@@ -127,6 +128,33 @@ class Puck(object):
                 't': contact_tangent,
                 'v_n': normal_component_of_velocity,
                 'v_t': tangential_component_of_velocity}
+
+    def predict_a_wall_collision(self, wall: Wall, dt):
+        p = self.center
+        q, t = collinear_point_and_parameter(wall.left, wall.right, p)
+        n = (q - p).normalized()
+        v_n = self.velocity.dot(n)
+        t = Vec2d(n[1], -n[0])
+        v_t = self.velocity.dot(t)
+        p_c = p + self.RADIUS * n
+        q_prime, t_prime = collinear_point_and_parameter(
+            wall.left, wall.right, p_c)
+        # q_prime should be almost the same as q
+        # TODO: np.testing.assert_allclose(...), meanwhile, inspect in debugger.
+        d = (q_prime - p_c).length
+        # predicted step time can be negative! it is permitted!
+        tau = d / v_n / dt if v_n != 0 else np.inf
+        # TODO: do reflection calculation in here, as with puck_collision
+        # TODO: puck collision returns integer time; this returns float time
+        return {'tau': tau,
+                'puck_strike_point': p_c,
+                'wall_strike_point': q_prime,
+                'wall_strike_parameter': t_prime,
+                'wall_victim': wall,
+                'n': n,
+                't': t,
+                'v_n': v_n,
+                'v_t': v_t}
 
     def predict_a_puck_collision(self, them: 'Puck', dt):
         """See https://goo.gl/jQik91 for forward-references as strings."""
@@ -223,8 +251,10 @@ class PuckLP(LogicalProcess):
                 puck_pred = self.puck.predict_a_puck_collision(it, dt)
                 then = puck_pred['tau']
                 if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
+                    print({'puck dt': then})
                     state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
                 else:
+                    print({'wall dt': int(wall_pred['tau'])})
                     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
                 print({'velocity': state_prime.body['velocity']})
                 return state_prime
@@ -259,7 +289,7 @@ class PuckLP(LogicalProcess):
         return state_prime
 
     def _bounce_off_wall(self, wall_pred, walls, dt):
-        then = int(wall_pred['tau'])
+        then = int(wall_pred['tau']) or 1
         state_prime = self.new_state(Body({
             'center': self.puck.center \
                       + wall_pred['tau'] * dt * self.puck.velocity,
@@ -625,7 +655,10 @@ def main():
     PAUSE = 0.75
     STEPS = 5000
     CAGES = 15
-    DT = 0.001
+    DT = 1
+    # TODO: There is a bug with multiplicatively increasing times when DT
+    # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
+    # TODO: when DT is 1.
 
     # demo_classic(steps=STEPS)
     # input()
