@@ -142,7 +142,9 @@ class Puck(object):
         # q_prime should be almost the same as q
         # TODO: np.testing.assert_allclose(...), meanwhile, inspect in debugger.
         d = (q_prime - p_c).length
-        # predicted step time can be negative! it is permitted!
+        # Predicted step time can be negative! It is permitted!
+        # d / v_n is in physical time units. Tau is in units of steps,
+        # where 1/dt is the physical time of one step.
         tau = d / v_n / dt if v_n != 0 else np.inf
         # TODO: do reflection calculation in here, as with puck_collision
         # TODO: puck collision returns integer time; this returns float time
@@ -170,24 +172,30 @@ class Puck(object):
         #       c                   b                     a
         #
         dv = self.velocity - them.velocity
+        # a, b, c are the coefficients of the quadratic above, in the usual
+        # notation we all know from high-school algebra.
         a = dv.get_length_sqrd()
         b = -2 * dp.dot(dv)
         d1 = self.RADIUS + them.RADIUS
         c = dp.get_length_sqrd() - (d1 * d1)
         disc = (b * b) - (4 * a * c)
         gonna_hit = False
-        tau_impact_steps = np.inf
+        tau = np.inf
         if disc >= 0 and a != 0:
             # Two real roots; pick the smallest, non-negative one.
             sdisc = np.sqrt(disc)
-            tau1 = (-b + sdisc) / (2 * a)
-            tau2 = (-b - sdisc) / (2 * a)
-            if tau1 > 0 and tau2 > 0:
-                tau_impact_steps = min(tau1, tau2) / dt
+            root1 = (-b + sdisc) / (2 * a)
+            root2 = (-b - sdisc) / (2 * a)
+            # The roots are in units of physical time. Tau is in units of
+            # steps, where 1/dt is the physical time of one step.
+            if root1 > 0 and root2 > 0:
+                t_physical = float(min(root1, root2))
+                tau = t_physical / dt
                 gonna_hit = True
             else:
-                tau_impact_steps = max(tau1, tau2) / dt
-                gonna_hit = tau1 > 0 or tau2 > 0
+                t_physical = float(max(root1, root2))
+                tau = t_physical / dt
+                gonna_hit = root1 > 0 or root2 > 0
             # TODO: what if they're both negative? Is that possible?
 
         c1_prime = None
@@ -195,13 +203,12 @@ class Puck(object):
         v1_prime = None
         v2_prime = None
         if gonna_hit:
-            assert tau_impact_steps != np.inf
-            assert tau_impact_steps > 0
-            then = float(tau_impact_steps)  # sometimes it's a float64
+            assert tau != np.inf
+            assert tau > 0
             v1 = self.velocity
             v2 = them.velocity
-            c1_prime = self.center + then * dt * v1
-            c2_prime = them.center + then * dt * v2
+            c1_prime = self.center + t_physical * v1
+            c2_prime = them.center + t_physical * v2
             normal = (c2_prime - c1_prime).normalized()
             tangential = Vec2d(normal[1], -normal[0])
             v1n = v1.dot(normal)
@@ -218,8 +225,7 @@ class Puck(object):
             v2_prime = v2np * normal + v2t * tangential
 
         return {
-            'tau': int(tau_impact_steps) \
-                if tau_impact_steps < np.inf else sys.maxsize,
+            'tau': int(tau) if tau < np.inf else sys.maxsize,
             'puck_victim': them,
             'gonna_hit': gonna_hit,
             'c1_prime': c1_prime,
@@ -655,7 +661,7 @@ def main():
     PAUSE = 0.75
     STEPS = 5000
     CAGES = 15
-    DT = 1
+    DT = 0.001
     # TODO: There is a bug with multiplicatively increasing times when DT
     # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
     # TODO: when DT is 1.
