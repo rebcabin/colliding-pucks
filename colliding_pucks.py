@@ -200,7 +200,7 @@ class Puck(object):
 
 
 class PuckLP(LogicalProcess):
-
+    """TODO: Free logging with the oslash Writer monad."""
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
         self.vt = lvt
@@ -214,6 +214,7 @@ class PuckLP(LogicalProcess):
         dt = state.body['dt']
         for msg in msgs:
             if msg.body['action'] == 'suffer':
+                # Set my state to one in the msg; don't send anything.
                 assert self.me == 'big puck'
                 state_prime = self.new_state(Body({
                     'center': msg.body['center'],
@@ -230,7 +231,6 @@ class PuckLP(LogicalProcess):
                     'my last 5 vts': self.iq.vts()[-5:],
                     'its last 5 vts': its_lp.iq.vts()[-5:]})
                 self._visualize_puck(msg)
-                clear_screen()
                 return state_prime
             elif msg.body['action'] == 'move':
                 wall_pred = wall_prediction(self.puck, walls, dt)
@@ -253,7 +253,6 @@ class PuckLP(LogicalProcess):
                             'my last 5 vts': self.iq.vts()[-5:],
                             'its last 5 vts': its_lp.iq.vts()[-5:]})
                         self._visualize_puck(state_prime)
-                        # clear_screen()
                         return state_prime
                     else:
                         return self._bounce_off_wall(wall_pred, walls, dt)
@@ -277,7 +276,7 @@ class PuckLP(LogicalProcess):
             self.puck.DONT_FILL_BIT
         )
         pygame.display.flip()
-        time.sleep(0.5)
+        time.sleep(0)
 
     def _bounce_pucks(self, puck_pred, then, walls, dt):
         state_prime = self.new_state(Body({
@@ -286,14 +285,14 @@ class PuckLP(LogicalProcess):
             'walls': walls,
             'dt': dt}))
         assert self.me == 'small puck'
-        print({'sending action': 'move to',
+        print({'sending': 'move to',
                'receiver': self.me,
                'send time': self.now,
                'receive_time': self.now + then})
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
-        print({'sending action': 'suffer move to',
+        print({'sending': 'suffer move to',
                'receiver': "big puck",
                'send time': self.now,
                'receive_time': self.now + then})
@@ -306,7 +305,7 @@ class PuckLP(LogicalProcess):
         return state_prime
 
     def _bounce_off_wall(self, wall_pred, walls, dt):
-        then = int(wall_pred['tau'] * dt)
+        then = int(wall_pred['tau'])
         state_prime = self.new_state(Body({
             'center': self.puck.center \
                       + wall_pred['tau'] * dt * self.puck.velocity,
@@ -322,9 +321,8 @@ class PuckLP(LogicalProcess):
                'send time': self.now,
                'receive_time': self.now + then})
         self._visualize_puck(state_prime)
-        clear_screen()
         self.send(rcvr_pid=self.me,
-                  receive_time=self.now + int(wall_pred['tau']),
+                  receive_time=self.now + then,
                   body=Body({'action': 'move'}))
         return state_prime
 
@@ -381,7 +379,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
             'action': 'move'
         }),
         force_send_time=EARLIEST_VT)
-    print({'sending action': 'move',
+    print({'sending': 'BOOT move',
            'receiver': 'small puck',
            'send time': EARLIEST_VT,
            'receive_time': 0})
@@ -393,7 +391,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
             'action': 'move'
         }),
         force_send_time=EARLIEST_VT)
-    print({'sending action': 'move',
+    print({'sending': 'BOOT move',
            'receiver': "big puck",
            'send time': EARLIEST_VT,
            'receive_time': 0})

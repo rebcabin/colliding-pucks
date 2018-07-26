@@ -1,5 +1,8 @@
 from typing import List, Tuple, Callable, Dict, Any
 
+import pprint
+pp = pprint.PrettyPrinter(indent=2)
+
 import sortedcontainers
 import pygame  # TODO: move rendering out of here
 import time
@@ -233,9 +236,13 @@ class TWQueue(object):
             self.rollback = True
             # Even if there is eventual annihilation, we need to roll
             # back to this time or earlier:
-            # TODO: Cancellation is not yet implemented.
             # TODO: Do lazy cancellation at the end of each event.
             self.vt = m.vt
+            if m is EventMessage:
+                pp.pprint({
+                    'rollback': 'in insert',
+                    'cause': vars(m)
+                })
         if m.vt in self.elements:
             # search for the antimessage of this message:
             for e in self.elements[m.vt]:
@@ -244,6 +251,11 @@ class TWQueue(object):
                         hasattr(e, 'sign') and
                         e.sign == (not m.sign)):
                     self.annihilation = True
+                    # TODO: merge this logic with that in 'send'
+                    pp.pprint({
+                        'annihilation': True,
+                        'cause': vars(m)
+                    })
                     self.elements[m.vt].remove(e)
                     # If there are no more timestamped's, kill the key and
                     # move the rollback time to latest earlier time.
@@ -445,12 +457,17 @@ class LogicalProcess(Timestamped):
             # TODO: if one-way, form of continuation. Continuation-Passing Style
             # TODO: is probably the best way to terminate and restart logical
             # TODO: processes.
-
+            print({'rollback': 'in send',
+                   'cause': vars(msg)})
             if not force_send_time:
                 for am_bundle_keys in rcvr_lp.oq.elements:
                     for ams in rcvr_lp.oq.elements[am_bundle_keys]:
                         receiver_pid = ams.receiver
                         receiver_lp = globals.globals.world_map[receiver_pid]
+                        pp.pprint({
+                            'cancelling': True,
+                            'antimessage': vars(ams)
+                        })
                         receiver_lp.iq.insert(ams)
                 # blow away its output queue
                 rcvr_lp.oq = OutputQueue()
