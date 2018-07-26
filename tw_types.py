@@ -387,7 +387,9 @@ class ScheduleQueue(TWQueue):
                 pygame.display.flip()
                 time.sleep(pause)
 
-            lp.sq.insert(state_prime)
+            # A process is permitted to process an event and not change state.
+            if state is not state_prime:
+                lp.sq.insert(state_prime)
             lp.vt = lp.iq.earliest_later_time(lp.now)
             self.insert(lp)
 
