@@ -117,7 +117,7 @@ class Puck(object):
         tau = d / v_n / dt if v_n != 0 else np.inf
         # TODO: do reflection calculation in here, as with puck_collision
         # TODO: puck collision returns integer time; this returns float time
-        return {'tau': tau,
+        return {'tau': int(tau),
                 'puck_strike_point': p_c,
                 'wall_strike_point': q_prime,
                 'wall_strike_parameter': t_prime,
@@ -231,7 +231,7 @@ class PuckLP(LogicalProcess):
                     print({'puck dt': then})
                     state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
                 else:
-                    print({'wall dt': int(wall_pred['tau'])})
+                    print({'wall dt': wall_pred['tau']})
                     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
                 print({'velocity': state_prime.body['velocity']})
                 return state_prime
