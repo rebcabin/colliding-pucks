@@ -188,14 +188,15 @@ class Puck(object):
             v1_prime = v1np * normal + v1t * tangential
             v2_prime = v2np * normal + v2t * tangential
 
-        return {'tau': int(tau_impact_steps) \
-            if tau_impact_steps < np.inf else sys.maxsize,
-                'puck_victim': them,
-                'gonna_hit': gonna_hit,
-                'c1_prime': c1_prime,
-                'v1_prime': v1_prime,
-                'c2_prime': c2_prime,
-                'v2_prime': v2_prime}
+        return {
+            'tau': int(tau_impact_steps) \
+                if tau_impact_steps < np.inf else sys.maxsize,
+            'puck_victim': them,
+            'gonna_hit': gonna_hit,
+            'c1_prime': c1_prime,
+            'v1_prime': v1_prime,
+            'c2_prime': c2_prime,
+            'v2_prime': v2_prime}
 
 
 class PuckLP(LogicalProcess):
@@ -219,7 +220,17 @@ class PuckLP(LogicalProcess):
                     'velocity': msg.body['velocity'],
                     'walls': walls,
                     'dt':dt}))
-                # self._visualize_puck_puck_collision(msg)
+                its_lp = globals.world_map['small puck']
+                pp.pprint({
+                    'processing action': 'suffer',
+                    'lvt': lvt,
+                    'me': self.me,
+                    'state send time': (state.vt, state.send_time),
+                    'iq_vt': self.iq.vt,
+                    'my last 5 vts': self.iq.vts()[-5:],
+                    'its last 5 vts': its_lp.iq.vts()[-5:]})
+                self._visualize_puck(msg)
+                clear_screen()
                 return state_prime
             elif msg.body['action'] == 'move':
                 wall_pred = wall_prediction(self.puck, walls, dt)
@@ -232,7 +243,17 @@ class PuckLP(LogicalProcess):
                     if puck_pred['gonna_hit'] and then < wall_pred['tau']:
                         state_prime = \
                             self._bounce_pucks(puck_pred, then, walls, dt)
-                        # self._visualize_puck_puck_collision(state_prime)
+                        its_lp = globals.world_map['big puck']
+                        pp.pprint({
+                            'processing action': 'move',
+                            'lvt': lvt,
+                            'me': self.me,
+                            'state send time': (state.vt, state.send_time),
+                            'iq_vt': self.iq.vt,
+                            'my last 5 vts': self.iq.vts()[-5:],
+                            'its last 5 vts': its_lp.iq.vts()[-5:]})
+                        self._visualize_puck(state_prime)
+                        # clear_screen()
                         return state_prime
                     else:
                         return self._bounce_off_wall(wall_pred, walls, dt)
@@ -240,18 +261,18 @@ class PuckLP(LogicalProcess):
                     assert self.me == 'big puck'
                     return self._bounce_off_wall(wall_pred, walls, dt)
             else:
-                raise ValueError(f'unknown message body '
+                raise ValueError(f'unknown message action & body '
                                  f'{pp.pformat(msg)} '
                                  f'for puck {pp.pformat(self.puck)}')
 
-    def _visualize_puck_puck_collision(self, msg):
+    def _visualize_puck(self, state):
         """Temporary method for debugging collisions. Aso of Tue,
         24 July 2018, I'm convinced the collision geometry is
         correct."""
         pygame.draw.circle(
             globals.screen,
             self.puck.COLOR,
-            msg.body['center'].int_tuple,
+            state.body['center'].int_tuple,
             self.puck.RADIUS,
             self.puck.DONT_FILL_BIT
         )
@@ -264,9 +285,18 @@ class PuckLP(LogicalProcess):
             'velocity': puck_pred['v1_prime'],
             'walls': walls,
             'dt': dt}))
+        assert self.me == 'small puck'
+        print({'sending action': 'move to',
+               'receiver': self.me,
+               'send time': self.now,
+               'receive_time': self.now + then})
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
+        print({'sending action': 'suffer move to',
+               'receiver': "big puck",
+               'send time': self.now,
+               'receive_time': self.now + then})
         self.send(rcvr_pid='big puck',
                   receive_time=self.now + then,
                   body=Body({
@@ -276,6 +306,7 @@ class PuckLP(LogicalProcess):
         return state_prime
 
     def _bounce_off_wall(self, wall_pred, walls, dt):
+        then = int(wall_pred['tau'] * dt)
         state_prime = self.new_state(Body({
             'center': self.puck.center \
                       + wall_pred['tau'] * dt * self.puck.velocity,
@@ -285,6 +316,13 @@ class PuckLP(LogicalProcess):
                 - wall_pred['v_n'] * wall_pred['n'],
             'walls': walls,
             'dt': dt}))
+        print({'sending action': 'move to wall',
+               'sender': self.me,
+               'receiver': self.me,
+               'send time': self.now,
+               'receive_time': self.now + then})
+        self._visualize_puck(state_prime)
+        clear_screen()
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + int(wall_pred['tau']),
                   body=Body({'action': 'move'}))
@@ -343,6 +381,10 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
             'action': 'move'
         }),
         force_send_time=EARLIEST_VT)
+    print({'sending action': 'move',
+           'receiver': 'small puck',
+           'send time': EARLIEST_VT,
+           'receive_time': 0})
 
     big_puck_lp.send(
         rcvr_pid=ProcessID('big puck'),
@@ -351,6 +393,10 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
             'action': 'move'
         }),
         force_send_time=EARLIEST_VT)
+    print({'sending action': 'move',
+           'receiver': "big puck",
+           'send time': EARLIEST_VT,
+           'receive_time': 0})
 
     globals.sched_q.run(drawing=drawing, pause=pause)
 
@@ -633,13 +679,13 @@ def main():
     CAGES = 5
     DT = 0.001
 
-    demo_classic(steps=STEPS)
+    # demo_classic(steps=STEPS)
     # input()
     # demo_hull(pause=PAUSE)
-    for _ in range(CAGES):
-        demo_cage(pause=PAUSE, dt=DT)
+    # for _ in range(CAGES):
+    #     demo_cage(pause=PAUSE, dt=DT)
     # input()
-    demo_cage_time_warp(drawing=True, pause=0, dt=DT)
+    demo_cage_time_warp(drawing=False, pause=0, dt=DT)
 
 
 if __name__ == "__main__":

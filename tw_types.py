@@ -193,7 +193,8 @@ class TWQueue(object):
 
     def vts(self):
         """For debugging"""
-        return [e[0] for e in self.elements.items()]
+        result = list(self.elements.keys())
+        return result
 
     def latest_earlier_time(self, vt: VirtualTime):
         """Produce the latest key in the dictionary earlier than the given
@@ -236,6 +237,7 @@ class TWQueue(object):
             # TODO: Do lazy cancellation at the end of each event.
             self.vt = m.vt
         if m.vt in self.elements:
+            # search for the antimessage of this message:
             for e in self.elements[m.vt]:
                 if (e == m and
                         hasattr(m, 'sign') and
@@ -244,7 +246,7 @@ class TWQueue(object):
                     self.annihilation = True
                     self.elements[m.vt].remove(e)
                     # If there are no more timestamped's, kill the key and
-                    # move the rollback time
+                    # move the rollback time to latest earlier time.
                     if self.elements[m.vt] == []:
                         self.elements.pop(m.vt)
                         if self.rollback:
@@ -326,10 +328,9 @@ class InputQueue(TWQueue):
 class ScheduleQueue(TWQueue):
     def __init__(self):
         super().__init__()
-        self.world_map = {}
 
     def insert(self, lp: 'LogicalProcess'):
-        self.world_map[lp.me] = lp
+        globals.world_map[lp.me] = lp
         super().insert(lp)
 
     def run(self, drawing=True, pause=0.0):
@@ -352,7 +353,10 @@ class ScheduleQueue(TWQueue):
             # put the others back in the sched queue
             self.insert_bundle(lps[1:])
             # Let iq throw if no input messages!
-            input_bundle = lp.iq.elements[lvt]
+            try:
+                input_bundle = lp.iq.elements[lvt]
+            except KeyError as e:
+                continue
             le_vt = lp.sq.latest_earlier_time(lvt)
             states = lp.sq.elements.get(le_vt, {})
             assert len(states) == 1
@@ -418,7 +422,7 @@ class LogicalProcess(Timestamped):
              body: Body,
              force_send_time=None):  # for boot only
         # TODO: Does the rest of this stuff belong in the Schedule Queue?
-        rcvr_lp = globals.sched_q.world_map[rcvr_pid]
+        rcvr_lp = globals.globals.world_map[rcvr_pid]
         msg, antimsg = self._message_pair(
             rcvr_pid, force_send_time, receive_time, body)
         self.oq.insert(antimsg)
@@ -446,7 +450,7 @@ class LogicalProcess(Timestamped):
                 for am_bundle_keys in rcvr_lp.oq.elements:
                     for ams in rcvr_lp.oq.elements[am_bundle_keys]:
                         receiver_pid = ams.receiver
-                        receiver_lp = globals.sched_q.world_map[receiver_pid]
+                        receiver_lp = globals.globals.world_map[receiver_pid]
                         receiver_lp.iq.insert(ams)
                 # blow away its output queue
                 rcvr_lp.oq = OutputQueue()
@@ -493,7 +497,7 @@ class LogicalProcess(Timestamped):
         return message, antimessage
 
     def query(self, other_pid: ProcessID, body: Body):
-        other_lp = globals.sched_q.world_map[other_pid]
+        other_lp = globals.globals.world_map[other_pid]
         other_le_vt = other_lp.sq.latest_earlier_time(self.now)
         other_states = other_lp.sq.elements[other_le_vt]
         assert len(other_states) == 1
