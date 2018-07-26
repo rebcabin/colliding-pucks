@@ -98,37 +98,6 @@ class Puck(object):
     def step_many(self, steps, dt: float):
         self.center += steps * dt * self.velocity
 
-    def _predict_a_wall_collision_old(self, wall: Wall, dt):
-        p = self.center
-        q, t = collinear_point_and_parameter(wall.left, wall.right, p)
-        contact_normal = (q - p).normalized()
-        normal_component_of_velocity = \
-            self.velocity.dot(contact_normal)
-        contact_tangent = Vec2d(contact_normal[1], -contact_normal[0])
-        tangential_component_of_velocity = \
-            self.velocity.dot(contact_tangent)
-        point_on_circle = p + self.RADIUS * contact_normal
-        q_prime, t_prime = collinear_point_and_parameter(
-            wall.left, wall.right, point_on_circle)
-        # q_prime should be almost the same as q
-        # TODO: np.testing.assert_allclose(...), meanwhile, inspect in debugger.
-        projected_speed = self.velocity.dot(contact_normal)
-        distance_to_wall = (q_prime - point_on_circle).length
-        # predicted step time can be negative! it is permitted!
-        predicted_step_time = distance_to_wall / projected_speed / dt \
-            if projected_speed != 0 else np.inf
-        # TODO: do reflection calculation in here, as with puck_collision
-        # TODO: puck collision returns integer time; this returns float time
-        return {'tau': predicted_step_time,
-                'puck_strike_point': point_on_circle,
-                'wall_strike_point': q_prime,
-                'wall_strike_parameter': t_prime,
-                'wall_victim': wall,
-                'n': contact_normal,
-                't': contact_tangent,
-                'v_n': normal_component_of_velocity,
-                'v_t': tangential_component_of_velocity}
-
     def predict_a_wall_collision(self, wall: Wall, dt):
         p = self.center
         q, t = collinear_point_and_parameter(wall.left, wall.right, p)
@@ -245,6 +214,8 @@ class PuckLP(LogicalProcess):
         # so the list of walls must be in the tw-state. Likewise, some collision
         # schemes change dt, so it's in the state.
         walls = state.body['walls']
+
+
         dt = state.body['dt']
         for msg in msgs:
             if msg.body['action'] == 'move':
