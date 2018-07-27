@@ -99,33 +99,34 @@ class Puck(object):
         self.center += steps * dt * self.velocity
 
     def predict_a_wall_collision(self, wall: Wall, dt):
-        p = self.center
-        q, t = collinear_point_and_parameter(wall.left, wall.right, p)
-        n = (q - p).normalized()
+        c = self.center
+        q, t = collinear_point_and_parameter(wall.left, wall.right, c)
+        n = (q - c).normalized()
         v_n = self.velocity.dot(n)
         t = Vec2d(n[1], -n[0])
         v_t = self.velocity.dot(t)
-        p_c = p + self.RADIUS * n
+        p_c = c + self.RADIUS * n
         q_prime, t_prime = collinear_point_and_parameter(
             wall.left, wall.right, p_c)
-        # q_prime should be almost the same as q
+        # TODO: q_prime should be almost the same as q
         # TODO: np.testing.assert_allclose(...), meanwhile, inspect in debugger.
         d = (q_prime - p_c).length
         # Predicted step time can be negative! It is permitted!
         # d / v_n is in physical time units. Tau is in units of steps,
         # where 1/dt is the physical time of one step.
-        tau = d / v_n / dt if v_n != 0 else np.inf
-        # TODO: do reflection calculation in here, as with puck_collision
-        # TODO: puck collision returns integer time; this returns float time
+        tau_physical = d / v_n
+        tau = tau_physical / dt if v_n != 0 else np.inf
+        c_prime = c + tau_physical * self.velocity
+        # Reverse the normal component:
+        v_prime = v_t * t - v_n * n
         return {'tau': int(tau),
+                'tau_physical': tau_physical,
                 'puck_strike_point': p_c,
                 'wall_strike_point': q_prime,
                 'wall_strike_parameter': t_prime,
                 'wall_victim': wall,
-                'n': n,
-                't': t,
-                'v_n': v_n,
-                'v_t': v_t}
+                'c_prime': c_prime,
+                'v_prime': v_prime}
 
     def predict_a_puck_collision(self, them: 'Puck', dt):
         """See https://goo.gl/jQik91 for forward-references as strings."""
@@ -149,7 +150,7 @@ class Puck(object):
         c = dp.get_length_sqrd() - (d1 * d1)
         disc = (b * b) - (4 * a * c)
         gonna_hit = False
-        tau = np.inf
+        tau = tau_physical = np.inf
         if disc >= 0 and a != 0:
             # Two real roots; pick the smallest, non-negative one.
             sdisc = np.sqrt(disc)
@@ -158,12 +159,12 @@ class Puck(object):
             # The roots are in units of physical time. Tau is in units of
             # steps, where 1/dt is the physical time of one step.
             if root1 > 0 and root2 > 0:
-                t_physical = float(min(root1, root2))
-                tau = t_physical / dt
+                tau_physical = float(min(root1, root2))
+                tau = tau_physical / dt
                 gonna_hit = True
             else:
-                t_physical = float(max(root1, root2))
-                tau = t_physical / dt
+                tau_physical = float(max(root1, root2))
+                tau = tau_physical / dt
                 gonna_hit = root1 > 0 or root2 > 0
             # TODO: what if they're both negative? Is that possible?
 
@@ -181,8 +182,8 @@ class Puck(object):
             v1 = self.velocity
             v2 = them.velocity
             k, p = self.energy_momentum(them, v1, v2)
-            c1_prime = self.center + t_physical * v1
-            c2_prime = them.center + t_physical * v2
+            c1_prime = self.center + tau_physical * v1
+            c2_prime = them.center + tau_physical * v2
             normal = (c2_prime - c1_prime).normalized()
             tangential = Vec2d(normal[1], -normal[0])
             v1n = v1.dot(normal)
@@ -200,6 +201,7 @@ class Puck(object):
             k_prime, p_prime = self.energy_momentum(them, v1_prime, v2_prime)
         return {
             'tau': int(tau) if tau < np.inf else sys.maxsize,
+            'tau_physical': tau_physical,
             'k': k, 'k_prime': k_prime,
             'p': p, 'p_prime': p_prime,
             'puck_victim': them,
@@ -215,8 +217,8 @@ class Puck(object):
         p2 = them.MASS * v2
         p = p1 + p2
         # energy
-        k1 = p1 ** 2 / 2 / self.MASS
-        k2 = p2 ** 2 / 2 / them.MASS
+        k1 = p1.dot(p1) / 2 / self.MASS
+        k2 = p2.dot(p2) / 2 / them.MASS
         k = k1 + k2
         return (k, p)
 
@@ -233,7 +235,6 @@ class PuckLP(LogicalProcess):
         # schemes change dt, so it's in the state.
         walls = state.body['walls']
 
-
         dt = state.body['dt']
         for msg in msgs:
             if msg.body['action'] == 'move':
@@ -243,14 +244,20 @@ class PuckLP(LogicalProcess):
                 else:
                     it, its_state = self.query('small puck', Body({}))
                 # TODO: Use tw state rather than puck object.
-                puck_pred = self.puck.predict_a_puck_collision(it, dt)
-                then = puck_pred['tau']
-                if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
-                    print({'puck dt': then})
-                    state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
-                else:
-                    print({'wall dt': wall_pred['tau']})
-                    state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+                # puck_pred = self.puck.predict_a_puck_collision(it, dt)
+                # then = puck_pred['tau']
+                # if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
+                #     pp.pprint(puck_pred)
+                #     state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
+                # else:
+                #     print({'wall dt': wall_pred['tau']})
+                #     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+
+                # Ignoring the puck-puck collisions proves that the momentum
+                # and energy drift & instability comes from their caculation.
+
+                state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+
                 print({'velocity': state_prime.body['velocity']})
                 return state_prime
             else:
@@ -286,12 +293,8 @@ class PuckLP(LogicalProcess):
     def _bounce_off_wall(self, wall_pred, walls, dt):
         then = int(wall_pred['tau']) or 1
         state_prime = self.new_state(Body({
-            'center': self.puck.center \
-                      + wall_pred['tau'] * dt * self.puck.velocity,
-            # elastic, frictionless collision
-            'velocity': \
-                + wall_pred['v_t'] * wall_pred['t'] \
-                - wall_pred['v_n'] * wall_pred['n'],
+            'center': wall_pred['c_prime'],
+            'velocity': wall_pred['v_prime'],
             'walls': walls,
             'dt': dt}))
         self._visualize_puck(state_prime)
