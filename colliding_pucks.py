@@ -263,6 +263,7 @@ class PuckLP(LogicalProcess):
                 else:
                     pp.pprint(wall_pred)
                     assert np.abs(wall_pred["delta k"]) < 1e-12
+                    # Wall collision does not preserve puck momentum.
                     # assert wall_pred["delta p"] < 1e-12
                     # print({'wall dt': wall_pred['tau']})
                     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
