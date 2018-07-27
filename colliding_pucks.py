@@ -119,14 +119,23 @@ class Puck(object):
         c_prime = c + tau_physical * self.velocity
         # Reverse the normal component:
         v_prime = v_t * t - v_n * n
+        k, p = self.puck_energy_momentum(self.velocity)
+        k_prime, p_prime = self.puck_energy_momentum(v_prime)
         return {'tau': int(tau),
                 'tau_physical': tau_physical,
+                "delta k": k - k_prime,
+                "delta p": (p - p_prime).length,
                 'puck_strike_point': p_c,
                 'wall_strike_point': q_prime,
                 'wall_strike_parameter': t_prime,
                 'wall_victim': wall,
-                'c_prime': c_prime,
+                'c_prime': c_prime,  # TODO: can't index later with string "c1'"
                 'v_prime': v_prime}
+
+    def puck_energy_momentum(self, v):
+        p = self.MASS * v
+        k = p.dot(p) / 2 / self.MASS
+        return (k, p)
 
     def predict_a_puck_collision(self, them: 'Puck', dt):
         """See https://goo.gl/jQik91 for forward-references as strings."""
@@ -181,7 +190,7 @@ class Puck(object):
             assert tau > 0
             v1 = self.velocity
             v2 = them.velocity
-            k, p = self.energy_momentum(them, v1, v2)
+            k, p = self.puck_puck_energy_momentum(them, v1, v2)
             c1_prime = self.center + tau_physical * v1
             c2_prime = them.center + tau_physical * v2
             normal = (c2_prime - c1_prime).normalized()
@@ -198,20 +207,20 @@ class Puck(object):
             v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
             v1_prime = v1np * normal + v1t * tangential
             v2_prime = v2np * normal + v2t * tangential
-            k_prime, p_prime = self.energy_momentum(them, v1_prime, v2_prime)
+            k_prime, p_prime = self.puck_puck_energy_momentum(them, v1_prime, v2_prime)
         return {
             'tau': int(tau) if tau < np.inf else sys.maxsize,
             'tau_physical': tau_physical,
-            'k': k, 'k_prime': k_prime,
-            'p': p, 'p_prime': p_prime,
+            "delta k": k - k_prime if k_prime else 0,
+            "delta p": (p - p_prime).length if p_prime else 0,
             'puck_victim': them,
             'gonna_hit': gonna_hit,
-            'c1_prime': c1_prime,
+            'c1_prime': c1_prime,  # TODO: can't index later with string "c1'"
             'v1_prime': v1_prime,
             'c2_prime': c2_prime,
             'v2_prime': v2_prime}
 
-    def energy_momentum(self, them, v1, v2):
+    def puck_puck_energy_momentum(self, them, v1, v2):
         # momentum
         p1 = self.MASS * v1
         p2 = them.MASS * v2
@@ -244,21 +253,27 @@ class PuckLP(LogicalProcess):
                 else:
                     it, its_state = self.query('small puck', Body({}))
                 # TODO: Use tw state rather than puck object.
-                # puck_pred = self.puck.predict_a_puck_collision(it, dt)
-                # then = puck_pred['tau']
-                # if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
-                #     pp.pprint(puck_pred)
-                #     state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
-                # else:
-                #     print({'wall dt': wall_pred['tau']})
-                #     state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+                puck_pred = self.puck.predict_a_puck_collision(it, dt)
+                then = puck_pred['tau']
+                if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
+                    pp.pprint(puck_pred)
+                    assert np.abs(puck_pred["delta k"]) < 1e-12
+                    assert puck_pred["delta p"] < 1e-12
+                    state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
+                else:
+                    pp.pprint(wall_pred)
+                    assert np.abs(wall_pred["delta k"]) < 1e-12
+                    # assert wall_pred["delta p"] < 1e-12
+                    # print({'wall dt': wall_pred['tau']})
+                    state_prime = self._bounce_off_wall(wall_pred, walls, dt)
 
                 # Ignoring the puck-puck collisions proves that the momentum
                 # and energy drift & instability comes from their caculation.
 
-                state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+                # state_prime = self._bounce_off_wall(wall_pred, walls, dt)
 
-                print({'velocity': state_prime.body['velocity']})
+                # print({'velocity': state_prime.body['velocity']})
+
                 return state_prime
             else:
                 raise ValueError(f'unknown message action & body '
@@ -651,18 +666,18 @@ def main():
     set_up_screen()
 
     PAUSE = 0.75
-    STEPS = 5000
-    CAGES = 15
+    STEPS = 1000
+    CAGES = 3
     DT = 0.001
     # TODO: There is a bug with multiplicatively increasing times when DT
     # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
     # TODO: when DT is 1.
 
-    # demo_classic(steps=STEPS)
+    demo_classic(steps=STEPS)
     # input()
-    # demo_hull(pause=PAUSE)
-    # for _ in range(CAGES):
-    #     demo_cage(pause=PAUSE, dt=DT)
+    demo_hull(pause=PAUSE)
+    for _ in range(CAGES):
+        demo_cage(pause=PAUSE, dt=DT)
     # input()
     demo_cage_time_warp(drawing=False, pause=0, dt=DT)
 
