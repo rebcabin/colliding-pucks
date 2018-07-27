@@ -171,11 +171,16 @@ class Puck(object):
         c2_prime = None
         v1_prime = None
         v2_prime = None
+        k = None
+        k_prime = None
+        p = None
+        p_prime = None
         if gonna_hit:
             assert tau != np.inf
             assert tau > 0
             v1 = self.velocity
             v2 = them.velocity
+            k, p = self.energy_momentum(them, v1, v2)
             c1_prime = self.center + t_physical * v1
             c2_prime = them.center + t_physical * v2
             normal = (c2_prime - c1_prime).normalized()
@@ -192,15 +197,28 @@ class Puck(object):
             v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
             v1_prime = v1np * normal + v1t * tangential
             v2_prime = v2np * normal + v2t * tangential
-
+            k_prime, p_prime = self.energy_momentum(them, v1_prime, v2_prime)
         return {
             'tau': int(tau) if tau < np.inf else sys.maxsize,
+            'k': k, 'k_prime': k_prime,
+            'p': p, 'p_prime': p_prime,
             'puck_victim': them,
             'gonna_hit': gonna_hit,
             'c1_prime': c1_prime,
             'v1_prime': v1_prime,
             'c2_prime': c2_prime,
             'v2_prime': v2_prime}
+
+    def energy_momentum(self, them, v1, v2):
+        # momentum
+        p1 = self.MASS * v1
+        p2 = them.MASS * v2
+        p = p1 + p2
+        # energy
+        k1 = p1 ** 2 / 2 / self.MASS
+        k2 = p2 ** 2 / 2 / them.MASS
+        k = k1 + k2
+        return (k, p)
 
 
 class PuckLP(LogicalProcess):
