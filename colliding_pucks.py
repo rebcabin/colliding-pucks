@@ -129,8 +129,8 @@ class Puck(object):
                 'wall_strike_point': q_prime,
                 'wall_strike_parameter': t_prime,
                 'wall_victim': wall,
-                'c_prime': c_prime,  # TODO: can't index later with string "c1'"
-                'v_prime': v_prime}
+                "c'": c_prime,
+                "v'": v_prime}
 
     def puck_energy_momentum(self, v):
         p = self.MASS * v
@@ -215,10 +215,10 @@ class Puck(object):
             "delta p": (p - p_prime).length if p_prime else 0,
             'puck_victim': them,
             'gonna_hit': gonna_hit,
-            'c1_prime': c1_prime,  # TODO: can't index later with string "c1'"
-            'v1_prime': v1_prime,
-            'c2_prime': c2_prime,
-            'v2_prime': v2_prime}
+            "c1'": c1_prime,  # TODO: can't index later with string "c1'"
+            "v1'": v1_prime,
+            "c2'": c2_prime,
+            "v2'": v2_prime}
 
     def puck_puck_energy_momentum(self, them, v1, v2):
         # momentum
@@ -295,8 +295,8 @@ class PuckLP(LogicalProcess):
 
     def _bounce_pucks(self, puck_pred, then, walls, dt):
         state_prime = self.new_state(Body({
-            'center': puck_pred['c1_prime'],
-            'velocity': puck_pred['v1_prime'],
+            'center': puck_pred["c1'"],
+            'velocity': puck_pred["v1'"],
             'walls': walls,
             'dt': dt}))
         self._visualize_puck(state_prime)
@@ -308,8 +308,8 @@ class PuckLP(LogicalProcess):
     def _bounce_off_wall(self, wall_pred, walls, dt):
         then = int(wall_pred['tau']) or 1
         state_prime = self.new_state(Body({
-            'center': wall_pred['c_prime'],
-            'velocity': wall_pred['v_prime'],
+            'center': wall_pred["c'"],
+            'velocity': wall_pred["v'"],
             'walls': walls,
             'dt': dt}))
         self._visualize_puck(state_prime)
