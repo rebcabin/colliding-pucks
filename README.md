@@ -16,16 +16,16 @@ Known limitations:
   fundamental queuing discipline, which is the cornerstone of the Time Warp
   mechanism, but isn't distributed YET!
 
-* This was designed as a demo for a talk to interns. It has many ugly hacks and
+* This is a demo for a talk . It has many ugly hacks and
   intentional shortcuts. I documented them meticulously with "TODO," but
   certainly missed some.
 
-* Cancellation is not correctly implemented (I'm working on it).
+* Cancellation is not tested because this is not distributed.
 
-* Puck-puck collisions have at least one bug: the big green puck eventually
-  leaks and disappears from the simulation. The likely cause is lack of
-  cancellation. Puck collisions don't cancel scheduled wall collisions. I
-  verified that puck-puck collisions have correct geometry.
+* There is a momentum leak of unknown cause. The simulation
+  eventually slows down (in simulation time) and the next 
+  event is scheduled infinitely far in the virtual future,
+  causing premature termination. I'm working on it.
 
 * A better method is to have table regions coordinate all events. I intend to
   get there some day.
