@@ -666,9 +666,9 @@ def main():
     globals.init_globals()
     set_up_screen()
 
-    PAUSE = 0.75
-    STEPS = 1000
-    CAGES = 3
+    PAUSE = 2.75
+    STEPS = 30000
+    CAGES = 15
     DT = 0.001
     # TODO: There is a bug with multiplicatively increasing times when DT
     # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
