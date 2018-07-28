@@ -256,20 +256,40 @@ class PuckLP(LogicalProcess):
                 puck_pred = self.puck.predict_a_puck_collision(it, dt)
                 then = puck_pred['tau']
                 if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
-                    pp.pprint(puck_pred)
+                    # pp.pprint(puck_pred)
+                    pp.pprint({
+                        'coll_pred': self.me,
+                        #'other': it.me,
+                        'tau': puck_pred['tau'],
+                        'pred_lvt': self.now + then,
+                        'deltas': (puck_pred['delta k'], puck_pred['delta p']),
+                        'lvt': lvt,
+                        'now': self.now,
+                    })
                     assert np.abs(puck_pred["delta k"]) < 1e-12
                     assert puck_pred["delta p"] < 1e-12
-                    state_prime = self._bounce_pucks(puck_pred, then, walls, dt)
+                    state_prime = self._bounce_pucks(  # sending happens in here
+                        state, puck_pred, then, walls, dt)
                 else:
-                    pp.pprint(wall_pred)
+                    # pp.pprint(wall_pred)
+                    pp.pprint({
+                        'coll_pred': self.me,
+                        #'other': wall_pred['wall_victim'].wall.me,
+                        'tau': wall_pred['tau'],
+                        'pred_lvt': self.now + wall_pred['tau'] or 1,
+                        'deltas': (wall_pred['delta k'], wall_pred['delta p']),
+                        'lvt': lvt,
+                        'now': self.now,
+                    })
                     assert np.abs(wall_pred["delta k"]) < 1e-12
                     # Wall collision does not preserve puck momentum.
                     # assert wall_pred["delta p"] < 1e-12
                     # print({'wall dt': wall_pred['tau']})
-                    state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+                    state_prime = self._bounce_off_wall(  # sending in here
+                        state, wall_pred, walls, dt)
 
                 # Ignoring the puck-puck collisions proves that the momentum
-                # and energy drift & instability comes from their caculation.
+                # leak comes from their caculation.
 
                 # state_prime = self._bounce_off_wall(wall_pred, walls, dt)
 
@@ -280,40 +300,52 @@ class PuckLP(LogicalProcess):
                 raise ValueError(f'unknown message action & body '
                                  f'{pp.pformat(msg)}')
 
-    def _visualize_puck(self, state):
-        """Temporary method for debugging collisions. Aso of Tue,
-        24 July 2018, I'm convinced the collision geometry is
-        correct."""
+    def _visualize_puck(self, state, state_prime):
+        """Temporary method for debugging collisions. Aso of Tue, 24 July 2018,
+        I'm convinced the collision geometry is correct."""
+        c = state.body['center']
+        v = state.body['velocity'] * 100
+        c_prime = state_prime.body['center']
+        v_prime = state_prime.body['velocity'] * 100
         pygame.draw.circle(
             globals.screen,
             self.puck.COLOR,
-            state.body['center'].int_tuple,
+            state_prime.body['center'].int_tuple,
             self.puck.RADIUS,
             self.puck.DONT_FILL_BIT
         )
+        pygame.draw.circle(
+            globals.screen,
+            THECOLORS['black'],
+            state_prime.body['center'].int_tuple,
+            self.puck.RADIUS,
+            not self.puck.DONT_FILL_BIT
+        )
+        draw_vector(c_prime, c_prime + v, THECOLORS['gray50'])
+        draw_vector(c_prime, c_prime + v_prime, THECOLORS['magenta'])
         pygame.display.flip()
         time.sleep(0)
 
-    def _bounce_pucks(self, puck_pred, then, walls, dt):
+    def _bounce_pucks(self, state, puck_pred, then, walls, dt):
         state_prime = self.new_state(Body({
             'center': puck_pred["c1'"],
             'velocity': puck_pred["v1'"],
             'walls': walls,
             'dt': dt}))
-        self._visualize_puck(state_prime)
+        self._visualize_puck(state, state_prime)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
         return state_prime
 
-    def _bounce_off_wall(self, wall_pred, walls, dt):
+    def _bounce_off_wall(self, state, wall_pred, walls, dt):
         then = int(wall_pred['tau']) or 1
         state_prime = self.new_state(Body({
             'center': wall_pred["c'"],
             'velocity': wall_pred["v'"],
             'walls': walls,
             'dt': dt}))
-        self._visualize_puck(state_prime)
+        self._visualize_puck(state, state_prime)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
@@ -666,9 +698,9 @@ def main():
     globals.init_globals()
     set_up_screen()
 
-    PAUSE = 2.75
-    STEPS = 30000
-    CAGES = 15
+    PAUSE = 0.75
+    STEPS = 1000
+    CAGES = 3
     DT = 0.001
     # TODO: There is a bug with multiplicatively increasing times when DT
     # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
