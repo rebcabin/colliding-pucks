@@ -237,68 +237,85 @@ class PuckLP(LogicalProcess):
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
         self.vt = lvt
+        assert lvt == self.now
+
+        # Move the puck physics object to the commanded state:
         self.puck.center = state.body['center']
         self.puck.velocity = state.body['velocity']
-        # In general, the puck may move to table sectors with different walls,
-        # so the list of walls must be in the tw-state. Likewise, some collision
-        # schemes change dt, so it's in the state.
+
+        # The puck may move to table sectors with different walls,
+        # so the list of walls must be in the tw-state. Likewise,
+        # some collision schemes change dt, so dt is in the state.
         walls = state.body['walls']
-
         dt = state.body['dt']
-        for msg in msgs:
-            if msg.body['action'] == 'move':
-                wall_pred = wall_prediction(self.puck, walls, dt)
-                if self.me == 'small puck':
-                    it, its_state = self.query('big puck', Body({}))
-                else:
-                    it, its_state = self.query('small puck', Body({}))
-                # TODO: Use tw state rather than puck object.
-                puck_pred = self.puck.predict_a_puck_collision(it, dt)
-                then = puck_pred['tau']
-                if puck_pred['gonna_hit'] and 0 < then < wall_pred['tau']:
-                    # pp.pprint(puck_pred)
-                    pp.pprint({
-                        'coll_pred': self.me,
-                        #'other': it.me,
-                        'tau': puck_pred['tau'],
-                        'pred_lvt': self.now + then,
-                        'deltas': (puck_pred['delta k'], puck_pred['delta p']),
-                        'lvt': lvt,
-                        'now': self.now,
-                    })
-                    assert np.abs(puck_pred["delta k"]) < 1e-12
-                    assert puck_pred["delta p"] < 1e-12
-                    state_prime = self._bounce_pucks(  # sending happens in here
-                        state, puck_pred, then, walls, dt)
-                else:
-                    # pp.pprint(wall_pred)
-                    pp.pprint({
-                        'coll_pred': self.me,
-                        #'other': wall_pred['wall_victim'].wall.me,
-                        'tau': wall_pred['tau'],
-                        'pred_lvt': self.now + wall_pred['tau'] or 1,
-                        'deltas': (wall_pred['delta k'], wall_pred['delta p']),
-                        'lvt': lvt,
-                        'now': self.now,
-                    })
-                    assert np.abs(wall_pred["delta k"]) < 1e-12
-                    # Wall collision does not preserve puck momentum.
-                    # assert wall_pred["delta p"] < 1e-12
-                    # print({'wall dt': wall_pred['tau']})
-                    state_prime = self._bounce_off_wall(  # sending in here
-                        state, wall_pred, walls, dt)
 
-                # Ignoring the puck-puck collisions proves that the momentum
-                # leak comes from their caculation.
+        # Priority to 'suffer' over 'move' or anything else.
+        msg = msgs[0]
+        for temp in msgs:
+            if temp.body['action'] == 'suffer':
+                msg = temp
 
-                # state_prime = self._bounce_off_wall(wall_pred, walls, dt)
+        # We've picked one, now process it:
+        if msg.body['action'] == 'suffer':
 
-                # print({'velocity': state_prime.body['velocity']})
+            # Go where I'm told
+            state_prime = self.new_state(Body({
+                'center': msg.body['center'],
+                'velocity': msg.body['velocity'],
+                'walls': walls,
+                'dt': dt}))
 
-                return state_prime
+            # Move a tiny bit (TODO: risky; subdivide time)
+            self.send(rcvr_pid=self.me,
+                      receive_time=self.now + 1,
+                      body=Body({'action': 'move'}))
+
+        elif msg.body['action'] == 'move':
+            wall_pred = wall_prediction(self.puck, walls, dt)
+            tau_wall = wall_pred['tau']
+            it, its_lp = self._get_other()
+            puck_pred = self.puck.predict_a_puck_collision(it, dt)
+            tau_puck = puck_pred['tau']
+            # TODO: Can't handle strikes at time 'now'
+            if puck_pred['gonna_hit'] and 0 < tau_puck < tau_wall:
+                pp.pprint({'coll_pred': self.me,
+                           'with': its_lp.me,
+                           'tau': tau_puck,
+                           'pred_lvt': self.now + tau_puck,
+                           'now': self.now})
+                # Check energy and momentum conservation.
+                assert np.abs(puck_pred["delta k"]) < 1e-12
+                assert puck_pred["delta p"] < 1e-12
+                state_prime = self._bounce_pucks(  # sending happens in here
+                    state, puck_pred, its_lp, tau_puck, walls, dt)
             else:
-                raise ValueError(f'unknown message action & body '
-                                 f'{pp.pformat(msg)}')
+                pp.pprint({'coll_pred': self.me,
+                           'with': 'wall',  # TODO: get the 'me' names
+                           'tau': tau_wall,
+                           'pred_lvt': self.now + tau_wall or 1,
+                           'now': self.now})
+                # Check energy conservation.
+                assert np.abs(wall_pred["delta k"]) < 1e-12
+                # Wall collision does not preserve puck momentum.
+                # assert wall_pred["delta p"] < 1e-12
+                # print({'wall dt': wall_pred['tau']})
+                state_prime = self._bounce_off_wall(  # sending in here
+                    state, wall_pred, walls, dt)
+
+        else:
+            raise ValueError(f'unknown message action & body '
+                             f'{pp.pformat(msg)}')
+
+        return state_prime
+
+    def _get_other(self):
+        if self.me == 'small puck':
+            it, its_tw_state = self.query('big puck', Body({}))
+            its_lp = globals.world_map['big puck']
+        else:
+            it, its_tw_state = self.query('small puck', Body({}))
+            its_lp = globals.world_map['small puck']
+        return it, its_lp
 
     def _visualize_puck(self, state, state_prime):
         """Temporary method for debugging collisions. Aso of Tue, 24 July 2018,
@@ -319,14 +336,20 @@ class PuckLP(LogicalProcess):
             THECOLORS['black'],
             state_prime.body['center'].int_tuple,
             self.puck.RADIUS,
-            not self.puck.DONT_FILL_BIT
+            True  # don't fill
         )
-        draw_vector(c_prime, c_prime + v, THECOLORS['gray50'])
+        draw_vector(c_prime, c_prime + v, THECOLORS['gray60'])
         draw_vector(c_prime, c_prime + v_prime, THECOLORS['magenta'])
         pygame.display.flip()
         time.sleep(0)
 
-    def _bounce_pucks(self, state, puck_pred, then, walls, dt):
+    def _bounce_pucks(self,
+                      state: State,
+                      puck_pred: Dict,
+                      other_lp: 'PuckLP',
+                      then: VirtualTime,
+                      walls: List[Wall],
+                      dt: float):
         state_prime = self.new_state(Body({
             'center': puck_pred["c1'"],
             'velocity': puck_pred["v1'"],
@@ -336,6 +359,11 @@ class PuckLP(LogicalProcess):
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + then,
                   body=Body({'action': 'move'}))
+        self.send(rcvr_pid=other_lp.me,
+                  receive_time=self.now + then,
+                  body=Body({'action': 'suffer',
+                             'center': puck_pred["c2'"],
+                             'velocity': puck_pred["v2'"]}))
         return state_prime
 
     def _bounce_off_wall(self, state, wall_pred, walls, dt):
