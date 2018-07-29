@@ -11,6 +11,9 @@ from tw_types import *
 from rendering import *
 from funcyard import *
 
+pygame.font.init()
+myfont = pygame.font.SysFont('Courier', 30)
+
 # TODO: IDs might be best as uuids.
 # TODO: Message equality can be optimized.
 
@@ -249,14 +252,14 @@ class PuckLP(LogicalProcess):
         walls = state.body['walls']
         dt = state.body['dt']
 
-        # Priority to 'suffer' over 'move' or anything else.
+        # Priority to 'move' over 'predict' or anything else.
         msg = msgs[0]
         for temp in msgs:
-            if temp.body['action'] == 'suffer':
+            if temp.body['action'] == 'move':
                 msg = temp
 
         # We've picked one, now process it:
-        if msg.body['action'] == 'suffer':
+        if msg.body['action'] == 'move':
 
             # Go where I'm told
             state_prime = self.new_state(Body({
@@ -266,11 +269,12 @@ class PuckLP(LogicalProcess):
                 'dt': dt}))
 
             # Move a tiny bit (TODO: risky; subdivide time)
+            self._visualize_prediction(state, state_prime, self.now + 1)
             self.send(rcvr_pid=self.me,
                       receive_time=self.now + 1,
-                      body=Body({'action': 'move'}))
+                      body=Body({'action': 'predict'}))
 
-        elif msg.body['action'] == 'move':
+        elif msg.body['action'] == 'predict':
             wall_pred = wall_prediction(self.puck, walls, dt)
             tau_wall = wall_pred['tau']
             it, its_lp = self._get_other()
@@ -317,29 +321,33 @@ class PuckLP(LogicalProcess):
             its_lp = globals.world_map['small puck']
         return it, its_lp
 
-    def _visualize_puck(self, state, state_prime):
+    def _visualize_prediction(self, state, state_prime, then):
         """Temporary method for debugging collisions. Aso of Tue, 24 July 2018,
         I'm convinced the collision geometry is correct."""
         c = state.body['center']
         v = state.body['velocity'] * 100
         c_prime = state_prime.body['center']
         v_prime = state_prime.body['velocity'] * 100
+        int_center = state_prime.body['center'].int_tuple
         pygame.draw.circle(
             globals.screen,
             self.puck.COLOR,
-            state_prime.body['center'].int_tuple,
+            int_center,
             self.puck.RADIUS,
             self.puck.DONT_FILL_BIT
         )
         pygame.draw.circle(
             globals.screen,
             THECOLORS['black'],
-            state_prime.body['center'].int_tuple,
+            int_center,
             self.puck.RADIUS,
             True  # don't fill
         )
+        text = str(then)
+        rtext = myfont.render(text, True, THECOLORS['white'], THECOLORS['black'])
         draw_vector(c_prime, c_prime + v, THECOLORS['gray60'])
         draw_vector(c_prime, c_prime + v_prime, THECOLORS['magenta'])
+        globals.screen.blit(rtext, int_center)
         pygame.display.flip()
         time.sleep(0)
 
@@ -347,7 +355,7 @@ class PuckLP(LogicalProcess):
                       state: State,
                       puck_pred: Dict,
                       other_lp: 'PuckLP',
-                      then: VirtualTime,
+                      tau: VirtualTime,
                       walls: List[Wall],
                       dt: float):
         state_prime = self.new_state(Body({
@@ -355,28 +363,28 @@ class PuckLP(LogicalProcess):
             'velocity': puck_pred["v1'"],
             'walls': walls,
             'dt': dt}))
-        self._visualize_puck(state, state_prime)
+        self._visualize_prediction(state, state_prime, self.now + tau)
         self.send(rcvr_pid=self.me,
-                  receive_time=self.now + then,
-                  body=Body({'action': 'move'}))
+                  receive_time=self.now + tau,
+                  body=Body({'action': 'predict'}))
         self.send(rcvr_pid=other_lp.me,
-                  receive_time=self.now + then,
-                  body=Body({'action': 'suffer',
+                  receive_time=self.now + tau,
+                  body=Body({'action': 'move',
                              'center': puck_pred["c2'"],
                              'velocity': puck_pred["v2'"]}))
         return state_prime
 
     def _bounce_off_wall(self, state, wall_pred, walls, dt):
-        then = int(wall_pred['tau']) or 1
+        tau = int(wall_pred['tau']) or 1
         state_prime = self.new_state(Body({
             'center': wall_pred["c'"],
             'velocity': wall_pred["v'"],
             'walls': walls,
             'dt': dt}))
-        self._visualize_puck(state, state_prime)
+        self._visualize_prediction(state, state_prime, self.now + tau)
         self.send(rcvr_pid=self.me,
-                  receive_time=self.now + then,
-                  body=Body({'action': 'move'}))
+                  receive_time=self.now + tau,
+                  body=Body({'action': 'predict'}))
         return state_prime
 
     def query_main(self, vt: VirtualTime, state: State,
@@ -429,7 +437,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
         rcvr_pid=ProcessID('small puck'),
         receive_time=VirtualTime(0),
         body=Body({
-            'action': 'move'
+            'action': 'predict'
         }),
         force_send_time=EARLIEST_VT)
     print({'sending': 'BOOT move',
@@ -441,7 +449,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
         rcvr_pid=ProcessID('big puck'),
         receive_time=VirtualTime(0),
         body=Body({
-            'action': 'move'
+            'action': 'predict'
         }),
         force_send_time=EARLIEST_VT)
     print({'sending': 'BOOT move',
