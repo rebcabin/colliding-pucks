@@ -474,13 +474,12 @@ class LogicalProcess(Timestamped):
             # find self in the bundle and put everyone else back.
             # TODO: abstract the following operation into the queues
             for i in range(len(lp_bundle)):
-                if self is lp_bundle[i]:
+                if lp is lp_bundle[i]:
                     pre = lp_bundle[:i]
                     post = lp_bundle[i + 1:]
-                    me = lp_bundle[i]
                     residual = pre + post
-                    me.now = me.vt = new_lp_vt
-                    globals.sched_q.insert(me)
+                    lp.now = lp.vt = new_lp_vt
+                    globals.sched_q.insert(lp)
                     break
             globals.sched_q.insert_bundle(residual)
         else:
