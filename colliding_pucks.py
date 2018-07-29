@@ -734,12 +734,12 @@ def main():
     # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
     # TODO: when DT is 1.
 
-    demo_classic(steps=STEPS)
-    # input()
-    demo_hull(pause=PAUSE)
-    for _ in range(CAGES):
-        demo_cage(pause=PAUSE, dt=DT)
-    # input()
+    # demo_classic(steps=STEPS)
+    # # input()
+    # demo_hull(pause=PAUSE)
+    # for _ in range(CAGES):
+    #     demo_cage(pause=PAUSE, dt=DT)
+    # # input()
     demo_cage_time_warp(drawing=False, pause=0, dt=DT)
 
 

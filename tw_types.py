@@ -239,11 +239,6 @@ class TWQueue(object):
             # back to this time or earlier:
             # TODO: Do lazy cancellation at the end of each event.
             self.vt = m.vt
-            if m is EventMessage:
-                pp.pprint({
-                    'rollback': 'in insert',
-                    'cause': vars(m)
-                })
         if m.vt in self.elements:
             # search for the antimessage of this message:
             for e in self.elements[m.vt]:
@@ -388,7 +383,8 @@ class ScheduleQueue(TWQueue):
                 pygame.display.flip()
                 time.sleep(pause)
 
-            # A process is permitted to process an event and not change state.
+            # Destructively overwrite state:
+            assert state_prime.vt == lvt
             if state is not state_prime:
                 lp.sq.insert(state_prime)
             earliest_later_time = lp.iq.earliest_later_time(lp.now)
@@ -458,45 +454,38 @@ class LogicalProcess(Timestamped):
             # TODO: If I'm cancelling output to myself, I must terminate my
             # TODO: current thread of execution. One good way to do that is
             # TODO: to raise an exception, which must be caught in the
-            # TODO: scheduler-queue's "run" method. Exceptions are a legitimate,
-            # TODO: if one-way, form of continuation. Continuation-Passing Style
-            # TODO: is probably the best way to terminate and restart logical
-            # TODO: processes.
-            print({'rollback': 'in send',
-                   'cause': vars(msg)})
+            # TODO: scheduler-queue's "run" method.
+            print({'rollback': 'in send', 'cause': vars(msg)})
             if not force_send_time:
-                for am_bundle_keys in rcvr_lp.oq.elements:
-                    for ams in rcvr_lp.oq.elements[am_bundle_keys]:
-                        receiver_pid = ams.receiver
-                        receiver_lp = globals.globals.world_map[receiver_pid]
-                        pp.pprint({
-                            'cancelling': True,
-                            'antimessage': vars(ams)
-                        })
-                        receiver_lp.iq.insert(ams)
-                # blow away its output queue
-                rcvr_lp.oq = OutputQueue()
-                if rcvr_lp is self:
-                    # TODO: this never happens (and it should)
-                    raise Exception('self cancellation')
+                for ovt in rcvr_lp.oq.elements:
+                    if ovt >= receive_time:
+                        for amsg in rcvr_lp.oq.elements.pop(ovt):
+                            receiver_pid = amsg.receiver
+                            receiver_lp = globals.world_map[receiver_pid]
+                            receiver_lp.iq.insert(amsg)
 
             rcvr_lp.iq.rollback = False
 
     def reschedule(self, lp):
         new_lp_vt = lp.iq.vt
-        lp_bundle = globals.sched_q.elements.pop(self.now)
-        # find self in the bundle
-        # TODO: abstract the following operation into the queues
-        for i in range(len(lp_bundle)):
-            if self is lp_bundle[i]:
-                pre = lp_bundle[:i]
-                post = lp_bundle[i + 1:]
-                me = lp_bundle[i]
-                residual = pre + post
-                globals.sched_q.insert_bundle(residual)
-                me.now = me.vt = new_lp_vt
-                globals.sched_q.insert(me)
-                break
+        if self.now in globals.sched_q.elements:
+            lp_bundle = globals.sched_q.elements.pop(self.now)
+            # find self in the bundle and put everyone else back.
+            # TODO: abstract the following operation into the queues
+            for i in range(len(lp_bundle)):
+                if self is lp_bundle[i]:
+                    pre = lp_bundle[:i]
+                    post = lp_bundle[i + 1:]
+                    me = lp_bundle[i]
+                    residual = pre + post
+                    globals.sched_q.insert_bundle(residual)
+                    me.now = me.vt = new_lp_vt
+                    globals.sched_q.insert(me)
+                    break
+        else:
+            """I'm not in the scheduling queue, which means I've been popped 
+            out of in in the scheduler 'while' loop"""
+            pass
 
     def _message_pair(self, other, force_send_time, receive_time, body):
         send_time = force_send_time or self.now
