@@ -232,6 +232,7 @@ class TWQueue(object):
 
     def insert(self, m: Timestamped):
         self.annihilation = False
+        self.rollback = False
         if m.vt <= self.vt:
             self.rollback = True
             # Even if there is eventual annihilation, we need to roll
@@ -390,7 +391,9 @@ class ScheduleQueue(TWQueue):
             # A process is permitted to process an event and not change state.
             if state is not state_prime:
                 lp.sq.insert(state_prime)
-            lp.vt = lp.iq.earliest_later_time(lp.now)
+            earliest_later_time = lp.iq.earliest_later_time(lp.now)
+            lp.vt = earliest_later_time
+            lp.iq.vt = earliest_later_time
             self.insert(lp)
 
         pass
