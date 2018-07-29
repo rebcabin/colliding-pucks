@@ -468,8 +468,8 @@ class LogicalProcess(Timestamped):
 
     def reschedule(self, lp):
         new_lp_vt = lp.iq.vt
-        if self.now in globals.sched_q.elements:
-            lp_bundle = globals.sched_q.elements.pop(self.now)
+        if lp.vt in globals.sched_q.elements:
+            lp_bundle = globals.sched_q.elements.pop(lp.vt)
             # find self in the bundle and put everyone else back.
             # TODO: abstract the following operation into the queues
             for i in range(len(lp_bundle)):
