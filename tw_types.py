@@ -470,6 +470,7 @@ class LogicalProcess(Timestamped):
         new_lp_vt = lp.iq.vt
         if lp.vt in globals.sched_q.elements:
             lp_bundle = globals.sched_q.elements.pop(lp.vt)
+            residual = lp_bundle  # for the case where self is not in lp_bundle
             # find self in the bundle and put everyone else back.
             # TODO: abstract the following operation into the queues
             for i in range(len(lp_bundle)):
@@ -478,13 +479,13 @@ class LogicalProcess(Timestamped):
                     post = lp_bundle[i + 1:]
                     me = lp_bundle[i]
                     residual = pre + post
-                    globals.sched_q.insert_bundle(residual)
                     me.now = me.vt = new_lp_vt
                     globals.sched_q.insert(me)
                     break
+            globals.sched_q.insert_bundle(residual)
         else:
             """I'm not in the scheduling queue, which means I've been popped 
-            out of in in the scheduler 'while' loop"""
+            out of in in the scheduler loop. The scheduler will put me back."""
             pass
 
     def _message_pair(self, other, force_send_time, receive_time, body):
@@ -508,7 +509,7 @@ class LogicalProcess(Timestamped):
         return message, antimessage
 
     def query(self, other_pid: ProcessID, body: Body):
-        other_lp = globals.globals.world_map[other_pid]
+        other_lp = globals.world_map[other_pid]
         other_le_vt = other_lp.sq.latest_earlier_time(self.now)
         other_states = other_lp.sq.elements[other_le_vt]
         assert len(other_states) == 1
