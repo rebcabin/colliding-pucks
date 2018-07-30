@@ -4,8 +4,6 @@ import pprint
 pp = pprint.PrettyPrinter(indent=2)
 
 import sortedcontainers
-import pygame  # TODO: move rendering out of here
-import time
 from constants import *
 import globals
 
@@ -377,20 +375,30 @@ class ScheduleQueue(TWQueue):
             except Exception as e:
                 print(f"likely process self-preemption: {e}")
 
-            # TODO: move the drawing out of here!
-            if drawing:
-                lp.draw()
-                pygame.display.flip()
-                time.sleep(pause)
-
-            # Destructively overwrite state:
-            assert state_prime.vt == lvt
+            # TODO: Destructively overwrite state:
+            # assert state_prime.vt == lvt
             if state is not state_prime:
                 lp.sq.insert(state_prime)
             earliest_later_time = lp.iq.earliest_later_time(lp.now)
             lp.vt = earliest_later_time
             lp.iq.vt = earliest_later_time
             self.insert(lp)
+
+            gvt = sys.maxsize
+            max_iq_length = 0
+            max_oq_length = 0
+            max_sq_length = 0
+            for vt, lps in self.elements.items():
+                gvt = min(gvt, vt)
+                for lp in lps:
+                    max_iq_length = max(max_iq_length, len(lp.iq.elements))
+                    max_oq_length = max(max_oq_length, len(lp.oq.elements))
+                    max_sq_length = max(max_sq_length, len(lp.sq.elements))
+
+            print({'gvt': gvt,
+                   'max iq len': max_iq_length,
+                   'max oq len': max_oq_length,
+                   'max sq len': max_sq_length})
 
         pass
 

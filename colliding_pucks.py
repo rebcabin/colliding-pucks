@@ -223,6 +223,91 @@ class Puck(object):
             "c2'": c2_prime,
             "v2'": v2_prime}
 
+    def predict_a_puck_collision_2(self, them: 'Puck', rel_vt: VirtualTime, dt):
+        """See https://goo.gl/jQik91 for forward-references as strings."""
+        moved_center = them.center + rel_vt * dt * them.velocity
+        dp = moved_center - self.center
+        # dp = them.center - self.center
+        # Relative distance as a function of time, find its zero:
+        #
+        # Collect[{x-vx t, y-vy t}^2 - d1^2, t]
+        #
+        # (x^2+y^2)-d1^2 + t (-2 x vx-2 y vy) + t^2 (vx^2 + vy^2)
+        # \_____ ______/     \______ _______/       \_____ _____/
+        #       v                   v                     v
+        #
+        #       c                   b                     a
+        #
+        dv = self.velocity - them.velocity
+        # a, b, c are the coefficients of the quadratic above, in the usual
+        # notation we all know from high-school algebra.
+        a = dv.get_length_sqrd()
+        b = -2 * dp.dot(dv)
+        d1 = self.RADIUS + them.RADIUS
+        c = dp.get_length_sqrd() - (d1 * d1)
+        disc = (b * b) - (4 * a * c)
+        gonna_hit = False
+        tau = tau_physical = np.inf
+        if disc >= 0 and a != 0:
+            # Two real roots; pick the smallest, non-negative one.
+            sdisc = np.sqrt(disc)
+            root1 = (-b + sdisc) / (2 * a)
+            root2 = (-b - sdisc) / (2 * a)
+            # The roots are in units of physical time. Tau is in units of
+            # steps, where 1/dt is the physical time of one step.
+            if root1 > 0 and root2 > 0:
+                tau_physical = float(min(root1, root2))
+                tau = tau_physical / dt
+                gonna_hit = True
+            else:
+                tau_physical = float(max(root1, root2))
+                tau = tau_physical / dt
+                gonna_hit = root1 > 0 or root2 > 0
+            # TODO: what if they're both negative? Is that possible?
+
+        c1_prime = None
+        c2_prime = None
+        v1_prime = None
+        v2_prime = None
+        k = None
+        k_prime = None
+        p = None
+        p_prime = None
+        if gonna_hit:
+            assert tau != np.inf
+            assert tau > 0
+            v1 = self.velocity
+            v2 = them.velocity
+            k, p = self.puck_puck_energy_momentum(them, v1, v2)
+            c1_prime = self.center + tau_physical * v1
+            c2_prime = them.center + tau_physical * v2
+            normal = (c2_prime - c1_prime).normalized()
+            tangential = Vec2d(normal[1], -normal[0])
+            v1n = v1.dot(normal)
+            v2n = v2.dot(normal)
+            v1t = v1.dot(tangential)
+            v2t = v2.dot(tangential)
+            m1 = self.MASS
+            m2 = them.MASS
+            M = m1 + m2
+            # See Mathematica notebook in docs folder
+            v1np = ((m1 - m2) * v1n + 2 * m2 * v2n) / M
+            v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
+            v1_prime = v1np * normal + v1t * tangential
+            v2_prime = v2np * normal + v2t * tangential
+            k_prime, p_prime = self.puck_puck_energy_momentum(them, v1_prime, v2_prime)
+        return {
+            'tau': int(tau) if tau < np.inf else sys.maxsize,
+            'tau_physical': tau_physical,
+            "delta k": k - k_prime if k_prime else 0,
+            "delta p": (p - p_prime).length if p_prime else 0,
+            'puck_victim': them,
+            'gonna_hit': gonna_hit,
+            "c1'": c1_prime,  # TODO: can't index later with string "c1'"
+            "v1'": v1_prime,
+            "c2'": c2_prime,
+            "v2'": v2_prime}
+
     def puck_puck_energy_momentum(self, them, v1, v2):
         # momentum
         p1 = self.MASS * v1
@@ -232,11 +317,12 @@ class Puck(object):
         k1 = p1.dot(p1) / 2 / self.MASS
         k2 = p2.dot(p2) / 2 / them.MASS
         k = k1 + k2
-        return (k, p)
+        return k, p
 
 
 class PuckLP(LogicalProcess):
-    """TODO: Free logging with the oslash Writer monad."""
+    """For Time Warp; contains a puck object.
+    TODO: Free logging with the oslash Writer monad."""
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
         self.vt = lvt
@@ -278,7 +364,9 @@ class PuckLP(LogicalProcess):
             wall_pred = wall_prediction(self.puck, walls, dt)
             tau_wall = wall_pred['tau']
             it, its_lp = self._get_other()
-            puck_pred = self.puck.predict_a_puck_collision(it, dt)
+            # assert its_lp.now <= self.now
+            puck_pred = self.puck.predict_a_puck_collision_2(
+                it, its_lp.now - self.now, dt)
             tau_puck = puck_pred['tau']
             # TODO: Can't handle strikes at time 'now'
             if puck_pred['gonna_hit'] and 0 < tau_puck < tau_wall:
@@ -367,11 +455,11 @@ class PuckLP(LogicalProcess):
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + tau,
                   body=Body({'action': 'predict'}))
-        self.send(rcvr_pid=other_lp.me,
-                  receive_time=self.now + tau,
-                  body=Body({'action': 'move',
-                             'center': puck_pred["c2'"],
-                             'velocity': puck_pred["v2'"]}))
+        other_lp.send(rcvr_pid=other_lp.me,
+                      receive_time=other_lp.now + self.now + tau,
+                      body=Body({'action': 'move',
+                                 'center': puck_pred["c2'"],
+                                 'velocity': puck_pred["v2'"]}))
         return state_prime
 
     def _bounce_off_wall(self, state, wall_pred, walls, dt):
@@ -684,8 +772,7 @@ class GameState(object):
     def create_walls(self):
         walls = [
             pymunk.Segment(self.space.static_body, TOP_LEFT, BOTTOM_LEFT, 1),
-            pymunk.Segment(self.space.static_body, BOTTOM_LEFT, BOTTOM_RIGHT,
-                           1),
+            pymunk.Segment(self.space.static_body, BOTTOM_LEFT, BOTTOM_RIGHT, 1),
             pymunk.Segment(self.space.static_body, BOTTOM_RIGHT, TOP_RIGHT, 1),
             pymunk.Segment(self.space.static_body, TOP_RIGHT, TOP_LEFT, 1),
         ]
@@ -738,9 +825,6 @@ def main():
     STEPS = 1000
     CAGES = 3
     DT = 0.001
-    # TODO: There is a bug with multiplicatively increasing times when DT
-    # TODO: is small (e.g., 0.001. There is a bug with slowly decreasing times
-    # TODO: when DT is 1.
 
     # demo_classic(steps=STEPS)
     # # input()
