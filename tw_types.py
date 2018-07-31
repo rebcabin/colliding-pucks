@@ -354,12 +354,9 @@ class ScheduleQueue(TWQueue):
         # should not be a mysterious or confusing acronym.
         while True:  # TODO: finite number of steps
             lvt, lps = self.elements.popitem(0)
-            # just run the first lp in the list returned by peekitem:
-            lp = lps[0]
-            # put the others back in the sched queue
-            self.insert_bundle(lps[1:])
-            # Let iq throw if no input messages!
-            try:
+            lp = lps[0]  # just run the first lp in the list
+            self.insert_bundle(lps[1:])  # put the others back
+            try: # Let iq throw if no input messages!
                 input_bundle = lp.iq.elements[lvt]
             except KeyError as e:
                 continue
@@ -380,27 +377,31 @@ class ScheduleQueue(TWQueue):
             if state is not state_prime:
                 lp.sq.insert(state_prime)
             earliest_later_time = lp.iq.earliest_later_time(lp.now)
+
+            # scoot the process forward
             lp.vt = earliest_later_time
             lp.iq.vt = earliest_later_time
             self.insert(lp)
 
-            gvt = sys.maxsize
-            max_iq_length = 0
-            max_oq_length = 0
-            max_sq_length = 0
-            for vt, lps in self.elements.items():
-                gvt = min(gvt, vt)
-                for lp in lps:
-                    max_iq_length = max(max_iq_length, len(lp.iq.elements))
-                    max_oq_length = max(max_oq_length, len(lp.oq.elements))
-                    max_sq_length = max(max_sq_length, len(lp.sq.elements))
-
-            print({'gvt': gvt,
-                   'max iq len': max_iq_length,
-                   'max oq len': max_oq_length,
-                   'max sq len': max_sq_length})
+            self.gvt_chores()
 
         pass
+
+    def gvt_chores(self):
+        gvt = sys.maxsize
+        max_iq_length = 0
+        max_oq_length = 0
+        max_sq_length = 0
+        for vt, lps in self.elements.items():
+            gvt = min(gvt, vt)
+            for lp in lps:
+                max_iq_length = max(max_iq_length, len(lp.iq.elements))
+                max_oq_length = max(max_oq_length, len(lp.oq.elements))
+                max_sq_length = max(max_sq_length, len(lp.sq.elements))
+        print({'gvt': gvt,
+               'max iq len': max_iq_length,
+               'max oq len': max_oq_length,
+               'max sq len': max_sq_length})
 
 
 #  _              _         _   ___
@@ -457,7 +458,7 @@ class LogicalProcess(Timestamped):
         # TODO: When distributed, the other machine will do the following:
         rcvr_lp.iq.insert(msg)
         if rcvr_lp.iq.rollback:
-            self.reschedule(rcvr_lp)
+            self._reschedule(rcvr_lp)
             # TODO: Eager cancellation:
             # TODO: If I'm cancelling output to myself, I must terminate my
             # TODO: current thread of execution. One good way to do that is
@@ -474,7 +475,7 @@ class LogicalProcess(Timestamped):
 
             rcvr_lp.iq.rollback = False
 
-    def reschedule(self, lp):
+    def _reschedule(self, lp):
         new_lp_vt = lp.iq.vt
         if lp.vt in globals.sched_q.elements:
             lp_bundle = globals.sched_q.elements.pop(lp.vt)
@@ -523,5 +524,11 @@ class LogicalProcess(Timestamped):
         result = other_lp.query_main(
             self.now,
             other_states[0],
-            [])
+            QueryMessage(
+                sender=self.me,
+                send_time=self.now - 1,  # TODO: BAD HACK!
+                receiver=other_pid,
+                receive_time=self.now,
+                sign=True,
+                body=body))
         return result

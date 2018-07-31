@@ -155,7 +155,7 @@ class Puck(object):
         #
         dv = self.velocity - them.velocity
         # a, b, c are the coefficients of the quadratic above, in the usual
-        # notation we all know from high-school algebra.
+        # notation from high-school algebra.
         a = dv.get_length_sqrd()
         b = -2 * dp.dot(dv)
         d1 = self.RADIUS + them.RADIUS
@@ -210,8 +210,9 @@ class Puck(object):
             v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
             v1_prime = v1np * normal + v1t * tangential
             v2_prime = v2np * normal + v2t * tangential
-            k_prime, p_prime = self.puck_puck_energy_momentum(them, v1_prime, v2_prime)
-        return {
+            k_prime, p_prime = self.puck_puck_energy_momentum(
+                them, v1_prime, v2_prime)
+        result = {
             'tau': int(tau) if tau < np.inf else sys.maxsize,
             'tau_physical': tau_physical,
             "delta k": k - k_prime if k_prime else 0,
@@ -222,91 +223,7 @@ class Puck(object):
             "v1'": v1_prime,
             "c2'": c2_prime,
             "v2'": v2_prime}
-
-    def predict_a_puck_collision_2(self, them: 'Puck', rel_vt: VirtualTime, dt):
-        """See https://goo.gl/jQik91 for forward-references as strings."""
-        moved_center = them.center + rel_vt * dt * them.velocity
-        dp = moved_center - self.center
-        # dp = them.center - self.center
-        # Relative distance as a function of time, find its zero:
-        #
-        # Collect[{x-vx t, y-vy t}^2 - d1^2, t]
-        #
-        # (x^2+y^2)-d1^2 + t (-2 x vx-2 y vy) + t^2 (vx^2 + vy^2)
-        # \_____ ______/     \______ _______/       \_____ _____/
-        #       v                   v                     v
-        #
-        #       c                   b                     a
-        #
-        dv = self.velocity - them.velocity
-        # a, b, c are the coefficients of the quadratic above, in the usual
-        # notation we all know from high-school algebra.
-        a = dv.get_length_sqrd()
-        b = -2 * dp.dot(dv)
-        d1 = self.RADIUS + them.RADIUS
-        c = dp.get_length_sqrd() - (d1 * d1)
-        disc = (b * b) - (4 * a * c)
-        gonna_hit = False
-        tau = tau_physical = np.inf
-        if disc >= 0 and a != 0:
-            # Two real roots; pick the smallest, non-negative one.
-            sdisc = np.sqrt(disc)
-            root1 = (-b + sdisc) / (2 * a)
-            root2 = (-b - sdisc) / (2 * a)
-            # The roots are in units of physical time. Tau is in units of
-            # steps, where 1/dt is the physical time of one step.
-            if root1 > 0 and root2 > 0:
-                tau_physical = float(min(root1, root2))
-                tau = tau_physical / dt
-                gonna_hit = True
-            else:
-                tau_physical = float(max(root1, root2))
-                tau = tau_physical / dt
-                gonna_hit = root1 > 0 or root2 > 0
-            # TODO: what if they're both negative? Is that possible?
-
-        c1_prime = None
-        c2_prime = None
-        v1_prime = None
-        v2_prime = None
-        k = None
-        k_prime = None
-        p = None
-        p_prime = None
-        if gonna_hit:
-            assert tau != np.inf
-            assert tau > 0
-            v1 = self.velocity
-            v2 = them.velocity
-            k, p = self.puck_puck_energy_momentum(them, v1, v2)
-            c1_prime = self.center + tau_physical * v1
-            c2_prime = them.center + tau_physical * v2
-            normal = (c2_prime - c1_prime).normalized()
-            tangential = Vec2d(normal[1], -normal[0])
-            v1n = v1.dot(normal)
-            v2n = v2.dot(normal)
-            v1t = v1.dot(tangential)
-            v2t = v2.dot(tangential)
-            m1 = self.MASS
-            m2 = them.MASS
-            M = m1 + m2
-            # See Mathematica notebook in docs folder
-            v1np = ((m1 - m2) * v1n + 2 * m2 * v2n) / M
-            v2np = ((m2 - m1) * v2n + 2 * m1 * v1n) / M
-            v1_prime = v1np * normal + v1t * tangential
-            v2_prime = v2np * normal + v2t * tangential
-            k_prime, p_prime = self.puck_puck_energy_momentum(them, v1_prime, v2_prime)
-        return {
-            'tau': int(tau) if tau < np.inf else sys.maxsize,
-            'tau_physical': tau_physical,
-            "delta k": k - k_prime if k_prime else 0,
-            "delta p": (p - p_prime).length if p_prime else 0,
-            'puck_victim': them,
-            'gonna_hit': gonna_hit,
-            "c1'": c1_prime,  # TODO: can't index later with string "c1'"
-            "v1'": v1_prime,
-            "c2'": c2_prime,
-            "v2'": v2_prime}
+        return result
 
     def puck_puck_energy_momentum(self, them, v1, v2):
         # momentum
@@ -323,93 +240,112 @@ class Puck(object):
 class PuckLP(LogicalProcess):
     """For Time Warp; contains a puck object.
     TODO: Free logging with the oslash Writer monad."""
-    def event_main(self, lvt: VirtualTime, state: State,
-                   msgs: List[EventMessage]):
-        self.vt = lvt
-        assert lvt == self.now
 
-        # Move the puck physics object to the commanded state:
-        self.puck.center = state.body['center']
-        self.puck.velocity = state.body['velocity']
+    def _small_puck_event(self, state, msg, walls, dt):
+        assert msg.body['action'] == 'predict'
 
-        # The puck may move to table sectors with different walls,
-        # so the list of walls must be in the tw-state. Likewise,
-        # some collision schemes change dt, so dt is in the state.
-        walls = state.body['walls']
-        dt = state.body['dt']
+        wall_pred = wall_prediction(self.puck, walls, dt)
+        tau_wall = wall_pred['tau']
 
-        # Priority to 'move' over 'predict' or anything else.
-        msg = msgs[0]
-        for temp in msgs:
-            if temp.body['action'] == 'move':
-                msg = temp
+        future_other_puck, its_lp = self._get_other(dt)
+        puck_pred = self.puck.predict_a_puck_collision(future_other_puck, dt)
+        tau_puck = puck_pred['tau']
 
-        # We've picked one, now process it:
+        if puck_pred['gonna_hit'] and 0 < tau_puck < tau_wall:
+            self._report_puck_prediction(its_lp, tau_puck)
+            self._check_conservation_for_puck_prediction(puck_pred)
+            state_prime = self._bounce_pucks(  # sending happens in here
+                state, puck_pred, its_lp, tau_puck, walls, dt)
+
+        else:
+            self._report_wall_prediction(tau_wall)
+            self._check_conservation_for_wall_prediction(wall_pred)
+            state_prime = self._bounce_off_wall(  # sending in here
+                state, wall_pred, walls, dt)
+
+        return state_prime
+
+    def _big_puck_event(self, state, msg, walls, dt):
+        """Big puck doesn't predict puck-puck collisions, just suffers them."""
         if msg.body['action'] == 'move':
-
             # Go where I'm told
             state_prime = self.new_state(Body({
                 'center': msg.body['center'],
                 'velocity': msg.body['velocity'],
                 'walls': walls,
                 'dt': dt}))
-
-            # Move a tiny bit (TODO: risky; subdivide time)
-            self._visualize_prediction(state, state_prime, self.now + 1)
+            self._visualize_puck(state, state_prime, self.now + 1)
+            # Schedule a prediction one tiny bit later
             self.send(rcvr_pid=self.me,
                       receive_time=self.now + 1,
                       body=Body({'action': 'predict'}))
 
-        elif msg.body['action'] == 'predict':
+        else:
+            assert msg.body['action'] == 'predict'
+
             wall_pred = wall_prediction(self.puck, walls, dt)
             tau_wall = wall_pred['tau']
-            it, its_lp = self._get_other()
-            # assert its_lp.now <= self.now
-            puck_pred = self.puck.predict_a_puck_collision_2(
-                it, its_lp.now - self.now, dt)
-            tau_puck = puck_pred['tau']
-            # TODO: Can't handle strikes at time 'now'
-            if puck_pred['gonna_hit'] and 0 < tau_puck < tau_wall:
-                pp.pprint({'coll_pred': self.me,
-                           'with': its_lp.me,
-                           'tau': tau_puck,
-                           'pred_lvt': self.now + tau_puck,
-                           'now': self.now})
-                # Check energy and momentum conservation.
-                assert np.abs(puck_pred["delta k"]) < 1e-12
-                assert puck_pred["delta p"] < 1e-12
-                state_prime = self._bounce_pucks(  # sending happens in here
-                    state, puck_pred, its_lp, tau_puck, walls, dt)
-            else:
-                pp.pprint({'coll_pred': self.me,
-                           'with': 'wall',  # TODO: get the 'me' names
-                           'tau': tau_wall,
-                           'pred_lvt': self.now + tau_wall or 1,
-                           'now': self.now})
-                # Check energy conservation.
-                assert np.abs(wall_pred["delta k"]) < 1e-12
-                # Wall collision does not preserve puck momentum.
-                # assert wall_pred["delta p"] < 1e-12
-                # print({'wall dt': wall_pred['tau']})
-                state_prime = self._bounce_off_wall(  # sending in here
-                    state, wall_pred, walls, dt)
 
-        else:
-            raise ValueError(f'unknown message action & body '
-                             f'{pp.pformat(msg)}')
+            self._report_wall_prediction(tau_wall)
+            self._check_conservation_for_wall_prediction(wall_pred)
+            state_prime = self._bounce_off_wall(  # sending in here
+                state, wall_pred, walls, dt)
 
         return state_prime
 
-    def _get_other(self):
-        if self.me == 'small puck':
-            it, its_tw_state = self.query('big puck', Body({}))
-            its_lp = globals.world_map['big puck']
-        else:
-            it, its_tw_state = self.query('small puck', Body({}))
-            its_lp = globals.world_map['small puck']
-        return it, its_lp
+    @staticmethod
+    def _check_conservation_for_wall_prediction(wall_pred):
+        # Wall collision does not preserve puck momentum.
+        # assert wall_pred["delta p"] < 1e-12
+        # print({'wall dt': wall_pred['tau']})
+        assert np.abs(wall_pred["delta k"]) < 1e-12
 
-    def _visualize_prediction(self, state, state_prime, then):
+    @staticmethod
+    def _check_conservation_for_puck_prediction(puck_pred):
+        assert np.abs(puck_pred["delta k"]) < 1e-12
+        assert puck_pred["delta p"] < 1e-12
+
+    def _report_wall_prediction(self, tau_wall):
+        pp.pprint({'coll_pred': self.me,
+                   'with': 'wall',  # TODO: get the 'me' names
+                   'tau': tau_wall,
+                   'pred_lvt': self.now + tau_wall or 1,
+                   'now': self.now})
+
+    def _report_puck_prediction(self, its_lp, tau_puck):
+        pp.pprint({'coll_pred': self.me,
+                   'with': its_lp.me,
+                   'tau': tau_puck,
+                   'pred_lvt': self.now + tau_puck,
+                   'now': self.now})
+
+    def event_main(self, lvt: VirtualTime, state: State,
+                   msgs: List[EventMessage]):
+        assert lvt == self.vt
+        assert lvt == self.now
+
+        # Move the puck physics state to the commanded tw-state:
+        self.puck.center = state.body['center']
+        self.puck.velocity = state.body['velocity']
+
+        walls = state.body['walls']
+        dt = state.body['dt']
+        assert len(msgs) == 1
+        msg = msgs[0]
+
+        if self.me == 'small puck':
+            return self._small_puck_event(state, msg, walls, dt)
+        else:
+            assert self.me == 'big puck'
+            return self._big_puck_event(state, msg, walls, dt)
+
+    def _get_other(self, dt):
+        assert self.me == 'small puck'
+        future_puck, its_tw_state = self.query('big puck', Body({'dt': dt}))
+        its_lp = globals.world_map['big puck']
+        return future_puck, its_lp
+
+    def _visualize_puck(self, state, state_prime, then):
         """Temporary method for debugging collisions. Aso of Tue, 24 July 2018,
         I'm convinced the collision geometry is correct."""
         c = state.body['center']
@@ -451,35 +387,51 @@ class PuckLP(LogicalProcess):
             'velocity': puck_pred["v1'"],
             'walls': walls,
             'dt': dt}))
-        self._visualize_prediction(state, state_prime, self.now + tau)
+        self._visualize_puck(state, state_prime, self.now + tau)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + tau,
                   body=Body({'action': 'predict'}))
-        other_lp.send(rcvr_pid=other_lp.me,
-                      receive_time=other_lp.now + self.now + tau,
-                      body=Body({'action': 'move',
-                                 'center': puck_pred["c2'"],
-                                 'velocity': puck_pred["v2'"]}))
+        self.send(rcvr_pid=other_lp.me,
+                  receive_time=self.now + tau,
+                  body=Body({'action': 'move',
+                             'center': puck_pred["c2'"],
+                             'velocity': puck_pred["v2'"]}))
         return state_prime
 
     def _bounce_off_wall(self, state, wall_pred, walls, dt):
-        tau = int(wall_pred['tau']) or 1
+        tau = wall_pred['tau'] or 1
         state_prime = self.new_state(Body({
             'center': wall_pred["c'"],
             'velocity': wall_pred["v'"],
             'walls': walls,
             'dt': dt}))
-        self._visualize_prediction(state, state_prime, self.now + tau)
+        self._visualize_puck(state, state_prime, self.now + tau)
         self.send(rcvr_pid=self.me,
                   receive_time=self.now + tau,
                   body=Body({'action': 'predict'}))
         return state_prime
 
-    def query_main(self, vt: VirtualTime, state: State,
-                   msgs: List[EventMessage]):
-        """Someone is asking for my latest earlier known state."""
+    def query_main(self,
+                   vt: VirtualTime,
+                   state: State,
+                   msg: QueryMessage) -> Tuple['Puck', State]:
+        """Someone is asking where I will be at time vt. Do a straight
+        prediction without checking for collisions or decay of motion."""
         # TODO: Return a query-response message.
-        return self.puck, state
+        assert vt >= state.vt  # units of ticks
+        dt = msg.body['dt']
+        # Special case for boot-time state
+        new_center = \
+            self.puck.center + dt * (vt - state.vt) * self.puck.velocity \
+            if state.vt > (- sys.maxsize) else self.puck.center
+        return Puck(
+            center=new_center,
+            velocity=self.puck.velocity,
+            mass=self.puck.MASS,
+            radius=self.puck.RADIUS,
+            color=THECOLORS['white'],
+            dont_fill_bit=self.puck.DONT_FILL_BIT
+        ), state
 
     def __init__(self, puck, me: ProcessID):
         super().__init__(me)
