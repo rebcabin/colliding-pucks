@@ -378,7 +378,9 @@ class ScheduleQueue(TWQueue):
                 lp.sq.insert(state_prime)
             earliest_later_time = lp.iq.earliest_later_time(lp.now)
 
-            # scoot the process forward
+            # scoot the process forward; important to do it at this point in
+            # the loop so that other elements can cause rollback anc
+            # cancellation.
             lp.vt = earliest_later_time
             lp.iq.vt = earliest_later_time
             self.insert(lp)
@@ -398,10 +400,10 @@ class ScheduleQueue(TWQueue):
                 max_iq_length = max(max_iq_length, len(lp.iq.elements))
                 max_oq_length = max(max_oq_length, len(lp.oq.elements))
                 max_sq_length = max(max_sq_length, len(lp.sq.elements))
-        print({'gvt': gvt,
-               'max iq len': max_iq_length,
-               'max oq len': max_oq_length,
-               'max sq len': max_sq_length})
+        # print({'gvt': gvt,
+        #        'max iq len': max_iq_length,
+        #        'max oq len': max_oq_length,
+        #        'max sq len': max_sq_length})
 
 
 #  _              _         _   ___

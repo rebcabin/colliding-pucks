@@ -306,18 +306,19 @@ class PuckLP(LogicalProcess):
         assert puck_pred["delta p"] < 1e-12
 
     def _report_wall_prediction(self, tau_wall):
-        pp.pprint({'coll_pred': self.me,
-                   'with': 'wall',  # TODO: get the 'me' names
-                   'tau': tau_wall,
-                   'pred_lvt': self.now + tau_wall or 1,
-                   'now': self.now})
+        # pp.pprint({'coll_pred': self.me,
+        #            'with': 'wall',  # TODO: get the 'me' names
+        #            'tau': tau_wall,
+        #            'pred_lvt': self.now + tau_wall or 1,
+        #            'now': self.now})
+        pass
 
     def _report_puck_prediction(self, its_lp, tau_puck):
-        pp.pprint({'coll_pred': self.me,
-                   'with': its_lp.me,
-                   'tau': tau_puck,
-                   'pred_lvt': self.now + tau_puck,
-                   'now': self.now})
+        print({'coll_pred': self.me,
+               'with': its_lp.me,
+               'tau': tau_puck,
+               'pred_lvt': self.now + tau_puck,
+               'now': self.now})
 
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
