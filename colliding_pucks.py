@@ -486,17 +486,17 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
            'send time': EARLIEST_VT,
            'receive_time': 0})
 
-    big_puck_lp.send(
-        rcvr_pid=ProcessID('big puck'),
-        receive_time=VirtualTime(0),
-        body=Body({
-            'action': 'predict'
-        }),
-        force_send_time=EARLIEST_VT)
-    print({'sending': 'BOOT move',
-           'receiver': "big puck",
-           'send time': EARLIEST_VT,
-           'receive_time': 0})
+    # big_puck_lp.send(
+    #     rcvr_pid=ProcessID('big puck'),
+    #     receive_time=VirtualTime(0),
+    #     body=Body({
+    #         'action': 'predict'
+    #     }),
+    #     force_send_time=EARLIEST_VT)
+    # print({'sending': 'BOOT move',
+    #        'receiver': "big puck",
+    #        'send time': EARLIEST_VT,
+    #        'receive_time': 0})
 
     globals.sched_q.run(drawing=drawing, pause=pause)
 
