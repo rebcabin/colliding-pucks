@@ -244,6 +244,7 @@ class PuckLP(LogicalProcess):
 
     def _puck_event_2(self, state, msg, walls, dt):
         """TODO: abstract the predictions and movements."""
+        result = None
         if msg.body['action'] == 'move':
             result = self._do_move(msg, state, walls, dt)
         elif msg.body['action'] == 'predict':
@@ -268,32 +269,38 @@ class PuckLP(LogicalProcess):
         state_prime = state  # don't move
         wall_pred = wall_prediction(self.puck, walls, dt)
         tau_wall = wall_pred['tau']
-        future_other_puck, other_lp = self._get_other(dt)
+        future_other_puck, other_lp = self._get_other(dt)  # TODO: inaccurate?
         puck_pred = self.puck.predict_a_puck_collision(
             future_other_puck, dt)
         tau_puck = puck_pred['tau']
         if puck_pred['gonna_hit'] and 0 < tau_puck < tau_wall:
-            self._report_puck_prediction(other_lp, tau_puck)
-            self._check_conservation_for_puck_prediction(puck_pred)
-            self.send(rcvr_pid=self.me,
-                      receive_time=self.now + tau_puck,
-                      body=Body({'action': 'move',
-                                 'center': puck_pred["c1'"],
-                                 'velocity': puck_pred["v1'"]}))
-            self.send(rcvr_pid=other_lp.me,
-                      receive_time=self.now + tau_puck,
-                      body=Body({'action': 'move',
-                                 'center': puck_pred["c2'"],
-                                 'velocity': puck_pred["v2'"]}))
+            self._schedule_puck_puck_collision(other_lp, puck_pred, tau_puck)
         else:
-            self._report_wall_prediction(tau_wall)
-            self._check_conservation_for_wall_prediction(wall_pred)
-            self.send(rcvr_pid=self.me,
-                      receive_time=self.now + tau_wall,
-                      body=Body({'action': 'move',
-                                 'center': wall_pred["c'"],
-                                 'velocity': wall_pred["v'"]}))
+            self._schedule_wall_puck_collision(tau_wall, wall_pred)
         return state_prime
+
+    def _schedule_wall_puck_collision(self, tau_wall, wall_pred):
+        self._report_wall_prediction(tau_wall)
+        self._check_conservation_for_wall_prediction(wall_pred)
+        self.send(rcvr_pid=self.me,
+                  receive_time=self.now + tau_wall,
+                  body=Body({'action': 'move',
+                             'center': wall_pred["c'"],
+                             'velocity': wall_pred["v'"]}))
+
+    def _schedule_puck_puck_collision(self, other_lp, puck_pred, tau_puck):
+        self._report_puck_prediction(other_lp, tau_puck)
+        self._check_conservation_for_puck_prediction(puck_pred)
+        self.send(rcvr_pid=self.me,
+                  receive_time=self.now + tau_puck,
+                  body=Body({'action': 'move',
+                             'center': puck_pred["c1'"],
+                             'velocity': puck_pred["v1'"]}))
+        self.send(rcvr_pid=other_lp.me,
+                  receive_time=self.now + tau_puck,
+                  body=Body({'action': 'move',
+                             'center': puck_pred["c2'"],
+                             'velocity': puck_pred["v2'"]}))
 
     @staticmethod
     def _check_conservation_for_wall_prediction(wall_pred):
@@ -316,11 +323,12 @@ class PuckLP(LogicalProcess):
         pass
 
     def _report_puck_prediction(self, its_lp, tau_puck):
-        print({'coll_pred': self.me,
-               'with': its_lp.me,
-               'tau': tau_puck,
-               'pred_lvt': self.now + tau_puck,
-               'now': self.now})
+        # print({'coll_pred': self.me,
+        #        'with': its_lp.me,
+        #        'tau': tau_puck,
+        #        'pred_lvt': self.now + tau_puck,
+        #        'now': self.now})
+        pass
 
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
