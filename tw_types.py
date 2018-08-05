@@ -367,13 +367,15 @@ class ScheduleQueue(TWQueue):
             lp.now = lvt
 
             # TODO: Query messages are handled synchronously, in-line.
-            try:
-                state_prime = lp.event_main(lvt, state, input_bundle)
-            except Exception as e:
-                print(f"likely process self-preemption: {e}")
+            state_prime = lp.event_main(lvt, state, input_bundle)
+            # try:
+            #     state_prime = lp.event_main(lvt, state, input_bundle)
+            # except Exception as e:
+            #     print(f"likely process self-preemption: {e}")
 
             # TODO: Destructively overwrite state:
             # assert state_prime.vt == lvt
+            assert lp.me == state_prime.receiver
             if state is not state_prime:
                 lp.sq.insert(state_prime)
             earliest_later_time = lp.iq.earliest_later_time(lp.now)
@@ -435,7 +437,7 @@ class LogicalProcess(Timestamped):
     def draw(self):
         raise NotImplementedError
 
-    def new_state(self, body: Body):
+    def _new_state(self, body: Body):
         return State(sender=self.me,
                      send_time=self.now,
                      body=body)
