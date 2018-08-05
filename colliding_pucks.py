@@ -259,9 +259,11 @@ class PuckLP(LogicalProcess):
             'walls': walls,
             'dt': dt}))
         self._visualize_puck(state, state_prime, self.now + 1)
-        # Schedule a prediction one tiny bit later
+        # Schedule a prediction one tiny bit later, a little differently for
+        # the two pucks. TODO: this doesn't scale to more pucks. Do table!
+        delta_tau = 1 if self.me == 'small puck' else 2
         self.send(rcvr_pid=self.me,
-                  receive_time=self.now + 1,
+                  receive_time=self.now + delta_tau,
                   body=Body({'action': 'predict'}))
         return state_prime
 
@@ -279,6 +281,21 @@ class PuckLP(LogicalProcess):
             self._schedule_wall_puck_collision(tau_wall, wall_pred)
         return state_prime
 
+    def _schedule_puck_puck_collision(self, other_lp, puck_pred, tau_puck):
+        self._report_puck_prediction(other_lp, tau_puck)
+        self._check_conservation_for_puck_prediction(puck_pred)
+        then = self.now + tau_puck
+        self.send(rcvr_pid=self.me,
+                  receive_time=then,
+                  body=Body({'action': 'move',
+                             'center': puck_pred["c1'"],
+                             'velocity': puck_pred["v1'"]}))
+        self.send(rcvr_pid=other_lp.me,
+                  receive_time=then,
+                  body=Body({'action': 'move',
+                             'center': puck_pred["c2'"],
+                             'velocity': puck_pred["v2'"]}))
+
     def _schedule_wall_puck_collision(self, tau_wall, wall_pred):
         self._report_wall_prediction(tau_wall)
         self._check_conservation_for_wall_prediction(wall_pred)
@@ -287,20 +304,6 @@ class PuckLP(LogicalProcess):
                   body=Body({'action': 'move',
                              'center': wall_pred["c'"],
                              'velocity': wall_pred["v'"]}))
-
-    def _schedule_puck_puck_collision(self, other_lp, puck_pred, tau_puck):
-        self._report_puck_prediction(other_lp, tau_puck)
-        self._check_conservation_for_puck_prediction(puck_pred)
-        self.send(rcvr_pid=self.me,
-                  receive_time=self.now + tau_puck,
-                  body=Body({'action': 'move',
-                             'center': puck_pred["c1'"],
-                             'velocity': puck_pred["v1'"]}))
-        self.send(rcvr_pid=other_lp.me,
-                  receive_time=self.now + tau_puck,
-                  body=Body({'action': 'move',
-                             'center': puck_pred["c2'"],
-                             'velocity': puck_pred["v2'"]}))
 
     @staticmethod
     def _check_conservation_for_wall_prediction(wall_pred):
