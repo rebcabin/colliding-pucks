@@ -26,8 +26,24 @@ myfont = pygame.font.SysFont('Courier', 30)
 
 
 class TableRegion(LogicalProcess):
-    """TODO"""
+    def __init__(self,
+                 wall_ids: List[ProcessID],
+                 puck_ids: List[ProcessID],
+                 me: ProcessID):
+        super.__init__(me)
+        self.wall_ids = wall_ids
+        self.puck_ids = puck_ids
+        self.wall_lps = [globals.world_map[wid] for wid in wall_ids]
+        self.puck_lps = [globals.world_map[pid] for pid in puck_ids]
+        self.walls = [wlp.wall for wlp in self.wall_ids]
+        self.pucks = [plp.puck for plp in self.puck_ids]
 
+    def draw(self):
+        for wall in self.walls:
+            wall.draw()
+        for puck in self.pucks:
+            puck.draw()
+        pass
 
 # __      __    _ _
 # \ \    / /_ _| | |
@@ -50,8 +66,7 @@ class Wall(object):
 
 
 class WallLP(LogicalProcess):
-
-    def __init__(self, wall, me: ProcessID):
+    def __init__(self, wall: Wall, me: ProcessID):
         super().__init__(me)
         self.wall = wall
 
@@ -430,7 +445,7 @@ class PuckLP(LogicalProcess):
             dont_fill_bit=self.puck.DONT_FILL_BIT
         ), state
 
-    def __init__(self, puck, me: ProcessID):
+    def __init__(self, puck: Puck, me: ProcessID):
         super().__init__(me)
         self.puck = puck
 
