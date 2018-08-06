@@ -354,6 +354,8 @@ class ScheduleQueue(TWQueue):
         # should not be a mysterious or confusing acronym.
         while True:  # TODO: finite number of steps
             lvt, lps = self.elements.popitem(0)
+            if lvt == LATEST_VT:  # simulation is finished
+                break
             lp = lps[0]  # just run the first lp in the list
             self.insert_bundle(lps[1:])  # put the others back
             try: # Let iq throw if no input messages!

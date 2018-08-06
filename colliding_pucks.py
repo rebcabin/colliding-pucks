@@ -11,11 +11,17 @@ from tw_types import *
 from rendering import *
 from funcyard import *
 
+# TODO: Convert the tw_types from dicts to namedtuples.
+from collections import namedtuple
+from locutius.multimethods import multi, multimethod, method
+
 pygame.font.init()
 myfont = pygame.font.SysFont('Courier', 30)
 
+
 # TODO: IDs might be best as uuids.
 # TODO: Message equality can be optimized.
+# TODO: Off-by-one rendering error on bottom and right.
 
 
 #  _____     _    _       ___          _
@@ -25,18 +31,45 @@ myfont = pygame.font.SysFont('Courier', 30)
 #                                |___/
 
 
+TableStateBody = namedtuple('TableState', ['pucks', 'walls', 'dt'])
+
+
 class TableRegion(LogicalProcess):
-    def __init__(self,
-                 wall_ids: List[ProcessID],
-                 puck_ids: List[ProcessID],
-                 me: ProcessID):
-        super.__init__(me)
-        self.wall_ids = wall_ids
-        self.puck_ids = puck_ids
-        self.wall_lps = [globals.world_map[wid] for wid in wall_ids]
-        self.puck_lps = [globals.world_map[pid] for pid in puck_ids]
-        self.walls = [wlp.wall for wlp in self.wall_ids]
-        self.pucks = [plp.puck for plp in self.puck_ids]
+
+    # TODO: add 'draw' event; get rid of shadow state.
+
+    def __init__(self, me: ProcessID):
+        super().__init__(me)
+        # TODO: shadow state for drawing only.
+        self.walls = None
+        self.pucks = None
+        self.dt = None
+
+    @staticmethod
+    def mk_walls():
+        wall_lps = [ Wall(SCREEN_TL, SCREEN_BL),
+                     Wall(SCREEN_BL, SCREEN_BR),
+                     Wall(SCREEN_BR, SCREEN_TR),
+                     Wall(SCREEN_TR, SCREEN_TL), ]
+        return wall_lps
+
+    @staticmethod
+    def mk_pucks():
+        small_puck = Puck(
+            center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+            velocity=Vec2d(2.3, -1.7),
+            mass=100,
+            radius=42,
+            color=THECOLORS['red'], )
+
+        big_puck = Puck(
+            center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
+            velocity=Vec2d(-1.95, -0.20),
+            mass=100 * 79 * 79 / 42 / 42,
+            radius=79,
+            color=THECOLORS['green'], )
+
+        return [small_puck, big_puck]
 
     def draw(self):
         for wall in self.walls:
@@ -50,9 +83,13 @@ class TableRegion(LogicalProcess):
         assert lvt == self.vt
         assert lvt == self.now
 
-        dt = state.body['dt']
+        self.walls = state.body['body'].walls  # TODO: named tuple for body
+        self.pucks = state.body['body'].pucks
+        self.dt = state.body['body'].dt
 
-        result = None
+        result = self._new_state(body=Body(
+            state.body
+        ))
         return result
 
     def query_main(self,
@@ -125,11 +162,16 @@ class Puck(object):
         self.center += dt * self.velocity
 
     def draw(self):
-        pygame.draw.circle(globals.screen,
-                           self.COLOR,
-                           self.center.int_tuple,
-                           self.RADIUS,
-                           self.DONT_FILL_BIT)
+        pygame.draw.circle(
+            globals.screen,
+            self.COLOR,
+            self.center.int_tuple,
+            self.RADIUS,
+            self.DONT_FILL_BIT)
+        draw_vector(
+            self.center,
+            self.center + 100 * self.velocity,
+            THECOLORS['magenta'])
 
     def step_many(self, steps, dt: float):
         self.center += steps * dt * self.velocity
@@ -478,7 +520,36 @@ class PuckLP(LogicalProcess):
 #                            |___/
 
 
-def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
+def demo_cage_time_warp(drawing=True, pause=0.75, dt=0.001):
+    table_0_0_id = ProcessID('table region 0 0')
+    table_region_lp = TableRegion(me=table_0_0_id)
+    initial_table_state = State(
+        sender=table_0_0_id,
+        send_time=EARLIEST_VT,
+        body=Body({'body': TableStateBody(
+            pucks=TableRegion.mk_pucks(),
+            walls=TableRegion.mk_walls(),
+            dt=dt, )}))
+    table_region_lp.sq.insert(initial_table_state)
+    globals.sched_q.insert(table_region_lp)
+    table_region_lp.send(
+        rcvr_pid=table_0_0_id,
+        receive_time=VirtualTime(0),
+        force_send_time=EARLIEST_VT,
+        body=Body({
+            'action': 'move and predict',
+            'state': initial_table_state
+        }))
+
+    globals.sched_q.run(drawing=drawing, pause=pause)
+
+    clear_screen()
+    table_region_lp.draw()
+    pygame.display.flip()
+    time.sleep(pause)
+
+
+def demo_cage_time_warp_1(drawing=True, pause=0.75, dt=1):
     """"""
     clear_screen()
     # TODO: Drawing should happen as side effect of first event messages
@@ -498,8 +569,8 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=1):
                         big_puck_lp.puck.velocity)
 
     # boot the OS
-    for wall in wall_lps:
-        globals.sched_q.insert(wall)
+    for wall_lp in wall_lps:
+        globals.sched_q.insert(wall_lp)
     globals.sched_q.insert(small_puck_lp)
     globals.sched_q.insert(big_puck_lp)
 
