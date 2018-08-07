@@ -11,6 +11,8 @@ from tw_types import *
 from rendering import *
 from funcyard import *
 
+import itertools
+
 # TODO: Convert the tw_types from dicts to namedtuples.
 from collections import namedtuple
 from locutius.multimethods import multi, multimethod, method
@@ -66,7 +68,6 @@ class TableRegion(LogicalProcess):
 
         return [small_puck, big_puck]
 
-
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
         assert lvt == self.vt
@@ -76,25 +77,46 @@ class TableRegion(LogicalProcess):
         pucks = state.body.pucks
         dt = state.body.dt
 
-        # TODO: avoid 'draw' method because it relies on setting up a shadow
+        # TODO: avoid LP 'draw' method because it relies on setting up a shadow
         # TODO: state in self.<instance_variables>, and we don't need that.
+        # TODO: Eventually remove LogicalProcess.draw.
+        result = None
         for msg in msgs:
             if msg.body.action == 'draw':
-                for wall in walls:
-                    wall.draw()
-                for puck in pucks:
-                    puck.draw()
-
-        result = self._new_state(body=state.body)
+                self._draw(walls, pucks)
+                result = self._new_state(body=state.body)
+            elif msg.body.action == 'predict':
+                result = self._predict(walls, pucks, dt)
+            elif msg.body.action == 'move':
+                tau = 0
+                result = self._move(walls, pucks, tau)
 
         return result
 
-    def query_main(self,
-                   vt: VirtualTime,
-                   state: State,
-                   msg: QueryMessage):
-        result = None
-        return result
+    def _move(self, walls, pucks, tau):
+        return None
+
+    def _predict(self, walls, pucks, dt):
+        wall_preds = [puck.predict_a_wall_collision(wall)
+                      for puck in pucks
+                      for wall in walls]
+        earliest_wall_prediction = min(
+            wall_preds,
+            key=lambda p: p['tau'] if p['tau'] > 0 else np.inf
+        )
+        puck_preds_pre = [p1.predict_a_puck_collsion(p2)
+                          for p1, p2 in itertools.combinations(pucks, 2)]
+        puck_preds = [p for p in puck_preds_pre if p['gonna_hit']]
+        earliest_puck_prediction = min(
+            puck_preds
+        )
+        return None
+
+    def _draw(self, walls, pucks):
+        for wall in walls:
+            wall.draw()
+        for puck in pucks:
+            puck.draw()
 
 
 # __      __    _ _
@@ -204,6 +226,7 @@ class Puck(object):
                 'wall_strike_point': q_prime,
                 'wall_strike_parameter': t_prime,
                 'wall_victim': wall,
+                'puck_victim': self,
                 "c'": c_prime,
                 "v'": v_prime}
 
