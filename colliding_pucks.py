@@ -34,8 +34,17 @@ myfont = pygame.font.SysFont('Courier', 30)
 
 
 TableStateBody = namedtuple('TableState', ['pucks', 'walls', 'dt'])
-TableEventMessageBody = namedtuple('TableEventMessage', ['action', 'new_state'])
+TableEventMessageBody = namedtuple('TableEventMessage', ['action', 'contents'])
+PuckPrediction = namedtuple('PuckPrediction', ['walls', 'pucks', 'dt', 'data'])
+WallPrediction = namedtuple('WallPrediction', ['walls', 'pucks', 'dt', 'data'])
 
+@method(PuckPrediction)
+def prduce_new_state(prediction):
+    pass
+
+@method(WallPrediction)
+def produce_new_state(prediction):
+    pass
 
 class TableRegion(LogicalProcess):
 
@@ -86,10 +95,9 @@ class TableRegion(LogicalProcess):
                 self._draw(walls, pucks)
                 result = self._new_state(body=state.body)
             elif msg.body.action == 'predict':
-                result = self._predict(walls, pucks, dt)
+                result = self._new_state(body=state.body)
             elif msg.body.action == 'move':
-                tau = 0
-                result = self._move(walls, pucks, tau)
+                result = self._move(walls, pucks, msg.body.contents)
 
         return result
 
@@ -97,20 +105,35 @@ class TableRegion(LogicalProcess):
         return None
 
     def _predict(self, walls, pucks, dt):
+        def realistic_time(p):
+            return p['tau'] if p['tau'] > 0 else sys.maxsize
+
         wall_preds = [puck.predict_a_wall_collision(wall)
                       for puck in pucks
                       for wall in walls]
-        earliest_wall_prediction = min(
-            wall_preds,
-            key=lambda p: p['tau'] if p['tau'] > 0 else np.inf
-        )
+        earliest_wall_prediction = min(wall_preds, key=realistic_time)
+
         puck_preds_pre = [p1.predict_a_puck_collsion(p2)
                           for p1, p2 in itertools.combinations(pucks, 2)]
         puck_preds = [p for p in puck_preds_pre if p['gonna_hit']]
-        earliest_puck_prediction = min(
-            puck_preds
-        )
+        earliest_puck_prediction = min(puck_preds, key=realistic_time)
+
+        assert earliest_wall_prediction or earliest_puck_prediction
+
+        if earliest_wall_prediction <= earliest_puck_prediction:
+            self._schedule_update(earliest_wall_prediction)
+        else:
+            self._schedule_update(earliest_puck_prediction)
+
         return None
+
+    def _schedule_update(self, prediction):
+        self.send(
+            rcvr_pid=self.me,
+            receive_time=self.now + prediction['tau'],
+            body=TableEventMessageBody(
+                action='move',
+                contents=prediction))
 
     def _draw(self, walls, pucks):
         for wall in walls:
@@ -218,17 +241,19 @@ class Puck(object):
         v_prime = v_t * t - v_n * n
         k, p = self.puck_energy_momentum(self.velocity)
         k_prime, p_prime = self.puck_energy_momentum(v_prime)
-        return {'tau': int(tau),
-                'tau_physical': tau_physical,
-                "delta k": k - k_prime,
-                "delta p": (p - p_prime).length,
-                'puck_strike_point': p_c,
-                'wall_strike_point': q_prime,
-                'wall_strike_parameter': t_prime,
-                'wall_victim': wall,
-                'puck_victim': self,
-                "c'": c_prime,
-                "v'": v_prime}
+        return {  # TODO: make named tuple
+            'collision_type': 'wall',
+            'tau': int(tau) if tau < np.inf else sys.maxsize,
+            'tau_physical': tau_physical,
+            "delta k": k - k_prime,
+            "delta p": (p - p_prime).length,
+            'puck_strike_point': p_c,
+            'wall_strike_point': q_prime,
+            'wall_strike_parameter': t_prime,
+            'wall_victim': wall,
+            'puck_victim': self,
+            "c'": c_prime,
+            "v'": v_prime}
 
     def puck_energy_momentum(self, v):
         p = self.MASS * v
@@ -267,12 +292,11 @@ class Puck(object):
             # steps, where 1/dt is the physical time of one step.
             if root1 > 0 and root2 > 0:
                 tau_physical = float(min(root1, root2))
-                tau = tau_physical / dt
                 gonna_hit = True
             else:
                 tau_physical = float(max(root1, root2))
-                tau = tau_physical / dt
                 gonna_hit = root1 > 0 or root2 > 0
+            tau = tau_physical / dt
             # TODO: what if they're both negative? Is that possible?
 
         c1_prime = None
@@ -307,11 +331,13 @@ class Puck(object):
             v2_prime = v2np * normal + v2t * tangential
             k_prime, p_prime = self.puck_puck_energy_momentum(
                 them, v1_prime, v2_prime)
-        result = {
+        result = {  # TODO: make named tuple
+            'collision_type': 'puck',
             'tau': int(tau) if tau < np.inf else sys.maxsize,
             'tau_physical': tau_physical,
             "delta k": k - k_prime if k_prime else 0,
             "delta p": (p - p_prime).length if p_prime else 0,
+            'puck_self': self,
             'puck_victim': them,
             'gonna_hit': gonna_hit,
             "c1'": c1_prime,  # TODO: can't index later with string "c1'"
@@ -558,7 +584,7 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=0.001):
         force_send_time=EARLIEST_VT,
         body=TableEventMessageBody(
             action='draw',
-            new_state=None
+            contents=None
         ))
 
     clear_screen()
