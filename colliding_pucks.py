@@ -35,16 +35,40 @@ myfont = pygame.font.SysFont('Courier', 30)
 
 TableStateBody = namedtuple('TableState', ['pucks', 'walls', 'dt'])
 TableEventMessageBody = namedtuple('TableEventMessage', ['action', 'contents'])
-PuckPrediction = namedtuple('PuckPrediction', ['walls', 'pucks', 'dt', 'data'])
-WallPrediction = namedtuple('WallPrediction', ['walls', 'pucks', 'dt', 'data'])
+PuckPrediction = namedtuple('PuckPrediction', ['region',
+                                               'p1', 'p2',
+                                               'c1', 'c2',
+                                               'v1', 'v2',
+                                               'walls', 'pucks', 'dt'])
+WallPrediction = namedtuple('WallPrediction', ['region', 'puck', 'c', 'v',
+                                               'walls', 'pucks', 'dt'])
+
 
 @method(PuckPrediction)
-def prduce_new_state(prediction):
-    pass
+def new_state(prediction):
+    prediction.p1.center = prediction.c1
+    prediction.p2.center = prediction.c2
+    prediction.p1.velocity = prediction.v1
+    prediction.p2.velocity = prediction.v2
+    result = prediction.region._new_state(
+        body=TableStateBody(
+            walls=prediction.walls,
+            pucks=prediction.pucks,
+            dt=prediction.dt))
+    return result
+
 
 @method(WallPrediction)
-def produce_new_state(prediction):
-    pass
+def new_state(prediction):
+    prediction.puck.center = prediction.c
+    prediction.puck.velocity = prediction.v
+    result = prediction.region._new_state(
+        body=TableStateBody(
+            walls=prediction.walls,
+            pucks=prediction.pucks,
+            dt=prediction.dt))
+    return result
+
 
 class TableRegion(LogicalProcess):
 
@@ -95,42 +119,59 @@ class TableRegion(LogicalProcess):
                 self._draw(walls, pucks)
                 result = self._new_state(body=state.body)
             elif msg.body.action == 'predict':
+                self._predict(walls, pucks, dt)
                 result = self._new_state(body=state.body)
             elif msg.body.action == 'move':
-                result = self._move(walls, pucks, msg.body.contents)
-
+                result = new_state(msg.body.contents)
         return result
-
-    def _move(self, walls, pucks, tau):
-        return None
 
     def _predict(self, walls, pucks, dt):
         def realistic_time(p):
             return p['tau'] if p['tau'] > 0 else sys.maxsize
 
-        wall_preds = [puck.predict_a_wall_collision(wall)
+        wall_preds = [puck.predict_a_wall_collision(wall, dt)
                       for puck in pucks
                       for wall in walls]
         earliest_wall_prediction = min(wall_preds, key=realistic_time)
 
-        puck_preds_pre = [p1.predict_a_puck_collsion(p2)
+        puck_preds_pre = [p1.predict_a_puck_collision(p2, dt)
                           for p1, p2 in itertools.combinations(pucks, 2)]
         puck_preds = [p for p in puck_preds_pre if p['gonna_hit']]
         earliest_puck_prediction = min(puck_preds, key=realistic_time)
 
         assert earliest_wall_prediction or earliest_puck_prediction
 
-        if earliest_wall_prediction <= earliest_puck_prediction:
-            self._schedule_update(earliest_wall_prediction)
+        if earliest_wall_prediction['tau'] <= earliest_puck_prediction['tau']:
+            self._schedule_update(
+                self.now + earliest_wall_prediction['tau'],
+                WallPrediction(
+                    region=self,
+                    puck=earliest_wall_prediction['puck_victim'],
+                    c=earliest_wall_prediction["c'"],
+                    v=earliest_wall_prediction["v'"],
+                    walls=walls,  # TODO: State monad
+                    pucks=pucks,
+                    dt=dt))
         else:
-            self._schedule_update(earliest_puck_prediction)
+            self._schedule_update(
+                self.now + earliest_puck_prediction['tau'],
+                PuckPrediction(
+                    region=self,
+                    p1=earliest_puck_prediction['puck_self'],
+                    p2=earliest_puck_prediction['puck_victim'],
+                    c1=earliest_puck_prediction["c1'"],
+                    v1=earliest_puck_prediction["v1'"],
+                    c2=earliest_puck_prediction["c2'"],
+                    v2=earliest_puck_prediction["v2'"],
+                    walls=walls,  # TODO: State monad
+                    pucks=pucks,
+                    dt=dt
+                ))
 
-        return None
-
-    def _schedule_update(self, prediction):
+    def _schedule_update(self, then, prediction):
         self.send(
             rcvr_pid=self.me,
-            receive_time=self.now + prediction['tau'],
+            receive_time=then,
             body=TableEventMessageBody(
                 action='move',
                 contents=prediction))
@@ -250,7 +291,6 @@ class Puck(object):
             'puck_strike_point': p_c,
             'wall_strike_point': q_prime,
             'wall_strike_parameter': t_prime,
-            'wall_victim': wall,
             'puck_victim': self,
             "c'": c_prime,
             "v'": v_prime}
@@ -566,7 +606,8 @@ class PuckLP(LogicalProcess):
 #                            |___/
 
 
-def demo_cage_time_warp(drawing=True, pause=0.75, dt=0.001):
+def demo_cage_time_warp(drawing=True, event_pause=0.75,
+                        final_pause=3.00, dt=0.001):
     table_0_0_id = ProcessID('table region 0 0')
     table_region_lp = TableRegion(me=table_0_0_id)
     initial_table_state = State(
@@ -586,12 +627,20 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=0.001):
             action='draw',
             contents=None
         ))
+    table_region_lp.send(
+        rcvr_pid=table_0_0_id,
+        receive_time=VirtualTime(0),
+        force_send_time=EARLIEST_VT,
+        body=TableEventMessageBody(
+            action='predict',
+            contents=None
+        ))
 
     clear_screen()
-    globals.sched_q.run(drawing=drawing, pause=pause)
+    globals.sched_q.run(drawing=drawing, pause=event_pause)
     pygame.display.flip()
 
-    time.sleep(pause)
+    time.sleep(final_pause)
 
 
 def demo_cage_time_warp_1(drawing=True, pause=0.75, dt=1):
@@ -931,7 +980,7 @@ def main():
     # for _ in range(CAGES):
     #     demo_cage(pause=PAUSE, dt=DT)
     # # input()
-    demo_cage_time_warp(drawing=False, pause=0, dt=DT)
+    demo_cage_time_warp(drawing=False, event_pause=0, dt=DT)
 
 
 if __name__ == "__main__":
