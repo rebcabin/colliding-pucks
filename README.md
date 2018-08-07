@@ -6,7 +6,8 @@ libraries you'll need. Pymunk 4.0 is snapshotted here; find 'setup.py' in its
 directory and type 'python setup.py install'. For the others, 'pip install' will
 do, e.g., 'pip install numpy,' 'pip install pygame,' 'pip install pytest.'
 
-To run unit tests, do 'pytest test_time_warp.py.'
+To run unit tests, do 'pytest test_time_warp.py.' If you do just 'pytest', it
+will try to run the unit tests in pymunk 4, which only work on Windows.
 
 To run the graphics demos, do 'python colliding_pucks.py.'
 
@@ -19,24 +20,17 @@ Known limitations:
 * This is a demo for a talk . It has many ugly hacks and intentional shortcuts.
   I documented them meticulously with "TODO," but certainly missed some. It does
   not quite rise to the level of "proof of concept," and certainly not to
-  "prototype." However, there is nothing fundamental in the way of improving it
+  "prototype." However, there is nothing fundamental to prevent improving it
   gradually to those levels, the queuing discipline being sound as I believe.
 
 * Cancellation is not tested because this is not distributed.
 
-* xxx fixed xxx
-  [There is a momentum leak of unknown cause. The simulation
-  eventually slows down (in simulation time) and the next
-  event is scheduled infinitely far in the virtual future,
-  causing premature termination. I'm working on it.]
-
-  This was resolved and led to a bug with eager cancellation (work in progress).
-
 * This uses eager cancellation (it's just a demo at this point). Lazy
   cancellation is necessary for good performance.
 
-* A better method is to have table regions coordinate all events. I intend to
-  get there some day.
+* Table regions must coordinate all events. That is work-in-progress. The old
+  master branch attempted to have pucks schedule their own collisions. That was
+  fine for a demo, but, in fact, has so many problems that it must be abandoned.
 
 * Use ROSS from Rensselaer (http://carothersc.github.io/ROSS/,
   https://github.com/carothersc/ROSS) for real work with Time Warp.

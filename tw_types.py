@@ -27,15 +27,16 @@ class ProcessID(str):
     """Establishes a type for Process ID; it's a string."""
 
 
-#  __  __                            ___          _
-# |  \/  |___ ______ __ _ __ _ ___  | _ ) ___  __| |_  _
-# | |\/| / -_|_-<_-</ _` / _` / -_) | _ \/ _ \/ _` | || |
-# |_|  |_\___/__/__/\__,_\__, \___| |___/\___/\__,_|\_, |
-#                        |___/                      |__/
+#  ___          _
+# | _ ) ___  __| |_  _
+# | _ \/ _ \/ _` | || |
+# |___/\___/\__,_|\_, |
+#                 |__/
 
 
 class Body(Dict):
-    """Establishes a type for message bodies; they're Dicts."""
+    """Establishes a type for message bodies; they're Dicts. Alternatively (and
+    often preferably, use namedtuples.)"""
 
 
 #  _____ _              _                           _
@@ -498,7 +499,7 @@ class LogicalProcess(Timestamped):
                     break
             globals.sched_q.insert_bundle(residual)
         else:
-            """I'm not in the scheduling queue, which means I've been popped 
+            """I'm not in the scheduling queue, which means I've been popped
             out of in in the scheduler loop. The scheduler will put me back."""
             pass
 

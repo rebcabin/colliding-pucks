@@ -3,6 +3,32 @@ import sortedcontainers
 import pytest
 
 
+from collections import namedtuple
+from locutius.multimethods import multi, multimethod, method
+
+
+from typing import Dict
+
+
+from unittest import TestCase
+import pytest
+
+
+def test_named_tuple_type_equality():
+    """Like each call of 'namedtuple' creates a new class, and, if they're
+    named the same, the new one overwrites the old one. Instances still test
+    equal, as the next test shows."""
+    a = namedtuple('stuff', ['forty_two'])
+    b = namedtuple('stuff', ['forty_two'])
+    assert a is not b
+
+
+def test_named_tuple_instance_equality():
+    a = namedtuple('stuff', ['forty_two'])(forty_two=42)
+    b = namedtuple('stuff', ['forty_two'])(forty_two=42)
+    assert a == b
+
+
 def test_event_message():
 
     with pytest.raises(ValueError):
@@ -17,7 +43,7 @@ def test_event_message():
                        receiver="it",
                        receive_time=VirtualTime(1),
                        sign=True,
-                       body={})
+                       body=namedtuple('stuff', ['forty_two'])(forty_two=42))
     assert msg is not None, f"mixed shorthand is OK."
 
     msg2 = EventMessage(sender="me",
@@ -25,7 +51,7 @@ def test_event_message():
                         receiver="it",
                         receive_time=VirtualTime(1),
                         sign=False,
-                        body={})
+                        body=namedtuple('stuff', ['forty_two'])(forty_two=42))
     assert msg2 is not None
 
     assert msg == msg2, f"message equality doesn't depend on sign."
@@ -35,7 +61,7 @@ def test_event_message():
                         receiver=ProcessID("it"),
                         receive_time=VirtualTime(150),
                         sign=False,
-                        body=Body({}))
+                        body=namedtuple('stuff', ['forty_two'])(forty_two=42))
     assert msg3 is not None, f"fullform is OK"
 
     assert msg3 > msg2, f"virtual-time strict comparison is OK."
@@ -46,7 +72,7 @@ def test_event_message():
                         receiver=ProcessID("it"),
                         receive_time=VirtualTime(150),
                         sign=False,
-                        body=Body({'worcestershire': 'sauce'}))
+                        body=namedtuple('sauce', ['kind'])(kind='Worcestershire'))
 
     assert not msg3 == msg4, f"message equality does depend on body."
     assert msg3 != msg4, f"message inequality operator if OK."
@@ -55,12 +81,12 @@ def test_event_message():
 def test_twstate():
     state = State(sender=ProcessID("me"),
                   send_time=VirtualTime(100),
-                  body=Body({'a': 1, 'sauce': 'steak'}))
+                  body=namedtuple('sauce', ['kind'])(kind='Steak'))
     assert state is not None
 
     state2 = State(sender=ProcessID("me"),
                    send_time=VirtualTime(180),
-                   body=Body({'heinz': 57}))
+                   body=namedtuple('sauce', ['kind'])(kind='Heinz 57'))
 
     assert not state2 < state, f"state timestamp lt comparison is OK."
     assert state2 >= state, f"state timestamp ge is OK."
