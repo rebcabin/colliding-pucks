@@ -123,6 +123,8 @@ class TableRegion(LogicalProcess):
                 result = self._new_state(body=state.body)
             elif msg.body.action == 'move':
                 result = new_state(msg.body.contents)
+                self._draw(walls, pucks)
+                self._predict(walls, pucks, dt)
         return result
 
     def _predict(self, walls, pucks, dt):
@@ -132,37 +134,41 @@ class TableRegion(LogicalProcess):
         wall_preds = [puck.predict_a_wall_collision(wall, dt)
                       for puck in pucks
                       for wall in walls]
-        earliest_wall_prediction = min(wall_preds, key=realistic_time)
+        earliest_wall_pred = min(wall_preds, key=realistic_time)
 
         puck_preds_pre = [p1.predict_a_puck_collision(p2, dt)
                           for p1, p2 in itertools.combinations(pucks, 2)]
-        puck_preds = [p for p in puck_preds_pre if p['gonna_hit']]
-        earliest_puck_prediction = min(puck_preds, key=realistic_time)
+        puck_preds = [p for p in puck_preds_pre
+                      if p['gonna_hit'] and p['tau'] > 0]
+        earliest_puck_pred = \
+            min(puck_preds, key=realistic_time) \
+            if puck_preds else None
 
-        assert earliest_wall_prediction or earliest_puck_prediction
+        assert earliest_wall_pred or earliest_puck_pred
 
-        if earliest_wall_prediction['tau'] <= earliest_puck_prediction['tau']:
+        if earliest_puck_pred is None \
+                or earliest_wall_pred['tau'] <= earliest_puck_pred['tau']:
             self._schedule_update(
-                self.now + earliest_wall_prediction['tau'],
+                self.now + earliest_wall_pred['tau'],
                 WallPrediction(
                     region=self,
-                    puck=earliest_wall_prediction['puck_victim'],
-                    c=earliest_wall_prediction["c'"],
-                    v=earliest_wall_prediction["v'"],
+                    puck=earliest_wall_pred['puck_victim'],
+                    c=earliest_wall_pred["c'"],
+                    v=earliest_wall_pred["v'"],
                     walls=walls,  # TODO: State monad
                     pucks=pucks,
                     dt=dt))
         else:
             self._schedule_update(
-                self.now + earliest_puck_prediction['tau'],
+                self.now + earliest_puck_pred['tau'],
                 PuckPrediction(
                     region=self,
-                    p1=earliest_puck_prediction['puck_self'],
-                    p2=earliest_puck_prediction['puck_victim'],
-                    c1=earliest_puck_prediction["c1'"],
-                    v1=earliest_puck_prediction["v1'"],
-                    c2=earliest_puck_prediction["c2'"],
-                    v2=earliest_puck_prediction["v2'"],
+                    p1=earliest_puck_pred['puck_self'],
+                    p2=earliest_puck_pred['puck_victim'],
+                    c1=earliest_puck_pred["c1'"],
+                    v1=earliest_puck_pred["v1'"],
+                    c2=earliest_puck_pred["c2'"],
+                    v2=earliest_puck_pred["v2'"],
                     walls=walls,  # TODO: State monad
                     pucks=pucks,
                     dt=dt
@@ -177,10 +183,13 @@ class TableRegion(LogicalProcess):
                 contents=prediction))
 
     def _draw(self, walls, pucks):
+        """TODO: This is not the 'draw' method of the logical-process
+        TODO: superclass. We're going to get rid of that."""
         for wall in walls:
             wall.draw()
         for puck in pucks:
             puck.draw()
+        pygame.display.flip()
 
 
 # __      __    _ _
