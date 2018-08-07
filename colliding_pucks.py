@@ -122,8 +122,9 @@ class TableRegion(LogicalProcess):
                 self._predict(walls, pucks, dt)
                 result = self._new_state(body=state.body)
             elif msg.body.action == 'move':
-                result = new_state(msg.body.contents)
                 clear_screen()
+                self._draw(walls, pucks)
+                result = new_state(msg.body.contents)
                 self._draw(walls, pucks)
                 self._predict(walls, pucks, dt)
         return result
