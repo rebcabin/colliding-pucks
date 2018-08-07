@@ -32,18 +32,13 @@ myfont = pygame.font.SysFont('Courier', 30)
 
 
 TableStateBody = namedtuple('TableState', ['pucks', 'walls', 'dt'])
+TableEventMessageBody = namedtuple('TableEventMessage', ['action', 'new_state'])
 
 
 class TableRegion(LogicalProcess):
 
-    # TODO: add 'draw' event; get rid of shadow state.
-
     def __init__(self, me: ProcessID):
         super().__init__(me)
-        # TODO: shadow state for drawing only.
-        self.walls = None
-        self.pucks = None
-        self.dt = None
 
     @staticmethod
     def mk_walls():
@@ -71,25 +66,27 @@ class TableRegion(LogicalProcess):
 
         return [small_puck, big_puck]
 
-    def draw(self):
-        for wall in self.walls:
-            wall.draw()
-        for puck in self.pucks:
-            puck.draw()
-        pass
 
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
         assert lvt == self.vt
         assert lvt == self.now
 
-        self.walls = state.body['body'].walls  # TODO: named tuple for body
-        self.pucks = state.body['body'].pucks
-        self.dt = state.body['body'].dt
+        walls = state.body.walls
+        pucks = state.body.pucks
+        dt = state.body.dt
 
-        result = self._new_state(body=Body(
-            state.body
-        ))
+        # TODO: avoid 'draw' method because it relies on setting up a shadow
+        # TODO: state in self.<instance_variables>, and we don't need that.
+        for msg in msgs:
+            if msg.body.action == 'draw':
+                for wall in walls:
+                    wall.draw()
+                for puck in pucks:
+                    puck.draw()
+
+        result = self._new_state(body=state.body)
+
         return result
 
     def query_main(self,
@@ -526,26 +523,25 @@ def demo_cage_time_warp(drawing=True, pause=0.75, dt=0.001):
     initial_table_state = State(
         sender=table_0_0_id,
         send_time=EARLIEST_VT,
-        body=Body({'body': TableStateBody(
+        body=TableStateBody(
             pucks=TableRegion.mk_pucks(),
             walls=TableRegion.mk_walls(),
-            dt=dt, )}))
+            dt=dt))
     table_region_lp.sq.insert(initial_table_state)
     globals.sched_q.insert(table_region_lp)
     table_region_lp.send(
         rcvr_pid=table_0_0_id,
         receive_time=VirtualTime(0),
         force_send_time=EARLIEST_VT,
-        body=Body({
-            'action': 'move and predict',
-            'state': initial_table_state
-        }))
-
-    globals.sched_q.run(drawing=drawing, pause=pause)
+        body=TableEventMessageBody(
+            action='draw',
+            new_state=None
+        ))
 
     clear_screen()
-    table_region_lp.draw()
+    globals.sched_q.run(drawing=drawing, pause=pause)
     pygame.display.flip()
+
     time.sleep(pause)
 
 
