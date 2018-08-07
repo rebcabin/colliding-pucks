@@ -3,9 +3,12 @@ from typing import List, Tuple, Callable, Dict, Any
 import pprint
 pp = pprint.PrettyPrinter(indent=2)
 
+import time
+
 import sortedcontainers
 from constants import *
 import globals
+
 
 # __   ___     _             _ _____ _
 # \ \ / (_)_ _| |_ _  _ __ _| |_   _(_)_ __  ___
@@ -340,7 +343,7 @@ class ScheduleQueue(TWQueue):
         globals.world_map[lp.me] = lp
         super().insert(lp)
 
-    def run(self, drawing=True, pause=0.0):
+    def run(self, drawing=True, pause=None):
         """Pop he first (earliest) lp in the queue (if there is one). Run it
         until it terminates or until it's interrupted by arrival of a new
         message to the processor. If the new message causes some other LP to
@@ -349,7 +352,9 @@ class ScheduleQueue(TWQueue):
         In a real OS, we would suspend the process's machine state and restore
         that later in real time when the process becomes earliest in virtual
         time again. Here, where we don't have easy access to machine state of a
-        process, we'll just restart it."""
+        process, we'll just restart it. The fact that we're not a real state
+        means that we don't have an easy way to stop a logical process that's
+        gone into an infinite loop."""
 
         # Local Virtual Time is called 'lvt' in most time-warp papers. This
         # should not be a mysterious or confusing acronym.
@@ -369,12 +374,10 @@ class ScheduleQueue(TWQueue):
             state = states[0]
             lp.now = lvt
 
-            # TODO: Query messages are handled synchronously, in-line.
+            # TODO: Query messages are improperly handled synchronously, in-line.
             state_prime = lp.event_main(lvt, state, input_bundle)
-            # try:
-            #     state_prime = lp.event_main(lvt, state, input_bundle)
-            # except Exception as e:
-            #     print(f"likely process self-preemption: {e}")
+            if pause is not None:
+                time.sleep(pause)
 
             # TODO: Destructively overwrite state:
             # assert state_prime.vt == lvt
