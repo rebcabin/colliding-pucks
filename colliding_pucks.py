@@ -1,21 +1,23 @@
+import itertools
+import copy
+
+import globals
+
 from pygame.color import THECOLORS
 
 import pymunk
 from pymunk.pygame_util import draw
 
-import pprint
-pp = pprint.PrettyPrinter(indent=2)
-
-import globals
 from tw_types import *
 from rendering import *
 from funcyard import *
 
-import itertools
-
 # TODO: Convert the tw_types from dicts to namedtuples.
 from collections import namedtuple
 from locutius.multimethods import multi, multimethod, method
+
+import pprint
+pp = pprint.PrettyPrinter(indent=2)
 
 pygame.font.init()
 myfont = pygame.font.SysFont('Courier', 30)
@@ -39,8 +41,10 @@ PuckPrediction = namedtuple('PuckPrediction', ['region',
                                                'p1', 'p2',
                                                'c1', 'c2',
                                                'v1', 'v2',
+                                               'steps',
                                                'walls', 'pucks', 'dt'])
 WallPrediction = namedtuple('WallPrediction', ['region', 'puck', 'c', 'v',
+                                               'steps',
                                                'walls', 'pucks', 'dt'])
 
 
@@ -62,6 +66,9 @@ def new_state(prediction):
 def new_state(prediction):
     prediction.puck.center = prediction.c
     prediction.puck.velocity = prediction.v
+    for p in prediction.pucks:
+        if p is not prediction.puck:
+            p.center += p.velocity * prediction.dt * prediction.steps
     result = prediction.region._new_state(
         body=TableStateBody(
             walls=prediction.walls,
@@ -123,7 +130,8 @@ class TableRegion(LogicalProcess):
                 result = self._new_state(body=state.body)
             elif msg.body.action == 'move':
                 clear_screen()
-                self._draw(walls, pucks)
+                # self._draw(walls, pucks)
+                self._animate(walls, pucks, msg.body.contents.steps, dt)
                 result = new_state(msg.body.contents)
                 self._draw(walls, pucks)
                 self._predict(walls, pucks, dt)
@@ -154,6 +162,7 @@ class TableRegion(LogicalProcess):
                 self.now + earliest_wall_pred['tau'],
                 WallPrediction(
                     region=self,
+                    steps=earliest_wall_pred['tau'],
                     puck=earliest_wall_pred['puck_victim'],
                     c=earliest_wall_pred["c'"],
                     v=earliest_wall_pred["v'"],
@@ -165,6 +174,7 @@ class TableRegion(LogicalProcess):
                 self.now + earliest_puck_pred['tau'],
                 PuckPrediction(
                     region=self,
+                    steps=earliest_puck_pred['tau'],
                     p1=earliest_puck_pred['puck_self'],
                     p2=earliest_puck_pred['puck_victim'],
                     c1=earliest_puck_pred["c1'"],
@@ -184,7 +194,19 @@ class TableRegion(LogicalProcess):
                 action='move',
                 contents=prediction))
 
-    def _draw(self, walls, pucks):
+    @staticmethod
+    def _animate(walls, pucks, steps, dt):
+        ps = copy.deepcopy(pucks)
+        JUMP = 100
+        for _ in range(0, steps, JUMP):
+            clear_screen()
+            TableRegion._draw(walls, ps)
+            pygame.display.flip()
+            for p in ps:
+                p.center += p.velocity * JUMP * dt
+
+    @staticmethod
+    def _draw(walls, pucks):
         """TODO: This is not the 'draw' method of the logical-process
         TODO: superclass. We're going to get rid of that."""
         for wall in walls:
