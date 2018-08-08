@@ -399,19 +399,36 @@ class ScheduleQueue(TWQueue):
 
     def gvt_chores(self):
         gvt = sys.maxsize
+        for vt, lps in self.elements.items():
+            gvt = min(gvt, vt)
+
         max_iq_length = 0
         max_oq_length = 0
         max_sq_length = 0
-        for vt, lps in self.elements.items():
-            gvt = min(gvt, vt)
-            for lp in lps:
-                max_iq_length = max(max_iq_length, len(lp.iq.elements))
-                max_oq_length = max(max_oq_length, len(lp.oq.elements))
-                max_sq_length = max(max_sq_length, len(lp.sq.elements))
-        # print({'gvt': gvt,
-        #        'max iq len': max_iq_length,
-        #        'max oq len': max_oq_length,
-        #        'max sq len': max_sq_length})
+        for lp in lps:
+            max_iq_length = max(max_iq_length, len(lp.iq.elements))
+            max_oq_length = max(max_oq_length, len(lp.oq.elements))
+            max_sq_length = max(max_sq_length, len(lp.sq.elements))
+        print({'gvt': gvt,
+               'max iq len': max_iq_length,
+               'max oq len': max_oq_length,
+               'max sq len': max_sq_length})
+
+        for lp in lps:
+            self._gc_queue(gvt, lp.sq)
+            self._gc_queue(gvt, lp.iq)
+            self._gc_queue(gvt, lp.oq)
+
+    @staticmethod
+    def _gc_queue(gvt, q):
+        while True:
+            if len(q.elements) == 1:
+                break
+            m = q.elements.peekitem(0)
+            if m[1][0].vt < gvt:
+                q.remove_earliest()
+            else:
+                break
 
 
 #  _              _         _   ___

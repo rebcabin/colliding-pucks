@@ -197,7 +197,7 @@ class TableRegion(LogicalProcess):
     @staticmethod
     def _animate(walls, pucks, steps, dt):
         ps = copy.deepcopy(pucks)
-        JUMP = 100
+        JUMP = 500
         for _ in range(0, steps, JUMP):
             clear_screen()
             TableRegion._draw(walls, ps)
