@@ -158,6 +158,7 @@ class TableRegion(LogicalProcess):
 
         if earliest_puck_pred is None \
                 or earliest_wall_pred['tau'] <= earliest_puck_pred['tau']:
+            assert np.abs(earliest_wall_pred["delta k"]) < 1e-10
             self._schedule_update(
                 self.now + earliest_wall_pred['tau'],
                 WallPrediction(
@@ -170,6 +171,8 @@ class TableRegion(LogicalProcess):
                     pucks=pucks,
                     dt=dt))
         else:
+            assert np.abs(earliest_puck_pred["delta k"]) < 1e-10
+            assert earliest_puck_pred["delta p"] < 1e-10
             self._schedule_update(
                 self.now + earliest_puck_pred['tau'],
                 PuckPrediction(
