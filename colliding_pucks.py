@@ -54,6 +54,9 @@ def new_state(prediction):
     prediction.p2.center = prediction.c2
     prediction.p1.velocity = prediction.v1
     prediction.p2.velocity = prediction.v2
+    for p in prediction.pucks:
+        if p is not prediction.p1 and p is not prediction.p2:
+            p.center += p.velocity * prediction.dt * prediction.steps
     result = prediction.region._new_state(
         body=TableStateBody(
             walls=prediction.walls,
@@ -84,29 +87,36 @@ class TableRegion(LogicalProcess):
 
     @staticmethod
     def mk_walls():
-        wall_lps = [ Wall(SCREEN_TL, SCREEN_BL),
-                     Wall(SCREEN_BL, SCREEN_BR),
-                     Wall(SCREEN_BR, SCREEN_TR),
-                     Wall(SCREEN_TR, SCREEN_TL), ]
+        wall_lps = [
+            Wall(SCREEN_TL, SCREEN_BL),
+            Wall(SCREEN_BL, SCREEN_BR),
+            Wall(SCREEN_BR, SCREEN_TR),
+            Wall(SCREEN_TR, SCREEN_TL), ]
         return wall_lps
 
     @staticmethod
     def mk_pucks():
-        small_puck = Puck(
-            center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
-            velocity=Vec2d(2.3, -1.7),
-            mass=100,
-            radius=42,
-            color=THECOLORS['red'], )
-
-        big_puck = Puck(
-            center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
-            velocity=Vec2d(-1.95, -0.20),
-            mass=100 * 79 * 79 / 42 / 42,
-            radius=79,
-            color=THECOLORS['green'], )
-
-        return [small_puck, big_puck]
+        result = [
+            Puck(
+                center=Vec2d(SCREEN_WIDTH / 3.14, SCREEN_HEIGHT / 4.56),
+                velocity=Vec2d(-.52, -.39),
+                mass=200,
+                radius=34,
+                color=THECOLORS['purple4'], ),
+            Puck(
+                center=Vec2d(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+                velocity=Vec2d(2.3, -1.7),
+                mass=100,
+                radius=42,
+                color=THECOLORS['red'], ),
+            Puck(
+                center=Vec2d(SCREEN_WIDTH / 1.5, SCREEN_HEIGHT / 2.5),
+                velocity=Vec2d(-1.95, -0.20),
+                mass=100 * 79 * 79 / 42 / 42,
+                radius=79,
+                color=THECOLORS['green'], )
+        ]
+        return result
 
     def event_main(self, lvt: VirtualTime, state: State,
                    msgs: List[EventMessage]):
