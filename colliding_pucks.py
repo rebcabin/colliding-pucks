@@ -141,7 +141,7 @@ class TableRegion(LogicalProcess):
             elif msg.body.action == 'move':
                 clear_screen()
                 # self._draw(walls, pucks)
-                self._animate(walls, pucks, msg.body.contents.steps, dt)
+                # self._animate(walls, pucks, msg.body.contents.steps, dt)
                 result = new_state(msg.body.contents)
                 self._draw(walls, pucks)
                 self._predict(walls, pucks, dt)
@@ -719,7 +719,7 @@ def main():
     # for _ in range(CAGES):
     #     demo_cage(pause=PAUSE, dt=DT)
     # # input()
-    demo_cage_time_warp(drawing=False, event_pause=0.75, dt=DT)
+    demo_cage_time_warp(drawing=False, event_pause=0.0, dt=DT)
 
 
 if __name__ == "__main__":
